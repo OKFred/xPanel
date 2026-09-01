@@ -1,0 +1,43 @@
+{
+  "name": "@xpanel/extension",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "wxt build",
+    "dev": "wxt",
+    "postinstall": "wxt prepare",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "vue-tsc --noEmit",
+    "zip": "wxt zip"
+  },
+  "dependencies": {
+    "@vueuse/core": "13.9.0",
+    "@xpanel/contracts": "workspace:*",
+    "@xpanel/request-core": "workspace:*",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "fflate": "0.8.2",
+    "idb": "8.0.3",
+    "lucide-vue-next": "0.542.0",
+    "pinia": "3.0.3",
+    "reka-ui": "2.10.4",
+    "tailwind-merge": "3.6.0",
+    "vue": "3.5.42",
+    "vue-i18n": "11.1.12",
+    "vue-router": "4.5.1",
+    "yaml": "2.8.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.1.13",
+    "@types/chrome": "0.1.4",
+    "@vitejs/plugin-vue": "6.0.1",
+    "@vue/test-utils": "2.4.6",
+    "@wxt-dev/module-vue": "1.0.3",
+    "happy-dom": "18.0.1",
+    "tailwindcss": "4.1.13",
+    "vitest": "3.2.4",
+    "vue-tsc": "3.0.6",
+    "wxt": "0.21.4"
+  }
+}

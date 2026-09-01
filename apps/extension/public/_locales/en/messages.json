@@ -1,0 +1,6 @@
+{
+  "extensionName": { "message": "xPanel" },
+  "extensionDescription": {
+    "message": "A local-first API client inside Chrome DevTools"
+  }
+}

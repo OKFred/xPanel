@@ -1,0 +1,6 @@
+{
+  "extensionName": { "message": "xPanel" },
+  "extensionDescription": {
+    "message": "Chrome DevTools 中的本地优先 API 客户端"
+  }
+}
