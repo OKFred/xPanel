@@ -1,0 +1,46 @@
+<meta charset="utf-8">
+<div class='container-fluid'>
+	<h5 id="welcome" style="margin-top: 5px; margin-bottom: 15px;">Welcome to xPanel</h5>
+	<div class='row'>	
+		<div class='col-md-6'>
+			<div>
+				<select id='selectMethod' class='form-control-sm' required>
+					<option value='POST'>POST</option>
+					<option value='GET'>GET</option>
+				</select>
+				<select id='selectDataType' class='form-control-sm' required>
+					<option value='Form Data'>form-data</option>
+					<option value='json'>json</option>
+					<option value='x-www-form-urlencoded'>x-www-form-urlencoded</option>
+				</select>
+				<button id='btnSend' class="btn btn-sm btn-outline-success" type="submit">Send</button>
+			</div>
+			<div>
+				<div class='form-check form-check-inline form-switch'>
+					<label id="labelRedirect" for='switchRedirect' class='form-check-label'>Redirect</label>
+					<input class='form-check-input' id='switchRedirect' type='checkbox' checked />
+				</div>
+				<div class='form-check form-check-inline form-switch'>
+					<label id="labelCookies" for='switchCookies' class='form-check-label'>Cookies</label>
+					<input class='form-check-input' id='switchCookies' type='checkbox' checked />
+				</div>
+				<div class='form-check form-check-inline form-switch'>
+					<label id="labelAutoClear" for='switchAutoClear' class='form-check-label'>Console Clear</label>
+					<input class='form-check-input' id='switchAutoClear' type='checkbox' />
+				</div>
+			</div>
+			<div>
+				<input class='form-control' style='margin-bottom: 5px;' type='text' id='inputURL' placeholder='URL' required />
+				<textarea class='form-control' style='margin-bottom: 5px;' type='text' id='textHeaders' placeholder='Headers'rows='1' cols='118'></textarea>
+				<textarea class='form-control' style='margin-bottom: 5px;' type='text' id='textBody' placeholder='Payload' rows='3' cols='118'></textarea>
+			</div>
+		</div>
+		<div class='col-md-6'>
+			<b id='queryInfo' style='color: royalblue; font-size: 15px; font-family: sans-serif;'>Result:</b>
+			<div id='requestResult' class='form-control' style='font-size: 14px;' placeholder='Response' rows='11' cols='111'></div>
+		</div>
+	</div>
+</div>
+<script src='../base/network.js'></script>
+<script src='../main/devPanel.js'></script>
+<link rel="stylesheet" href='../base/bootstrap.min.css' />

@@ -1,0 +1,17 @@
+.sketch/
+*.pem
+.DS_Store
+Thumbs.db
+
+node_modules/
+.pnpm-store/
+
+.output/
+dist/
+coverage/
+artifacts/
+*.log
+
+.env
+.env.*
+!.env.example

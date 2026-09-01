@@ -1,0 +1,22 @@
+{
+	"pluginDesc": {"message": "为Chrome Devtools加点油"},
+	"helloWorld": {"message": "你好啊全栈工程师！"},
+	"welcome": {"message": "欢迎使用xPanel"},
+	"send":{"message": "发送"},
+	"redirect":{"message": "重定向"},
+	"cookies":{"message": "Cookies"},
+	"autoClear":{"message": "控制台清空"},
+	"url":{"message": "URL"},
+	"headers":{"message": "请求头"},
+	"plainText":{"message": "纯文本"},
+	"payload":{"message": "请求正文"},
+	"checking":{"message": "检查中"},
+	"result":{"message": "响应结果"},
+	"querySuccess":{"message": "查询成功"},
+	"urlMissing":{"message": "URL不能为空"},
+	"bodyMalformed":{"message": "请求正文格式不正确"},
+	"headerMalformed":{"message": "请求头格式不正确"},
+	"networkError":{"message": "网络错误"},
+	"status":{"message": "状态码"},
+	"length":{"message": "长度"}
+}

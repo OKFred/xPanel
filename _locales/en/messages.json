@@ -1,0 +1,22 @@
+{
+	"pluginDesc": {"message": "Add oil for Chrome DevTools"},
+	"helloWorld": {"message": "Hello Full-Stack Developers!"},
+	"welcome": {"message": "Welcome to xPanel"},
+	"send":{"message": "Send"},
+	"redirect":{"message": "Redirect"},
+	"cookies":{"message": "Cookies"},
+	"autoClear":{"message": "Console Clear"},
+	"url":{"message": "URL"},
+	"headers":{"message": "Headers"},
+	"plainText":{"message": "Plain Text"},
+	"payload":{"message": "Payload"},
+	"checking":{"message": "Checking"},
+	"result":{"message": "Result"},
+	"querySuccess":{"message": "Query Success"},
+	"urlMissing":{"message": "URL Missing"},
+	"bodyMalformed":{"message": "Body Malformed"},
+	"headerMalformed":{"message": "Header Malformed"},
+	"networkError":{"message": "Network Error"},
+	"status":{"message": "Status"},
+	"length":{"message": "Length"}
+}
