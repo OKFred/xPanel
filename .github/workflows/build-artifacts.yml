@@ -1,0 +1,73 @@
+name: Build review artifacts
+
+on:
+  push:
+    branches: [codex/refactor-mv3-devpanel]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extension:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:packages
+      - run: pnpm --filter @xpanel/extension zip
+      - shell: pwsh
+        run: |
+          Get-ChildItem apps/extension/.output/*-chrome.zip | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant(), $_.Name
+          } | Set-Content apps/extension/.output/SHA256SUMS -Encoding utf8NoBOM
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xpanel-chrome-mv3-review
+          path: |
+            apps/extension/.output/*-chrome.zip
+            apps/extension/.output/SHA256SUMS
+
+  native-host:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: windows-x64
+          - os: macos-latest
+            artifact: macos-native
+          - os: ubuntu-latest
+            artifact: linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @xpanel/contracts build
+      - run: pnpm --filter @xpanel/native-host build:sea
+      - uses: anchore/sbom-action@v0
+        with:
+          path: apps/native-host/dist
+          output-file: apps/native-host/dist/sbom.spdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xpanel-native-${{ matrix.artifact }}
+          path: |
+            apps/native-host/dist/**
+            apps/native-host/install/**
+            apps/native-host/manifests/**
+            apps/native-host/README.md
