@@ -5,6 +5,7 @@ Thumbs.db
 
 node_modules/
 .pnpm-store/
+.wxt/
 
 .output/
 dist/

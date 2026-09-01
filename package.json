@@ -1,0 +1,37 @@
+{
+  "name": "xpanel",
+  "version": "2.0.0",
+  "private": true,
+  "description": "A local-first Manifest V3 API client inside Chrome DevTools.",
+  "license": "MIT",
+  "packageManager": "pnpm@11.5.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "pnpm build:packages && pnpm build:extension && pnpm build:native",
+    "build:extension": "pnpm build:packages && pnpm --filter @xpanel/extension build",
+    "build:native": "pnpm --filter @xpanel/contracts build && pnpm --filter @xpanel/native-host build",
+    "build:packages": "pnpm --filter @xpanel/contracts build && pnpm --filter @xpanel/request-core build",
+    "audit:static": "node scripts/static-audit.mjs",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm audit:static",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "test": "pnpm build:packages && pnpm -r --if-present test",
+    "test:watch": "vitest",
+    "typecheck": "pnpm build:packages && pnpm -r --if-present typecheck"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.35.0",
+    "@types/node": "24.3.1",
+    "eslint": "9.35.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-vue": "10.4.0",
+    "prettier": "3.6.2",
+    "typescript": "5.9.2",
+    "typescript-eslint": "8.42.0",
+    "vue-eslint-parser": "10.2.0",
+    "vitest": "3.2.4"
+  }
+}
