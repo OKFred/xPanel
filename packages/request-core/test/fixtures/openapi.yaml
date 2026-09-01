@@ -1,0 +1,41 @@
+openapi: 3.1.0
+info:
+  title: Fixture API
+  version: 1.0.0
+servers:
+  - url: https://api.example.com
+paths:
+  /items/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ItemId"
+    post:
+      operationId: updateItem
+      summary: Update item
+      parameters:
+        - name: verbose
+          in: query
+          schema:
+            type: boolean
+            example: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: xPanel
+      responses:
+        "200":
+          description: OK
+components:
+  parameters:
+    ItemId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        example: item-1

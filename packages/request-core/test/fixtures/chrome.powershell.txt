@@ -1,0 +1,9 @@
+$headers = @{
+  'Authorization' = 'Bearer secret-token'
+  'Accept' = 'application/json'
+}
+Invoke-RestMethod -Uri 'https://api.example.com/v1/items?page=2' `
+  -Method 'POST' `
+  -Headers $headers `
+  -ContentType 'application/json' `
+  -Body '{"name":"xPanel"}'

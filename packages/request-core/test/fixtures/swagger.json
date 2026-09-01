@@ -1,0 +1,25 @@
+{
+  "swagger": "2.0",
+  "info": { "title": "Fixture API", "version": "1.0.0" },
+  "schemes": ["https"],
+  "host": "legacy.example.com",
+  "basePath": "/api",
+  "consumes": ["application/x-www-form-urlencoded"],
+  "paths": {
+    "/login": {
+      "post": {
+        "operationId": "login",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "formData",
+            "type": "string",
+            "default": "demo"
+          },
+          { "name": "password", "in": "formData", "type": "string" }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    }
+  }
+}

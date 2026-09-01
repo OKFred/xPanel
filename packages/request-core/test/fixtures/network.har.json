@@ -1,0 +1,47 @@
+{
+  "log": {
+    "version": "1.2",
+    "creator": { "name": "Chrome", "version": "1" },
+    "entries": [
+      {
+        "startedDateTime": "2026-09-02T00:00:00.000Z",
+        "time": 42,
+        "request": {
+          "method": "POST",
+          "url": "https://api.example.com/items?id=1",
+          "httpVersion": "HTTP/2",
+          "headers": [
+            { "name": "Authorization", "value": "Bearer secret-token" },
+            { "name": "Content-Type", "value": "application/json" }
+          ],
+          "queryString": [{ "name": "id", "value": "1" }],
+          "postData": {
+            "mimeType": "application/json",
+            "text": "{\"ok\":true}"
+          }
+        },
+        "response": {
+          "status": 201,
+          "statusText": "Created",
+          "headers": [{ "name": "Set-Cookie", "value": "sid=secret" }],
+          "content": {
+            "size": 11,
+            "mimeType": "application/json",
+            "text": "{\"id\":\"1\"}"
+          },
+          "redirectURL": ""
+        },
+        "cache": {},
+        "timings": {
+          "blocked": 0,
+          "dns": 1,
+          "connect": 2,
+          "ssl": 1,
+          "send": 3,
+          "wait": 30,
+          "receive": 6
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,5 @@
+curl 'https://api.example.com/v1/items?page=2' \
+  -X 'POST' \
+  -H 'Authorization: Bearer secret-token' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{"name":"xPanel"}'
