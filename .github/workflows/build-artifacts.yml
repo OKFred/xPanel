@@ -31,6 +31,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: xpanel-chrome-mv3-review
+          include-hidden-files: true
           path: |
             apps/extension/.output/*-chrome.zip
             apps/extension/.output/SHA256SUMS

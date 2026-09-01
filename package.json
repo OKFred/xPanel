@@ -17,7 +17,7 @@
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm audit:static",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "eslint .",
+    "lint": "pnpm build:packages && eslint .",
     "test": "pnpm build:packages && pnpm -r --if-present test",
     "test:watch": "vitest",
     "typecheck": "pnpm build:packages && pnpm -r --if-present typecheck"
