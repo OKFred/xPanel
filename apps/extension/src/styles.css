@@ -222,7 +222,7 @@ button {
 .workspace {
   display: grid;
   min-width: 0;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
   background: #0b111e;
 }
 
@@ -281,6 +281,96 @@ button {
   outline: none;
 }
 
+.executor-select {
+  width: 156px;
+  align-self: stretch;
+  border: 0;
+  border-right: 1px solid #253147;
+  border-radius: 0;
+  background: #101a2a;
+  color: #b8c8de;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.relay-manage-button {
+  align-self: stretch;
+  border: 0;
+  border-right: 1px solid #253147;
+  border-radius: 0;
+  background: #101927;
+  padding: 0 10px;
+  color: #91a3be;
+  font-size: 11px;
+}
+
+.execution-progress {
+  display: grid;
+  grid-template-columns: minmax(130px, auto) minmax(140px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  margin: -8px 14px 10px;
+  border: 1px solid #24344c;
+  border-radius: 7px;
+  background: #0d1727;
+  padding: 7px 10px;
+  color: #94a7c3;
+  font-size: 10px;
+}
+
+.progress-phase {
+  color: #c9d6e8;
+  font-weight: 650;
+}
+
+.progress-track {
+  position: relative;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #1c2a3f;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #397eff, #69b7ff);
+  transition: width 120ms linear;
+}
+
+.progress-track[data-indeterminate="true"] .progress-fill {
+  width: 38%;
+  animation: progress-sweep 1.15s ease-in-out infinite;
+}
+
+.progress-track[data-cancelling="true"] .progress-fill {
+  background: #d64e5c;
+}
+
+.progress-detail {
+  min-width: 110px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@keyframes progress-sweep {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(290%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-track[data-indeterminate="true"] .progress-fill {
+    width: 100%;
+    animation: none;
+    opacity: 0.45;
+  }
+}
+
 .method-select {
   width: 92px;
   padding: 0 10px;
@@ -326,6 +416,12 @@ button {
 
 .stop-button {
   background: #d64e5c;
+}
+
+.stop-button:disabled,
+.send-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 .primary-button {
@@ -729,6 +825,146 @@ select:focus,
   grid-template-rows: auto auto auto;
 }
 
+.dialog-card.relay-dialog {
+  width: min(880px, calc(100vw - 42px));
+  grid-template-rows: auto minmax(330px, 1fr) auto;
+}
+
+.relay-manager-content {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: minmax(190px, 0.7fr) minmax(320px, 1.3fr);
+}
+
+.relay-profile-list {
+  min-height: 0;
+  overflow: auto;
+  border-right: 1px solid #1f2b3e;
+  padding: 12px;
+}
+
+.relay-profile-list-header,
+.relay-profile-item,
+.relay-profile-actions,
+.relay-test-result {
+  display: flex;
+  align-items: center;
+}
+
+.relay-profile-list-header {
+  justify-content: space-between;
+  margin-bottom: 9px;
+}
+
+.relay-profile-list-header strong {
+  font-size: 12px;
+}
+
+.relay-profile-item {
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 6px;
+  border: 1px solid #233149;
+  border-radius: 7px;
+  background: #0b1422;
+  padding: 8px;
+}
+
+.relay-profile-item[data-active="true"] {
+  border-color: #4776bc;
+  background: #111f34;
+}
+
+.relay-profile-summary {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: #d3deed;
+  text-align: left;
+}
+
+.relay-profile-summary strong,
+.relay-profile-summary span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relay-profile-summary span {
+  margin-top: 3px;
+  color: #71839f;
+  font-size: 9px;
+}
+
+.relay-profile-editor {
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+}
+
+.relay-profile-editor .form-stack {
+  gap: 12px;
+}
+
+.relay-profile-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.relay-token-warning {
+  border: 1px solid #694b28;
+  border-radius: 7px;
+  background: #241b11;
+  padding: 9px;
+  color: #f4bd77;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.relay-test-result {
+  gap: 6px;
+  color: #6cdfb0;
+  font-size: 10px;
+}
+
+.relay-consent-map {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #2b3b53;
+  border-radius: 8px;
+  background: #0a1321;
+  padding: 10px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+}
+
+.relay-consent-map span {
+  overflow-wrap: anywhere;
+}
+
+.relay-data-list {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.executor-help {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #5f4824;
+  border-radius: 7px;
+  background: #211a10;
+  padding: 9px 10px;
+  color: #f5bd77;
+  font-size: 11px;
+}
+
 .confirmation-content {
   display: grid;
   gap: 12px;
@@ -829,5 +1065,18 @@ select:focus,
   }
   .toolbar-actions .ghost-button span {
     display: none;
+  }
+  .executor-select {
+    width: 125px;
+  }
+  .relay-manage-button {
+    padding-inline: 7px;
+  }
+  .execution-progress {
+    grid-template-columns: minmax(110px, auto) minmax(100px, 1fr);
+  }
+  .progress-detail {
+    grid-column: 1 / -1;
+    text-align: left;
   }
 }
