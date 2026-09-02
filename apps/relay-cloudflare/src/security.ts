@@ -97,7 +97,10 @@ export async function authenticateBearer(
   };
 }
 
-function canonicalConfiguredOrigin(value: string): string {
+function canonicalConfiguredOrigin(
+  value: string,
+  variableName = "ALLOWED_TARGET_ORIGINS",
+): string {
   let url: URL;
   try {
     url = new URL(value);
@@ -105,7 +108,7 @@ function canonicalConfiguredOrigin(value: string): string {
     throw new RelayError(
       500,
       "internal",
-      "ALLOWED_TARGET_ORIGINS contains an invalid origin.",
+      `${variableName} contains an invalid origin.`,
     );
   }
   if (
@@ -119,9 +122,16 @@ function canonicalConfiguredOrigin(value: string): string {
     throw new RelayError(
       500,
       "internal",
-      "ALLOWED_TARGET_ORIGINS must contain exact HTTPS origins.",
+      `${variableName} must contain exact HTTPS origins.`,
     );
   }
+  url.hostname = url.hostname.replace(/\.$/u, "");
+  return url.origin;
+}
+
+function canonicalOriginForComparison(value: string): string {
+  const url = new URL(value);
+  url.hostname = url.hostname.replace(/\.$/u, "");
   return url.origin;
 }
 
@@ -141,9 +151,22 @@ export function parseTargetPolicy(
     allowedOriginsValue
       .split(/[\s,]+/u)
       .filter((entry) => entry.length > 0)
-      .map(canonicalConfiguredOrigin),
+      .map((entry) => canonicalConfiguredOrigin(entry)),
   );
   return { kind, origins };
+}
+
+export function parseRelaySelfOrigins(
+  requestOrigin: string,
+  configuredOriginsValue: string,
+): ReadonlySet<string> {
+  return new Set([
+    canonicalOriginForComparison(requestOrigin),
+    ...configuredOriginsValue
+      .split(/[\s,]+/u)
+      .filter((entry) => entry.length > 0)
+      .map((entry) => canonicalConfiguredOrigin(entry, "RELAY_SELF_ORIGINS")),
+  ]);
 }
 
 function isIpLiteral(hostname: string): boolean {
@@ -166,7 +189,7 @@ function isBlockedHostname(hostname: string): boolean {
 export function assertTargetAllowed(
   target: URL,
   policy: TargetPolicy,
-  relayOrigin: string,
+  relayOrigins: string | ReadonlySet<string>,
   requestId?: string,
 ): void {
   if (
@@ -189,7 +212,11 @@ export function assertTargetAllowed(
       requestId,
     );
   }
-  if (target.origin === relayOrigin) {
+  const knownRelayOrigins =
+    typeof relayOrigins === "string"
+      ? new Set([canonicalOriginForComparison(relayOrigins)])
+      : relayOrigins;
+  if (knownRelayOrigins.has(canonicalOriginForComparison(target.origin))) {
     throw new RelayError(
       403,
       "target_not_allowed",

@@ -18,12 +18,17 @@ import {
   REQUEST_METADATA_HEADER,
   RESPONSE_METADATA_HEADER,
 } from "./protocol";
-import { authenticateBearer, parseTargetPolicy } from "./security";
+import {
+  authenticateBearer,
+  parseRelaySelfOrigins,
+  parseTargetPolicy,
+} from "./security";
 
 export interface Env {
   RELAY_TOKEN_SHA256: string;
   TARGET_POLICY: string;
   ALLOWED_TARGET_ORIGINS: string;
+  RELAY_SELF_ORIGINS: string;
 }
 
 const CORS_HEADERS = {
@@ -160,11 +165,15 @@ async function execute(
     env.TARGET_POLICY,
     env.ALLOWED_TARGET_ORIGINS,
   );
+  const relayOrigins = parseRelaySelfOrigins(
+    new URL(request.url).origin,
+    env.RELAY_SELF_ORIGINS,
+  );
   const upstream = await executeTarget(
     { ...metadata, timeoutMs: remainingTimeoutMs },
     body,
     policy,
-    new URL(request.url).origin,
+    relayOrigins,
     request.signal,
     fetcher,
   );

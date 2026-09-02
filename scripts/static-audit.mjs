@@ -93,6 +93,7 @@ if (!existsSync(relayConfigPath)) {
     ],
     ["default allowlist policy", /"TARGET_POLICY"\s*:\s*"allowlist"/u],
     ["empty default allowlist", /"ALLOWED_TARGET_ORIGINS"\s*:\s*""/u],
+    ["empty default Relay aliases", /"RELAY_SELF_ORIGINS"\s*:\s*""/u],
   ];
   for (const [label, pattern] of requiredRelayConfigPatterns) {
     if (!pattern.test(relayConfig)) {

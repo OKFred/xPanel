@@ -20,6 +20,7 @@ export default defineConfig({
         bindings: {
           TARGET_POLICY: "allowlist",
           ALLOWED_TARGET_ORIGINS: "https://api.example.com",
+          RELAY_SELF_ORIGINS: "",
           // SHA-256("test-relay-token")
           RELAY_TOKEN_SHA256: testTokenDigest,
         },

@@ -1,6 +1,17 @@
 import { REMOTE_MAX_REQUEST_BODY_BYTES } from "@xpanel/contracts";
 import { RelayError } from "./errors";
 
+async function cancelReaderSafely(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  reason: string,
+): Promise<void> {
+  try {
+    await reader.cancel(reason);
+  } catch {
+    // Cancellation is cleanup and must not replace the protocol outcome.
+  }
+}
+
 export async function readRequestBody(
   request: Request,
   expectedSize: number,
@@ -49,7 +60,7 @@ export async function readRequestBody(
       ? undefined
       : setTimeout(() => {
           timedOut = true;
-          void reader.cancel("timeout").catch(() => undefined);
+          void cancelReaderSafely(reader, "timeout");
         }, timeoutMs);
   try {
     for (;;) {
@@ -81,7 +92,7 @@ export async function readRequestBody(
       if (result.done) break;
       const nextReceived = received + result.value.byteLength;
       if (nextReceived > REMOTE_MAX_REQUEST_BODY_BYTES) {
-        await reader.cancel("payload_too_large");
+        await cancelReaderSafely(reader, "payload_too_large");
         throw new RelayError(
           413,
           "payload_too_large",
@@ -90,7 +101,7 @@ export async function readRequestBody(
         );
       }
       if (nextReceived > expectedSize) {
-        await reader.cancel("invalid_metadata");
+        await cancelReaderSafely(reader, "invalid_metadata");
         throw new RelayError(
           400,
           "invalid_metadata",

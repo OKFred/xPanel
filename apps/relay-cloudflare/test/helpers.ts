@@ -30,6 +30,7 @@ export function createEnv(overrides: Partial<Env> = {}): Env {
     RELAY_TOKEN_SHA256,
     TARGET_POLICY: "allowlist",
     ALLOWED_TARGET_ORIGINS: "https://api.example.com",
+    RELAY_SELF_ORIGINS: "",
     ...overrides,
   };
 }

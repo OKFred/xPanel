@@ -17,6 +17,10 @@ may observe network metadata including the originating client IP.
   contact any target.
 - Targets must use credential-free HTTPS URLs. IP literals, localhost, private
   or reserved hostnames, and the Relay itself are denied.
+- The request origin is always treated as the Relay itself. If the same Worker
+  also has custom domains or other public aliases, list every exact HTTPS
+  origin in `RELAY_SELF_ORIGINS`; those aliases are rejected on the initial
+  request and on every redirect as well.
 - `global_fetch_strictly_public` keeps outbound fetches on the public route,
   including calls to Cloudflare-proxied APIs, instead of bypassing their Worker
   routes or front-door security settings.
@@ -68,7 +72,8 @@ smallest attack surface:
 {
   "vars": {
     "TARGET_POLICY": "allowlist",
-    "ALLOWED_TARGET_ORIGINS": "https://api.example.com https://other.example.org:8443"
+    "ALLOWED_TARGET_ORIGINS": "https://api.example.com https://other.example.org:8443",
+    "RELAY_SELF_ORIGINS": "https://relay.example.com"
   }
 }
 ```

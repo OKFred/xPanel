@@ -184,7 +184,7 @@ export async function executeTarget(
   metadata: RemoteRequestMetaV1,
   body: Uint8Array,
   policy: TargetPolicy,
-  relayOrigin: string,
+  relayOrigins: string | ReadonlySet<string>,
   incomingSignal: AbortSignal,
   fetcher: Fetcher = fetch,
 ): Promise<RelayExecution> {
@@ -218,7 +218,7 @@ export async function executeTarget(
 
   try {
     for (;;) {
-      assertTargetAllowed(currentUrl, policy, relayOrigin, metadata.requestId);
+      assertTargetAllowed(currentUrl, policy, relayOrigins, metadata.requestId);
       if (abortScope.signal.aborted) {
         throw abortError(abortScope, metadata.requestId);
       }
@@ -315,7 +315,7 @@ export async function executeTarget(
         );
       }
       try {
-        assertTargetAllowed(nextUrl, policy, relayOrigin, metadata.requestId);
+        assertTargetAllowed(nextUrl, policy, relayOrigins, metadata.requestId);
       } catch (error) {
         await cancelResponseBody(response, "redirect_target_not_allowed");
         throw error;

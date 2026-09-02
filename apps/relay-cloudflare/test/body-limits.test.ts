@@ -55,6 +55,50 @@ describe("20 MiB body boundaries", () => {
     });
   });
 
+  test.each([
+    {
+      expectedCode: "payload_too_large",
+      expectedSize: REMOTE_MAX_REQUEST_BODY_BYTES,
+      name: "payload_too_large",
+      receivedSize: REMOTE_MAX_REQUEST_BODY_BYTES + 1,
+      status: 413,
+    },
+    {
+      expectedCode: "invalid_metadata",
+      expectedSize: 1,
+      name: "invalid_metadata",
+      receivedSize: 2,
+      status: 400,
+    },
+  ])(
+    "preserves $name when request body cancellation fails",
+    async ({ expectedCode, expectedSize, receivedSize, status }) => {
+      let cancellationAttempted = false;
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(receivedSize));
+        },
+        cancel() {
+          cancellationAttempted = true;
+          throw new Error("synthetic cancellation failure");
+        },
+      });
+      const request = new Request("https://relay.example/v1/execute", {
+        method: "POST",
+        body: stream,
+      });
+
+      await expect(
+        readRequestBody(request, expectedSize, "request-cancel-failure"),
+      ).rejects.toMatchObject({
+        status,
+        code: expectedCode,
+        requestId: "request-cancel-failure",
+      });
+      expect(cancellationAttempted).toBe(true);
+    },
+  );
+
   test("applies the request timeout while the Relay body is uploading", async () => {
     let cancelled = false;
     const stream = new ReadableStream<Uint8Array>({
@@ -222,7 +266,7 @@ describe("20 MiB body boundaries", () => {
         expect.any(Function),
         60_000,
       );
-      const timeoutHandle = setTimer.mock.results[0]?.value;
+      const timeoutHandle = setTimer.mock.results[0]?.value as unknown;
       expect(timeoutHandle).toBeDefined();
       expect(clearTimer).toHaveBeenCalledExactlyOnceWith(timeoutHandle);
     } finally {

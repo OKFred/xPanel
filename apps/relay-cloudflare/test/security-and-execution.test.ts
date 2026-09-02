@@ -98,6 +98,7 @@ describe("target policy and SSRF controls", () => {
     "https://10.0.0.1/path",
     "https://[::1]/path",
     "https://relay.example.workers.dev/path",
+    "https://relay.example.workers.dev./path",
   ])("blocks SSRF target %s even in public-https mode", async (url) => {
     const fetcher = vi.fn<Fetcher>();
     const response = await executeRelay(
@@ -107,6 +108,27 @@ describe("target policy and SSRF controls", () => {
       createEnv({
         TARGET_POLICY: "public-https",
         ALLOWED_TARGET_ORIGINS: "",
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(readRelayError(response)).resolves.toMatchObject({
+      requestId: "request-1",
+      error: { code: "target_not_allowed" },
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  test("blocks every configured Relay alias", async () => {
+    const fetcher = vi.fn<Fetcher>();
+    const response = await executeRelay(
+      fetcher,
+      createMetadata({ url: "https://relay.example.com/path" }),
+      new Uint8Array(),
+      createEnv({
+        TARGET_POLICY: "public-https",
+        ALLOWED_TARGET_ORIGINS: "",
+        RELAY_SELF_ORIGINS: "https://relay.example.com",
       }),
     );
 

@@ -28,5 +28,6 @@
   "vars": {
     "TARGET_POLICY": "allowlist",
     "ALLOWED_TARGET_ORIGINS": "",
+    "RELAY_SELF_ORIGINS": "",
   },
 }
