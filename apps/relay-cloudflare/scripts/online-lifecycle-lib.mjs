@@ -159,6 +159,35 @@ export async function preflightRelay(config, fetcher = globalThis.fetch) {
   }
 }
 
+export function isTransientWranglerReadFailure(result) {
+  return (
+    result?.code !== 0 &&
+    /(?:fetch failed|connectivity issue|ECONNRESET|ETIMEDOUT|EAI_AGAIN)/iu.test(
+      `${result?.stdout ?? ""}\n${result?.stderr ?? ""}`,
+    )
+  );
+}
+
+export async function retryTransientWranglerRead(
+  operation,
+  wait = (delayMs) =>
+    new Promise((resolveWait) => setTimeout(resolveWait, delayMs)),
+) {
+  let result;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    result = await operation();
+    if (
+      result?.code === 0 ||
+      !isTransientWranglerReadFailure(result) ||
+      attempt === 3
+    ) {
+      return result;
+    }
+    await wait(attempt * 500);
+  }
+  return result;
+}
+
 function asError(value) {
   return value instanceof Error ? value : new Error(String(value));
 }

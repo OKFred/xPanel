@@ -9,6 +9,7 @@ import {
   parseLifecycleEnvironment,
   preflightRelay,
   relayBindingState,
+  retryTransientWranglerRead,
   runOnlineLifecycle,
 } from "./online-lifecycle-lib.mjs";
 
@@ -110,7 +111,14 @@ function runWrangler(args, options = {}) {
 }
 
 async function wranglerJson(args) {
-  const result = await runWrangler([...args, "--json"], { capture: true });
+  const result = await retryTransientWranglerRead(() =>
+    runWrangler([...args, "--json"], { allowFailure: true, capture: true }),
+  );
+  if (result.code !== 0) {
+    throw new Error(
+      `wrangler ${args[0]} failed with ${result.signal ?? `exit ${result.code}`}.${result.stderr.trim() ? ` ${result.stderr.trim()}` : ""}`,
+    );
+  }
   try {
     return JSON.parse(result.stdout);
   } catch {

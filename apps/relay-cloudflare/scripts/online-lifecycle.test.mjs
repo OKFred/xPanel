@@ -5,9 +5,11 @@ import {
   ONLINE_ACCEPTANCE_CONFIRMATION,
   activeVersionId,
   createFixtureName,
+  isTransientWranglerReadFailure,
   parseLifecycleEnvironment,
   preflightRelay,
   relayBindingState,
+  retryTransientWranglerRead,
   runOnlineLifecycle,
 } from "./online-lifecycle-lib.mjs";
 
@@ -213,6 +215,41 @@ describe("Relay authentication preflight", () => {
       ),
       /unsupported capabilities/u,
     );
+  });
+});
+
+describe("Wrangler read retries", () => {
+  test("retries only explicit transient network failures", async () => {
+    const results = [
+      {
+        code: 1,
+        stderr: "A fetch request failed due to a connectivity issue.",
+      },
+      { code: 1, stderr: "fetch failed: ETIMEDOUT" },
+      { code: 0, stdout: "{}", stderr: "" },
+    ];
+    const waits = [];
+    let calls = 0;
+    const result = await retryTransientWranglerRead(
+      async () => results[calls++],
+      async (delayMs) => waits.push(delayMs),
+    );
+    assert.equal(result.code, 0);
+    assert.equal(calls, 3);
+    assert.deepEqual(waits, [500, 1_000]);
+    assert.equal(isTransientWranglerReadFailure(results[0]), true);
+  });
+
+  test("does not retry configuration or authentication failures", async () => {
+    let calls = 0;
+    const failure = { code: 1, stderr: "Authentication error [code: 10000]" };
+    const result = await retryTransientWranglerRead(async () => {
+      calls += 1;
+      return failure;
+    });
+    assert.equal(result, failure);
+    assert.equal(calls, 1);
+    assert.equal(isTransientWranglerReadFailure(failure), false);
   });
 });
 
