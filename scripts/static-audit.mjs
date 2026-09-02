@@ -134,6 +134,7 @@ if (!existsSync(lifecyclePath) || !existsSync(lifecycleLibraryPath)) {
       lifecycleLibrary,
     ],
     ["empty allowlist precondition", /empty allowlist/u, lifecycleLibrary],
+    ["pre-deployment token handshake", /preflightRelay/u, lifecycleLibrary],
   ];
   for (const [label, pattern, source] of requiredLifecyclePatterns) {
     if (!pattern.test(source)) {

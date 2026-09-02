@@ -141,6 +141,7 @@ export async function runOnlineLifecycle(config, operations) {
       "Refusing online acceptance because the Relay does not currently have an empty allowlist.",
     );
   }
+  await operations.preflightRelay(config);
 
   let fixtureTouched = false;
   let relayTouched = false;

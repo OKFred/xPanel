@@ -42,6 +42,7 @@ function fakeOperations(overrides = {}) {
         allowedOrigins: "",
         selfOrigins: "https://relay-alias.example.com",
       }),
+      preflightRelay: operation("preflightRelay"),
       deployFixture: operation("deployFixture"),
       waitForFixture: operation("waitForFixture"),
       openRelay: operation("openRelay"),
@@ -171,6 +172,7 @@ describe("guarded online lifecycle", () => {
       calls.map(([name]) => name),
       [
         "inspectRelay",
+        "preflightRelay",
         "deployFixture",
         "waitForFixture",
         "openRelay",
@@ -181,8 +183,8 @@ describe("guarded online lifecycle", () => {
       ],
     );
     assert.equal(calls[4][1].fixtureOrigin.endsWith("workers.dev"), true);
-    assert.equal(calls[3][2].selfOrigins, "https://relay-alias.example.com");
-    assert.equal(calls[6][2].selfOrigins, "https://relay-alias.example.com");
+    assert.equal(calls[4][2].selfOrigins, "https://relay-alias.example.com");
+    assert.equal(calls[7][2].selfOrigins, "https://relay-alias.example.com");
   });
 
   test("deletes a possibly-created Fixture when deployment reports failure", async () => {
@@ -198,7 +200,7 @@ describe("guarded online lifecycle", () => {
     );
     assert.deepEqual(
       calls.map(([name]) => name),
-      ["inspectRelay", "deployFixture", "deleteFixture"],
+      ["inspectRelay", "preflightRelay", "deployFixture", "deleteFixture"],
     );
   });
 
@@ -217,6 +219,7 @@ describe("guarded online lifecycle", () => {
       calls.map(([name]) => name),
       [
         "inspectRelay",
+        "preflightRelay",
         "deployFixture",
         "waitForFixture",
         "openRelay",
@@ -241,6 +244,7 @@ describe("guarded online lifecycle", () => {
       calls.map(([name]) => name),
       [
         "inspectRelay",
+        "preflightRelay",
         "deployFixture",
         "waitForFixture",
         "openRelay",
@@ -248,6 +252,23 @@ describe("guarded online lifecycle", () => {
         "restoreRelay",
         "deleteFixture",
       ],
+    );
+  });
+
+  test("refuses an invalid token before touching Cloudflare", async () => {
+    const { calls, operations } = fakeOperations({
+      preflightRelay: async () => {
+        calls.push(["preflightRelay"]);
+        throw new Error("synthetic authentication failure");
+      },
+    });
+    await assert.rejects(
+      runOnlineLifecycle(lifecycleConfig(), operations),
+      /synthetic authentication failure/u,
+    );
+    assert.deepEqual(
+      calls.map(([name]) => name),
+      ["inspectRelay", "preflightRelay"],
     );
   });
 

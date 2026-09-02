@@ -204,6 +204,32 @@ function childEnvironment(config, targetUrl) {
   };
 }
 
+async function preflightRelay(config) {
+  const response = await fetch(`${config.relayBaseUrl}/v1/capabilities`, {
+    headers: { Authorization: `Bearer ${config.relayToken}` },
+    signal: globalThis.AbortSignal.timeout(10_000),
+  });
+  if (response.status !== 200) {
+    throw new Error(
+      `Relay authentication preflight returned HTTP ${response.status}; verify XPANEL_REMOTE_TOKEN.`,
+    );
+  }
+  let capabilities;
+  try {
+    capabilities = await response.json();
+  } catch {
+    throw new Error("Relay authentication preflight returned invalid JSON.");
+  }
+  if (
+    capabilities?.protocolVersion !== 1 ||
+    capabilities?.provider !== "cloudflare"
+  ) {
+    throw new Error(
+      "Relay authentication preflight returned unsupported capabilities.",
+    );
+  }
+}
+
 async function ensureCleanRepository() {
   const result = await runProcess(
     "git",
@@ -234,6 +260,7 @@ async function main() {
   process.stdout.write(`Online lifecycle Fixture: ${fixtureName}\n`);
   await runOnlineLifecycle(config, {
     inspectRelay: () => inspectRelay(config.relayName),
+    preflightRelay: () => preflightRelay(config),
     async deployFixture() {
       await runWrangler([
         "deploy",
