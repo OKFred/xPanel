@@ -67,11 +67,15 @@ jobs:
           output-file: apps/relay-cloudflare/dist/sbom.spdx.json
       - shell: pwsh
         run: |
-          Compress-Archive -Path @(
-            "apps/relay-cloudflare/dist/*",
+          $reviewRoot = "apps/relay-cloudflare/review/xpanel-relay-cloudflare"
+          New-Item -ItemType Directory -Path $reviewRoot | Out-Null
+          Copy-Item -LiteralPath @(
+            "apps/relay-cloudflare/dist",
             "apps/relay-cloudflare/src",
             "apps/relay-cloudflare/scripts",
-            "apps/relay-cloudflare/test",
+            "apps/relay-cloudflare/test"
+          ) -Destination $reviewRoot -Recurse
+          Copy-Item -LiteralPath @(
             "apps/relay-cloudflare/.dev.vars.example",
             "apps/relay-cloudflare/package.json",
             "apps/relay-cloudflare/tsconfig.json",
@@ -79,7 +83,23 @@ jobs:
             "apps/relay-cloudflare/wrangler.jsonc",
             "apps/relay-cloudflare/README.md",
             "apps/relay-cloudflare/worker-configuration.d.ts"
-          ) -DestinationPath "apps/relay-cloudflare/xpanel-relay-cloudflare-review.zip"
+          ) -Destination $reviewRoot
+          Compress-Archive -LiteralPath $reviewRoot `
+            -DestinationPath "apps/relay-cloudflare/xpanel-relay-cloudflare-review.zip"
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [IO.Compression.ZipFile]::OpenRead(
+            "apps/relay-cloudflare/xpanel-relay-cloudflare-review.zip"
+          )
+          try {
+            $duplicates = $archive.Entries |
+              Group-Object FullName |
+              Where-Object Count -gt 1
+            if ($duplicates) {
+              throw "Review ZIP contains duplicate paths: $($duplicates.Name -join ', ')"
+            }
+          } finally {
+            $archive.Dispose()
+          }
           "{0}  {1}" -f (
             Get-FileHash -Algorithm SHA256 -LiteralPath "apps/relay-cloudflare/xpanel-relay-cloudflare-review.zip"
           ).Hash.ToLowerInvariant(), "xpanel-relay-cloudflare-review.zip" |

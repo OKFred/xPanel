@@ -139,4 +139,7 @@ Maintainers can run the destructive, environment-gated online suite against a
 temporary synthetic Fixture Worker with `pnpm --filter
 @xpanel/relay-cloudflare test:online`. It requires
 `XPANEL_REMOTE_BASE_URL`, `XPANEL_REMOTE_TARGET_URL`, and
-`XPANEL_REMOTE_TOKEN`; the token is never printed.
+`XPANEL_REMOTE_TOKEN`; the token is never printed. Use the Fixture origin for
+this protocol suite. The separate Chromium E2E runner sends directly to the
+configured target, so set its `XPANEL_REMOTE_TARGET_URL` to the Fixture's
+concrete `/e2e` URL.

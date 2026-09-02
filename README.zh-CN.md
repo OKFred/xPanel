@@ -32,7 +32,8 @@ pnpm e2e:chromium
 Chromium E2E 使用隔离的临时 Profile 和已安装的 Chromium/Chrome for Testing；
 无法自动发现时可设置 `XPANEL_CHROMIUM_EXECUTABLE`。可选在线 Relay 验收读取
 `XPANEL_REMOTE_BASE_URL`、`XPANEL_REMOTE_TOKEN` 和
-`XPANEL_REMOTE_TARGET_URL`，测试脚本不会输出 Token。
+`XPANEL_REMOTE_TARGET_URL`，测试脚本不会输出 Token。协议在线套件应把合成
+Fixture 的 origin 作为 target；Chromium E2E 则应传 Fixture 的具体 `/e2e` URL。
 
 在 `chrome://extensions` 加载
 `apps/extension/.output/chrome-mv3-dev`，打开 DevTools 后选择 xPanel。

@@ -48,7 +48,9 @@ The Chromium E2E runner uses an isolated temporary profile and an installed
 Chromium/Chrome for Testing binary. Set `XPANEL_CHROMIUM_EXECUTABLE` when it
 cannot discover one. Optional online Relay acceptance also reads
 `XPANEL_REMOTE_BASE_URL`, `XPANEL_REMOTE_TOKEN`, and
-`XPANEL_REMOTE_TARGET_URL`; it never prints the token.
+`XPANEL_REMOTE_TARGET_URL`; it never prints the token. The protocol suite uses
+the synthetic Fixture origin as the target, while Chromium E2E expects the
+fixture's concrete `/e2e` URL.
 
 Load `apps/extension/.output/chrome-mv3-dev` from `chrome://extensions`, open
 DevTools, then select the xPanel tab.
