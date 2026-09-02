@@ -192,8 +192,7 @@ const MIN_TIMEOUT_MS = 1;
 const MAX_TIMEOUT_MS = 86_400_000;
 const MIN_TIMEOUT_SECONDS = MIN_TIMEOUT_MS / 1_000;
 const MAX_TIMEOUT_SECONDS = MAX_TIMEOUT_MS / 1_000;
-const TIMEOUT_RANGE_MESSAGE =
-  "Timeout must be between 0.001 and 86400 seconds.";
+const timeoutRangeMessage = computed(() => t("timeoutRange"));
 
 const detectedFormat = computed(() =>
   detectImportFormat(importText.value, importFileName.value),
@@ -215,6 +214,42 @@ const anyModalOpen = computed(
     remoteConsentOpen.value ||
     browserCompatibilityOpen.value,
 );
+function displayCollectionName(collection: CollectionRecord): string {
+  return collection.id === "collection-default" &&
+    collection.name === "My requests"
+    ? t("myRequests")
+    : collection.name;
+}
+const displayedNotice = computed(() => {
+  const value = notice.value;
+  let match = value.match(
+    /^(\d+) invalid saved record\(s\) were ignored\. Import a backup if data is missing\.$/u,
+  );
+  if (match) return t("invalidSavedRecords", { count: Number(match[1]) });
+  if (value === "Deleted saved request.") return t("deletedSavedRequest");
+  match = value.match(
+    /^Deleted collection and (\d+) exclusive requests?; shared requests were kept\.$/u,
+  );
+  if (match) return t("deletedCollectionCascade", { count: Number(match[1]) });
+  if (
+    value ===
+    "Deleted collection; its exclusive requests were moved to My requests."
+  ) {
+    return t("deletedCollectionMoved");
+  }
+  if (value === "Deleted collection; shared requests were kept.") {
+    return t("deletedCollectionShared");
+  }
+  if (value === "Deleted collection.") return t("deletedCollection");
+  if (value === "Saved locally with sensitive values.") {
+    return t("savedWithSensitive");
+  }
+  if (value === "Saved locally with sensitive values redacted.") {
+    return t("savedWithRedaction");
+  }
+  match = value.match(/^Imported (\d+) requests?\.$/u);
+  return match ? t("importedRequests", { count: Number(match[1]) }) : value;
+});
 const progressPercent = computed(() => {
   const progress = executionProgress.value;
   if (
@@ -559,13 +594,17 @@ function normalizeTimeoutInput(): void {
     timeoutSecondsInput.value = formatTimeoutSeconds(
       current.value.options.timeoutMs,
     );
-    errorMessage.value = TIMEOUT_RANGE_MESSAGE;
+    errorMessage.value = timeoutRangeMessage.value;
     return;
   }
   current.value.options.timeoutMs = timeoutMs;
   timeoutSecondsInput.value = formatTimeoutSeconds(timeoutMs);
-  if (errorMessage.value === TIMEOUT_RANGE_MESSAGE) errorMessage.value = "";
+  if (errorMessage.value === timeoutRangeMessage.value) errorMessage.value = "";
 }
+
+watch(timeoutRangeMessage, (nextMessage, previousMessage) => {
+  if (errorMessage.value === previousMessage) errorMessage.value = nextMessage;
+});
 
 watch(
   () => [current.value.id, current.value.options.timeoutMs] as const,
@@ -701,7 +740,7 @@ function addMultipartFile(): void {
   current.value.body.parts.push({
     kind: "file",
     name: "file",
-    file: filePlaceholder("Select a file"),
+    file: filePlaceholder(t("selectFile")),
     enabled: true,
   });
 }
@@ -740,8 +779,7 @@ function clearHiddenBrowserOptions(): void {
   if (current.value.body.kind === "multipart") {
     for (const part of current.value.body.parts) delete part.headers;
   }
-  notice.value =
-    "Browser-unsupported proxy, TLS, and multipart header options were cleared.";
+  notice.value = t("clearedUnsupportedOptions");
 }
 
 function setBodyKind(kind: BodySpec["kind"]): void {
@@ -756,7 +794,7 @@ function setBodyKind(kind: BodySpec["kind"]): void {
     none: { kind: "none" },
     text: { kind: "text", text: "", mediaType: "text/plain" },
     json: { kind: "json", text: "{}", mediaType: "application/json" },
-    file: { kind: "file", file: filePlaceholder("Select a body file") },
+    file: { kind: "file", file: filePlaceholder(t("selectBodyFile")) },
     urlencoded: { kind: "urlencoded", entries: [] },
     multipart: { kind: "multipart", parts: [] },
   };
@@ -979,7 +1017,9 @@ async function filterAndSendBrowserOnce(): Promise<void> {
   browserCompatibilityOpen.value = false;
   pendingBrowserRequest.value = null;
   if (remaining.length > 0) {
-    errorMessage.value = `Browser Fetch cannot preserve this request because it uses ${remaining.join(", ")}.`;
+    errorMessage.value = t("browserCannotPreserve", {
+      reasons: remaining.join(", "),
+    });
     notice.value = filtered.notice;
     restoreModalFocus("button.send-button");
     return;
@@ -1107,7 +1147,9 @@ async function importRequests(): Promise<void> {
     );
     importOpen.value = false;
     if (importWarnings.value.length > 0) {
-      notice.value = `Imported with ${importWarnings.value.length} warning(s). Reopen Import to review them.`;
+      notice.value = t("importedWithWarnings", {
+        count: importWarnings.value.length,
+      });
     }
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : String(error);
@@ -1177,11 +1219,11 @@ async function resolveImportReference(absoluteUrl: string): Promise<string> {
     Number.isFinite(declaredLength) &&
     declaredLength > MAX_REMOTE_REFERENCE_BYTES
   ) {
-    throw new Error("External reference exceeds the 5 MiB import limit.");
+    throw new Error(t("externalRefTooLarge"));
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (bytes.byteLength > MAX_REMOTE_REFERENCE_BYTES) {
-    throw new Error("External reference exceeds the 5 MiB import limit.");
+    throw new Error(t("externalRefTooLarge"));
   }
   return new TextDecoder().decode(bytes);
 }
@@ -1224,8 +1266,7 @@ function prepareExport(): void {
       exportScope.value === "saved"
         ? requests.value.map((request) => requestSpecV1Schema.parse(request))
         : [requestSpecV1Schema.parse(current.value)];
-    if (sourceRequests.length === 0)
-      throw new Error("There are no saved requests to export.");
+    if (sourceRequests.length === 0) throw new Error(t("noSavedRequests"));
     const sourceIds = new Set(sourceRequests.map((request) => request.id));
     const sourceResponses = responses.value.filter((item) =>
       sourceIds.has(item.requestId),
@@ -1285,7 +1326,7 @@ function prepareExport(): void {
     );
     const textResults = results.filter((result) => "text" in result);
     if (textResults.length !== results.length)
-      throw new Error("Unexpected document export result.");
+      throw new Error(t("unexpectedDocumentExport"));
     exportText.value = textResults.map((result) => result.text).join("\n\n");
     const first = textResults[0];
     if (first) {
@@ -1366,7 +1407,7 @@ function toggleLocale(): void {
 }
 
 async function createCollection(): Promise<void> {
-  const name = window.prompt("Collection name")?.trim();
+  const name = window.prompt(t("collectionName"))?.trim();
   if (name) await store.createCollection(name);
 }
 
@@ -1414,7 +1455,7 @@ function askDeleteCollection(collection: CollectionRecord): void {
   deleteTarget.value = {
     kind: "collection",
     id: collection.id,
-    name: collection.name,
+    name: displayCollectionName(collection),
     requestCount: collectionRequestIds.length,
     exclusiveRequestCount: collectionRequestIds.length - sharedRequestCount,
     sharedRequestCount,
@@ -1479,7 +1520,7 @@ async function confirmDelete(): Promise<void> {
         <div class="brand-mark">x</div>
         <div>
           <strong>xPanel</strong>
-          <span>MV3 · local first</span>
+          <span>{{ $t("localFirst") }}</span>
         </div>
       </div>
 
@@ -1499,7 +1540,7 @@ async function confirmDelete(): Promise<void> {
             class="icon-button"
             type="button"
             :disabled="busy"
-            aria-label="New collection"
+            :aria-label="$t('newCollection')"
             @click="createCollection"
           >
             <Plus :size="14" />
@@ -1511,13 +1552,17 @@ async function confirmDelete(): Promise<void> {
           class="collection-group"
         >
           <div class="collection-heading">
-            <div class="collection-name">{{ collection.name }}</div>
+            <div class="collection-name">
+              {{ displayCollectionName(collection) }}
+            </div>
             <button
               class="icon-button delete-icon"
               type="button"
               :disabled="busy || deleteBusy"
               :aria-label="
-                $t('deleteCollectionLabel', { name: collection.name })
+                $t('deleteCollectionLabel', {
+                  name: displayCollectionName(collection),
+                })
               "
               @click.stop="askDeleteCollection(collection)"
             >
@@ -1590,7 +1635,7 @@ async function confirmDelete(): Promise<void> {
         <button
           class="icon-button"
           type="button"
-          aria-label="Switch language"
+          :aria-label="$t('switchLanguage')"
           @click="toggleLocale"
         >
           <Languages :size="16" />
@@ -1607,15 +1652,18 @@ async function confirmDelete(): Promise<void> {
         <input
           v-model="current.name"
           class="request-name"
-          aria-label="Request name"
+          :aria-label="$t('requestName')"
         />
-        <select v-model="selectedCollectionId" aria-label="Save to collection">
+        <select
+          v-model="selectedCollectionId"
+          :aria-label="$t('saveToCollection')"
+        >
           <option
             v-for="collection in collections"
             :key="collection.id"
             :value="collection.id"
           >
-            {{ collection.name }}
+            {{ displayCollectionName(collection) }}
           </option>
         </select>
         <div class="toolbar-actions">
@@ -1656,7 +1704,7 @@ async function confirmDelete(): Promise<void> {
           :value="current.method"
           class="method-select"
           list="http-methods"
-          aria-label="HTTP method"
+          :aria-label="$t('httpMethod')"
           @input="updateMethod"
         />
         <datalist id="http-methods">
@@ -1702,7 +1750,7 @@ async function confirmDelete(): Promise<void> {
           v-model="current.url"
           class="url-input"
           placeholder="https://api.example.com/v1/resource"
-          aria-label="Request URL"
+          :aria-label="$t('requestUrl')"
           @keyup.enter="send"
         />
         <button v-if="!busy" class="send-button" type="button" @click="send">
@@ -1760,19 +1808,19 @@ async function confirmDelete(): Promise<void> {
       </div>
 
       <div
-        v-if="notice || errorMessage"
+        v-if="displayedNotice || errorMessage"
         class="message-strip"
         :data-error="Boolean(errorMessage)"
       >
         <template v-if="errorMessage"
-          >{{ errorMessage }}<br v-if="notice"
+          >{{ errorMessage }}<br v-if="displayedNotice"
         /></template>
-        {{ notice }}
+        {{ displayedNotice }}
       </div>
 
       <div class="split-pane">
         <section class="request-pane">
-          <nav class="tab-list" aria-label="Request tabs">
+          <nav class="tab-list" :aria-label="$t('requestTabs')">
             <button
               v-for="tab in [
                 'params',
@@ -1804,12 +1852,26 @@ async function confirmDelete(): Promise<void> {
             <KeyValueEditor
               v-if="requestTab === 'params'"
               v-model="current.query"
-              name-placeholder="Parameter"
+              :name-placeholder="$t('parameter')"
+              :value-placeholder="$t('value')"
+              :add-label="$t('add')"
+              :remove-label="$t('remove')"
+              :enable-label="$t('enable')"
+              :sensitive-label="$t('sensitive')"
+              :sensitive-title="$t('treatAsSensitive')"
+              :entry-label="$t('entry')"
             />
             <KeyValueEditor
               v-else-if="requestTab === 'headers'"
               v-model="current.headers"
-              name-placeholder="Header"
+              :name-placeholder="$t('headerName')"
+              :value-placeholder="$t('value')"
+              :add-label="$t('add')"
+              :remove-label="$t('remove')"
+              :enable-label="$t('enable')"
+              :sensitive-label="$t('sensitive')"
+              :sensitive-title="$t('treatAsSensitive')"
+              :entry-label="$t('entry')"
             />
             <div v-else-if="requestTab === 'body'" class="body-editor">
               <div class="inline-controls">
@@ -1822,12 +1884,16 @@ async function confirmDelete(): Promise<void> {
                     )
                   "
                 >
-                  <option value="none">None</option>
+                  <option value="none">{{ $t("bodyNone") }}</option>
                   <option value="json">JSON</option>
-                  <option value="text">Text</option>
-                  <option value="file">File</option>
-                  <option value="urlencoded">URL encoded</option>
-                  <option value="multipart">Multipart</option>
+                  <option value="text">{{ $t("bodyText") }}</option>
+                  <option value="file">{{ $t("bodyFile") }}</option>
+                  <option value="urlencoded">
+                    {{ $t("bodyUrlEncoded") }}
+                  </option>
+                  <option value="multipart">
+                    {{ $t("bodyMultipart") }}
+                  </option>
                 </select>
                 <template v-if="bodyKind === 'json'">
                   <button
@@ -1835,14 +1901,14 @@ async function confirmDelete(): Promise<void> {
                     type="button"
                     @click="beautifyBody"
                   >
-                    <Braces :size="14" /> Pretty
+                    <Braces :size="14" /> {{ $t("pretty") }}
                   </button>
                   <button
                     class="ghost-button"
                     type="button"
                     @click="compactBody"
                   >
-                    Compact
+                    {{ $t("compact") }}
                   </button>
                 </template>
               </div>
@@ -1851,18 +1917,25 @@ async function confirmDelete(): Promise<void> {
                 v-model="bodyText"
                 class="code-editor"
                 spellcheck="false"
-                placeholder="Request body"
+                :placeholder="$t('requestBody')"
               />
               <KeyValueEditor
                 v-else-if="current.body.kind === 'urlencoded'"
                 v-model="current.body.entries"
-                name-placeholder="Field"
+                :name-placeholder="$t('field')"
+                :value-placeholder="$t('value')"
+                :add-label="$t('add')"
+                :remove-label="$t('remove')"
+                :enable-label="$t('enable')"
+                :sensitive-label="$t('sensitive')"
+                :sensitive-title="$t('treatAsSensitive')"
+                :entry-label="$t('entry')"
               />
               <div
                 v-else-if="current.body.kind === 'file'"
                 class="file-option raw-file-option"
               >
-                <span>Raw request body</span>
+                <span>{{ $t("rawRequestBody") }}</span>
                 <label class="file-picker ghost-button">
                   <FileInput :size="14" /> {{ current.body.file.name }}
                   <input type="file" @change="selectRawBodyFile" />
@@ -1870,7 +1943,7 @@ async function confirmDelete(): Promise<void> {
                 <input
                   v-model="current.body.mediaType"
                   class="field"
-                  placeholder="Content type (optional)"
+                  :placeholder="$t('contentTypeOptional')"
                 />
               </div>
               <div
@@ -1883,14 +1956,14 @@ async function confirmDelete(): Promise<void> {
                     type="button"
                     @click="addMultipartText"
                   >
-                    <Plus :size="14" /> Text field
+                    <Plus :size="14" /> {{ $t("textField") }}
                   </button>
                   <button
                     class="ghost-button"
                     type="button"
                     @click="addMultipartFile"
                   >
-                    <FileInput :size="14" /> File
+                    <FileInput :size="14" /> {{ $t("bodyFile") }}
                   </button>
                 </div>
                 <div
@@ -1905,18 +1978,18 @@ async function confirmDelete(): Promise<void> {
                   <input
                     v-model="part.enabled"
                     type="checkbox"
-                    aria-label="Enable multipart part"
+                    :aria-label="$t('enableMultipartPart')"
                   />
                   <input
                     v-model="part.name"
                     class="field"
-                    placeholder="Field name"
+                    :placeholder="$t('fieldName')"
                   />
                   <input
                     v-if="part.kind === 'text'"
                     v-model="part.value"
                     class="field"
-                    placeholder="Value"
+                    :placeholder="$t('value')"
                   />
                   <label v-else class="file-picker ghost-button">
                     <FileInput :size="14" /> {{ part.file.name }}
@@ -1928,22 +2001,21 @@ async function confirmDelete(): Promise<void> {
                   <button
                     class="icon-button"
                     type="button"
-                    aria-label="Remove multipart part"
+                    :aria-label="$t('removeMultipartPart')"
                     @click="removeMultipartPart(index)"
                   >
                     <X :size="14" />
                   </button>
                 </div>
                 <p v-if="current.body.parts.length === 0" class="empty-note">
-                  Add text fields or choose files. Imported file paths are never
-                  read automatically.
+                  {{ $t("multipartEmpty") }}
                 </p>
               </div>
-              <p v-else class="empty-note">This request has no body.</p>
+              <p v-else class="empty-note">{{ $t("requestNoBody") }}</p>
             </div>
             <div v-else-if="requestTab === 'auth'" class="form-stack">
               <label>
-                Authorization
+                {{ $t("authorization") }}
                 <select
                   :value="current.auth.kind"
                   @change="
@@ -1953,24 +2025,24 @@ async function confirmDelete(): Promise<void> {
                     )
                   "
                 >
-                  <option value="none">None</option>
-                  <option value="basic">Basic</option>
-                  <option value="bearer">Bearer token</option>
-                  <option value="api-key">API key</option>
-                  <option value="oauth2">OAuth 2 token</option>
+                  <option value="none">{{ $t("authNone") }}</option>
+                  <option value="basic">{{ $t("authBasic") }}</option>
+                  <option value="bearer">{{ $t("authBearer") }}</option>
+                  <option value="api-key">{{ $t("authApiKey") }}</option>
+                  <option value="oauth2">{{ $t("authOauth2") }}</option>
                 </select>
               </label>
               <template v-if="current.auth.kind === 'basic'">
                 <input
                   v-model="current.auth.username"
                   class="field"
-                  placeholder="Username"
+                  :placeholder="$t('username')"
                 />
                 <input
                   v-model="current.auth.password"
                   class="field"
                   type="password"
-                  placeholder="Password"
+                  :placeholder="$t('password')"
                 />
               </template>
               <input
@@ -1978,47 +2050,48 @@ async function confirmDelete(): Promise<void> {
                 v-model="current.auth.token"
                 class="field"
                 type="password"
-                placeholder="Token"
+                :placeholder="$t('token')"
               />
               <template v-else-if="current.auth.kind === 'api-key'">
                 <select v-model="current.auth.location">
-                  <option value="header">Header</option>
-                  <option value="query">Query</option>
+                  <option value="header">{{ $t("locationHeader") }}</option>
+                  <option value="query">{{ $t("locationQuery") }}</option>
                   <option value="cookie" disabled>
-                    Cookie (Browser unsupported)
+                    {{ $t("cookieBrowserUnsupported") }}
                   </option>
                 </select>
                 <input
                   v-model="current.auth.name"
                   class="field"
-                  placeholder="Name"
+                  :placeholder="$t('name')"
                 />
                 <input
                   v-model="current.auth.value"
                   class="field"
                   type="password"
-                  placeholder="Value"
+                  :placeholder="$t('value')"
                 />
               </template>
               <template v-else-if="current.auth.kind === 'oauth2'">
                 <input
                   v-model="current.auth.tokenType"
                   class="field"
-                  placeholder="Token type"
+                  :placeholder="$t('tokenType')"
                 />
                 <input
                   v-model="current.auth.accessToken"
                   class="field"
                   type="password"
-                  placeholder="Access token"
+                  :placeholder="$t('accessToken')"
                 />
               </template>
             </div>
             <div v-else class="form-stack options-grid">
               <label
-                >Timeout (seconds)<input
+                >{{ $t("timeoutSeconds")
+                }}<input
                   :value="timeoutSecondsInput"
-                  aria-label="Timeout (seconds)"
+                  :aria-label="$t('timeoutSeconds')"
                   class="field"
                   type="number"
                   min="0.001"
@@ -2029,30 +2102,31 @@ async function confirmDelete(): Promise<void> {
                   @blur="normalizeTimeoutInput"
               /></label>
               <label
-                >Redirect<select v-model="current.options.redirect">
-                  <option value="follow">Follow</option>
-                  <option value="manual">Manual</option>
-                  <option value="error">Error</option>
+                >{{ $t("redirect")
+                }}<select v-model="current.options.redirect">
+                  <option value="follow">{{ $t("redirectFollow") }}</option>
+                  <option value="manual">{{ $t("redirectManual") }}</option>
+                  <option value="error">{{ $t("redirectError") }}</option>
                 </select></label
               >
               <label
-                >Cookies<select v-model="current.options.cookieMode">
-                  <option value="include">Include</option>
-                  <option value="same-origin">Same origin</option>
-                  <option value="omit">Omit</option>
+                >{{ $t("cookies")
+                }}<select v-model="current.options.cookieMode">
+                  <option value="include">{{ $t("cookieInclude") }}</option>
+                  <option value="same-origin">
+                    {{ $t("cookieSameOrigin") }}
+                  </option>
+                  <option value="omit">{{ $t("cookieOmit") }}</option>
                 </select></label
               >
               <div v-if="hasHiddenBrowserOptions" class="compatibility-note">
-                <span>
-                  Imported proxy, custom TLS, or multipart header options are
-                  preserved for export, but Browser Fetch cannot send them.
-                </span>
+                <span>{{ $t("unsupportedOptionsNote") }}</span>
                 <button
                   class="ghost-button"
                   type="button"
                   @click="clearHiddenBrowserOptions"
                 >
-                  Clear unsupported options
+                  {{ $t("clearUnsupportedOptions") }}
                 </button>
               </div>
               <label class="check-row"
@@ -2063,8 +2137,8 @@ async function confirmDelete(): Promise<void> {
                 {{ $t("autoFilterBrowserHeadersHint") }}
               </span>
               <label class="check-row"
-                ><input v-model="persistSensitive" type="checkbox" /> Persist
-                sensitive values locally</label
+                ><input v-model="persistSensitive" type="checkbox" />
+                {{ $t("persistSensitive") }}</label
               >
             </div>
           </div>
@@ -2110,7 +2184,7 @@ async function confirmDelete(): Promise<void> {
               :data-active="responseTab === tab"
               @click="responseTab = tab"
             >
-              {{ $t(tab) }}
+              {{ $t(tab === "headers" ? "responseHeaders" : tab) }}
             </button>
             <button
               class="copy-action"
@@ -2127,7 +2201,7 @@ async function confirmDelete(): Promise<void> {
               @click="copyText('response-headers', responseHeaders)"
             >
               <Check v-if="copied === 'response-headers'" :size="14" />
-              <Clipboard v-else :size="14" /> Headers
+              <Clipboard v-else :size="14" /> {{ $t("copyHeaders") }}
             </button>
             <button
               type="button"
@@ -2624,7 +2698,7 @@ async function confirmDelete(): Promise<void> {
         class="dialog-card"
         role="dialog"
         aria-modal="true"
-        aria-label="Import requests"
+        :aria-label="$t('importDialogLabel')"
       >
         <header>
           <div>
@@ -2662,7 +2736,7 @@ async function confirmDelete(): Promise<void> {
           v-model="importText"
           class="dialog-editor"
           spellcheck="false"
-          placeholder="Paste cURL, PowerShell, fetch, HAR, OpenAPI, Swagger, or xPanel JSON…"
+          :placeholder="$t('importPlaceholder')"
         />
         <ul v-if="importWarnings.length" class="warning-list">
           <li v-for="warning in importWarnings" :key="warning">
@@ -2697,7 +2771,7 @@ async function confirmDelete(): Promise<void> {
         class="dialog-card"
         role="dialog"
         aria-modal="true"
-        aria-label="Export request"
+        :aria-label="$t('exportRequests')"
       >
         <header>
           <div>

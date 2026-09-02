@@ -8,10 +8,22 @@ const props = withDefaults(
     modelValue: KeyValueItem[];
     namePlaceholder?: string;
     valuePlaceholder?: string;
+    addLabel?: string;
+    removeLabel?: string;
+    enableLabel?: string;
+    sensitiveLabel?: string;
+    sensitiveTitle?: string;
+    entryLabel?: string;
   }>(),
   {
     namePlaceholder: "Name",
     valuePlaceholder: "Value",
+    addLabel: "Add",
+    removeLabel: "Remove",
+    enableLabel: "Enable",
+    sensitiveLabel: "Sensitive",
+    sensitiveTitle: "Treat as sensitive",
+    entryLabel: "entry",
   },
 );
 
@@ -54,7 +66,7 @@ function updateName(index: number, item: KeyValueItem, name: string): void {
       <input
         type="checkbox"
         :checked="item.enabled !== false"
-        :aria-label="`Enable ${item.name || 'entry'}`"
+        :aria-label="`${enableLabel} ${item.name || entryLabel}`"
         @change="
           update(index, {
             enabled: ($event.target as HTMLInputElement).checked,
@@ -79,13 +91,13 @@ function updateName(index: number, item: KeyValueItem, name: string): void {
       />
       <label
         class="sensitive-toggle"
-        :title="`Treat ${item.name || 'entry'} as sensitive`"
+        :title="`${sensitiveTitle}: ${item.name || entryLabel}`"
       >
         <LockKeyhole :size="13" />
         <input
           type="checkbox"
           :checked="item.sensitive === true || isSensitiveHeader(item.name)"
-          :aria-label="`Sensitive ${item.name || 'entry'}`"
+          :aria-label="`${sensitiveLabel} ${item.name || entryLabel}`"
           @change="
             update(index, {
               sensitive: ($event.target as HTMLInputElement).checked,
@@ -96,14 +108,14 @@ function updateName(index: number, item: KeyValueItem, name: string): void {
       <button
         class="icon-button"
         type="button"
-        aria-label="Remove"
+        :aria-label="removeLabel"
         @click="remove(index)"
       >
         <Trash2 :size="15" />
       </button>
     </div>
     <button class="ghost-button add-row" type="button" @click="add">
-      <Plus :size="15" /> Add
+      <Plus :size="15" /> {{ addLabel }}
     </button>
   </div>
 </template>

@@ -101,7 +101,10 @@ const storage = {
 };
 
 let App: Component;
-let i18n: Plugin;
+type TestI18n = Plugin & {
+  global: { locale: { value: string } };
+};
+let i18n: TestI18n;
 
 function responseFor(requestId: string): ResponseRecordV1 {
   return {
@@ -154,10 +157,11 @@ beforeAll(async () => {
     default: Component;
   };
   App = appModule.default;
-  i18n = (await import("../src/i18n")).i18n;
+  i18n = (await import("../src/i18n")).i18n as unknown as TestI18n;
 });
 
 beforeEach(() => {
+  i18n.global.locale.value = "en-US";
   vi.clearAllMocks();
   execution.executeRequest.mockReset();
   execution.browserUnsupportedReasons.mockReset();
@@ -198,6 +202,40 @@ beforeEach(() => {
     structuredClone(profile),
   );
   remoteProfiles.testRelayConnection.mockClear();
+});
+
+describe("DevTools interface localization", () => {
+  it("switches editor text and accessibility labels to Chinese", async () => {
+    const pinia = createPinia();
+    const wrapper = await mountApp(pinia);
+    const store = useWorkbenchStore(pinia);
+    wrapper.get('input[aria-label="Request URL"]');
+    expect(wrapper.get("button.add-row").text()).toContain("Add");
+
+    await wrapper.get('button[aria-label="Switch language"]').trigger("click");
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain("MV3 · 本地优先");
+    expect(wrapper.text()).toContain("我的请求");
+    wrapper.get('input[aria-label="请求 URL"]');
+    wrapper.get('nav[aria-label="请求编辑页签"]');
+    expect(wrapper.get("button.add-row").text()).toContain("添加");
+    expect(wrapper.get(".response-tabs").text()).toContain("响应头");
+    await wrapper.get("button.add-row").trigger("click");
+    wrapper.get('input[aria-label^="启用"]');
+
+    const bodyTab = wrapper
+      .findAll(".request-pane .tab-list button")
+      .find((button) => button.text().trim() === "正文");
+    if (!bodyTab) throw new Error("Expected the localized Body tab.");
+    await bodyTab.trigger("click");
+    expect(wrapper.text()).toContain("此请求没有正文。");
+    expect(wrapper.get(".body-editor select").text()).toContain("无正文");
+    store.notice = "Saved locally with sensitive values redacted.";
+    await wrapper.vm.$nextTick();
+    expect(wrapper.text()).toContain("已在本机保存，敏感值已脱敏。");
+    wrapper.unmount();
+  });
 });
 
 describe("DevTools request sending", () => {
