@@ -40,3 +40,55 @@ jobs:
             apps/extension/.output/*-chrome.zip
             apps/extension/.output/SHA256SUMS
             apps/extension/.output/sbom.spdx.json
+
+  relay:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:packages
+      - run: pnpm --filter @xpanel/relay-cloudflare test
+      - run: pnpm --filter @xpanel/relay-cloudflare typecheck
+      - run: pnpm --filter @xpanel/relay-cloudflare types:check
+      - run: pnpm --filter @xpanel/relay-cloudflare build
+      - run: pnpm --filter @xpanel/relay-cloudflare exec wrangler check startup --outfile dist/worker-startup.cpuprofile
+      - run: pnpm --filter @xpanel/extension build
+      - run: pnpm audit:static
+      - uses: anchore/sbom-action@v0
+        with:
+          path: apps/relay-cloudflare
+          output-file: apps/relay-cloudflare/dist/sbom.spdx.json
+      - shell: pwsh
+        run: |
+          Compress-Archive -Path @(
+            "apps/relay-cloudflare/dist/*",
+            "apps/relay-cloudflare/src",
+            "apps/relay-cloudflare/scripts",
+            "apps/relay-cloudflare/test",
+            "apps/relay-cloudflare/.dev.vars.example",
+            "apps/relay-cloudflare/package.json",
+            "apps/relay-cloudflare/tsconfig.json",
+            "apps/relay-cloudflare/vitest.config.ts",
+            "apps/relay-cloudflare/wrangler.jsonc",
+            "apps/relay-cloudflare/README.md",
+            "apps/relay-cloudflare/worker-configuration.d.ts"
+          ) -DestinationPath "apps/relay-cloudflare/xpanel-relay-cloudflare-review.zip"
+          "{0}  {1}" -f (
+            Get-FileHash -Algorithm SHA256 -LiteralPath "apps/relay-cloudflare/xpanel-relay-cloudflare-review.zip"
+          ).Hash.ToLowerInvariant(), "xpanel-relay-cloudflare-review.zip" |
+            Set-Content apps/relay-cloudflare/SHA256SUMS -Encoding utf8NoBOM
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xpanel-relay-cloudflare-review
+          include-hidden-files: true
+          path: |
+            apps/relay-cloudflare/xpanel-relay-cloudflare-review.zip
+            apps/relay-cloudflare/SHA256SUMS
+            apps/relay-cloudflare/dist/sbom.spdx.json

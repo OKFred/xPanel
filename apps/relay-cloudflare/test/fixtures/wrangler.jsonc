@@ -1,0 +1,25 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "xpanel-relay-fixture",
+  "main": "online-worker.mjs",
+  "compatibility_date": "2026-09-02",
+  "compatibility_flags": [
+    "enable_request_signal",
+    "no_nodejs_compat",
+    "no_nodejs_compat_v2",
+  ],
+  "workers_dev": true,
+  "send_metrics": false,
+  "dependencies_instrumentation": {
+    "enabled": false,
+  },
+  "observability": {
+    "enabled": false,
+    "logs": {
+      "enabled": false,
+    },
+    "traces": {
+      "enabled": false,
+    },
+  },
+}

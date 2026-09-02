@@ -3,8 +3,22 @@ import { describe, expect, it } from "vitest";
 import {
   CollectionFileV1Schema,
   DEFAULT_REQUEST_TIMEOUT_MS,
+  ExecutionProgressV1Schema,
+  ExecutorV1Schema,
   REDACTED_VALUE,
+  REMOTE_ERROR_CODES,
+  REMOTE_MAX_METADATA_BYTES,
+  REMOTE_MAX_REQUEST_BODY_BYTES,
+  REMOTE_MAX_RESPONSE_BODY_BYTES,
+  REMOTE_PROTOCOL_VERSION,
+  RelayHeaderV1Schema,
+  RemoteCapabilitiesV1Schema,
+  RemoteErrorEnvelopeV1Schema,
+  RemoteRelayProfileV1Schema,
+  RemoteRequestMetaV1Schema,
+  RemoteResponseMetaV1Schema,
   RequestSpecV1Schema,
+  ResponseRecordV1Schema,
   createDefaultRequest,
   isSensitiveHeader,
   redactCollectionFile,
@@ -94,6 +108,276 @@ describe("RequestSpecV1", () => {
           .success,
       ).toBe(true);
     }
+  });
+});
+
+describe("Remote Relay V1", () => {
+  const requestMeta = {
+    protocolVersion: REMOTE_PROTOCOL_VERSION,
+    requestId: "request-remote-1",
+    method: "POST",
+    url: "https://api.example.com/v1/items?q=x",
+    headers: [
+      { name: "Cookie", value: "session=secret" },
+      { name: "X-Trace", value: "one" },
+      { name: "X-Trace", value: "two" },
+    ],
+    redirect: "follow" as const,
+    timeoutMs: 60_000,
+    bodySizeBytes: 12,
+  };
+
+  const responseMeta = {
+    protocolVersion: REMOTE_PROTOCOL_VERSION,
+    requestId: "request-remote-1",
+    status: 200,
+    statusText: "OK",
+    headers: [
+      { name: "Set-Cookie", value: "a=1; Path=/" },
+      { name: "Set-Cookie", value: "b=2; Path=/" },
+    ],
+    redirects: [],
+    upstreamDurationMs: 42.5,
+    declaredBodySizeBytes: 2,
+    warnings: [],
+  };
+
+  it("exports fixed protocol and transport limits", () => {
+    expect(REMOTE_PROTOCOL_VERSION).toBe(1);
+    expect(REMOTE_MAX_METADATA_BYTES).toBe(49_152);
+    expect(REMOTE_MAX_REQUEST_BODY_BYTES).toBe(20_971_520);
+    expect(REMOTE_MAX_RESPONSE_BODY_BYTES).toBe(20_971_520);
+  });
+
+  it("validates executor values and accepts remote response records", () => {
+    expect(ExecutorV1Schema.parse("browser")).toBe("browser");
+    expect(ExecutorV1Schema.parse("remote")).toBe("remote");
+    expect(ExecutorV1Schema.safeParse("native").success).toBe(false);
+
+    expect(
+      ResponseRecordV1Schema.parse({
+        requestId: "request-remote-1",
+        executor: "remote",
+        status: 200,
+        statusText: "OK",
+        headers: [],
+        body: {
+          kind: "inline",
+          encoding: "utf8",
+          content: "{}",
+          sizeBytes: 2,
+        },
+        timings: {
+          startedAt: "2026-09-02T00:00:00.000Z",
+          durationMs: 50,
+          requestMs: 42.5,
+        },
+        redirects: [],
+        warnings: [],
+      }).executor,
+    ).toBe("remote");
+  });
+
+  it("validates every strict execution progress phase", () => {
+    for (const phase of [
+      "preparing",
+      "requesting-permission",
+      "uploading",
+      "waiting",
+      "downloading",
+      "cancelling",
+      "complete",
+    ] as const) {
+      expect(
+        ExecutionProgressV1Schema.parse({
+          phase,
+          loadedBytes: 1,
+          totalBytes: 2,
+          elapsedMs: 3.5,
+        }).phase,
+      ).toBe(phase);
+    }
+    expect(
+      ExecutionProgressV1Schema.safeParse({
+        phase: "retrying",
+        loadedBytes: 0,
+        elapsedMs: 0,
+      }).success,
+    ).toBe(false);
+    expect(
+      ExecutionProgressV1Schema.safeParse({
+        phase: "waiting",
+        loadedBytes: -1,
+        elapsedMs: 0,
+      }).success,
+    ).toBe(false);
+    expect(
+      ExecutionProgressV1Schema.safeParse({
+        phase: "waiting",
+        loadedBytes: 0,
+        elapsedMs: 0,
+        requestId: "not-part-of-progress",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates strict relay profiles without persisting a token", () => {
+    const profile = {
+      schemaVersion: 1,
+      id: "relay-1",
+      name: "My relay",
+      baseUrl: "https://relay.example.com/xpanel",
+      tokenStorage: "session" as const,
+    };
+    expect(RemoteRelayProfileV1Schema.parse(profile)).toEqual(profile);
+    expect(
+      RemoteRelayProfileV1Schema.safeParse({ ...profile, token: "secret" })
+        .success,
+    ).toBe(false);
+    expect(
+      RemoteRelayProfileV1Schema.safeParse({
+        ...profile,
+        baseUrl: "http://relay.example.com/xpanel",
+      }).success,
+    ).toBe(false);
+    for (const baseUrl of [
+      "https://user:pass@relay.example.com/xpanel",
+      "https://relay.example.com/xpanel?token=secret",
+      "https://relay.example.com/xpanel?",
+      "https://relay.example.com/xpanel#settings",
+      "https://relay.example.com/xpanel#",
+    ]) {
+      expect(
+        RemoteRelayProfileV1Schema.safeParse({ ...profile, baseUrl }).success,
+      ).toBe(false);
+    }
+  });
+
+  it("validates request metadata while preserving duplicate headers", () => {
+    expect(RemoteRequestMetaV1Schema.parse(requestMeta)).toEqual(requestMeta);
+    expect(
+      RemoteRequestMetaV1Schema.safeParse({
+        ...requestMeta,
+        bodySizeBytes: REMOTE_MAX_REQUEST_BODY_BYTES + 1,
+      }).success,
+    ).toBe(false);
+    expect(
+      RemoteRequestMetaV1Schema.safeParse({
+        ...requestMeta,
+        protocolVersion: 2,
+      }).success,
+    ).toBe(false);
+    expect(
+      RemoteRequestMetaV1Schema.safeParse({
+        ...requestMeta,
+        source: { format: "manual" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects malformed relay headers and header injection", () => {
+    expect(RelayHeaderV1Schema.parse({ name: "X-Trace", value: "ok" })).toEqual(
+      { name: "X-Trace", value: "ok" },
+    );
+    expect(
+      RelayHeaderV1Schema.safeParse({ name: "Bad Header", value: "ok" })
+        .success,
+    ).toBe(false);
+    expect(
+      RelayHeaderV1Schema.safeParse({
+        name: "X-Trace",
+        value: "ok\r\nInjected: yes",
+      }).success,
+    ).toBe(false);
+    expect(
+      RelayHeaderV1Schema.safeParse({
+        name: "X-Trace",
+        value: "ok",
+        enabled: true,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates response metadata and separate Set-Cookie values", () => {
+    expect(RemoteResponseMetaV1Schema.parse(responseMeta)).toEqual(
+      responseMeta,
+    );
+    expect(
+      RemoteResponseMetaV1Schema.safeParse({
+        ...responseMeta,
+        declaredBodySizeBytes: REMOTE_MAX_RESPONSE_BODY_BYTES + 1,
+      }).success,
+    ).toBe(false);
+    expect(
+      RemoteResponseMetaV1Schema.safeParse({
+        ...responseMeta,
+        protocolVersion: 99,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires the exact Cloudflare capability contract", () => {
+    const capabilities = {
+      protocolVersion: REMOTE_PROTOCOL_VERSION,
+      provider: "cloudflare",
+      targetPolicy: "allowlist",
+      maxMetadataBytes: REMOTE_MAX_METADATA_BYTES,
+      maxRequestBodyBytes: REMOTE_MAX_REQUEST_BODY_BYTES,
+      maxResponseBodyBytes: REMOTE_MAX_RESPONSE_BODY_BYTES,
+      features: {
+        explicitCookie: true,
+        responseSetCookie: true,
+        files: true,
+        multipart: true,
+        proxy: false,
+        customTls: false,
+        clientCertificate: false,
+      },
+    } as const;
+    expect(RemoteCapabilitiesV1Schema.parse(capabilities)).toEqual(
+      capabilities,
+    );
+    expect(
+      RemoteCapabilitiesV1Schema.safeParse({
+        ...capabilities,
+        provider: "supabase",
+      }).success,
+    ).toBe(false);
+    expect(
+      RemoteCapabilitiesV1Schema.safeParse({
+        ...capabilities,
+        features: { ...capabilities.features, proxy: true },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts exactly the fixed relay error-code set", () => {
+    expect(REMOTE_ERROR_CODES).toHaveLength(14);
+    for (const code of REMOTE_ERROR_CODES) {
+      expect(
+        RemoteErrorEnvelopeV1Schema.parse({
+          protocolVersion: REMOTE_PROTOCOL_VERSION,
+          requestId: "request-remote-1",
+          error: { code, message: `Relay error: ${code}` },
+        }).error.code,
+      ).toBe(code);
+    }
+    expect(
+      RemoteErrorEnvelopeV1Schema.safeParse({
+        protocolVersion: REMOTE_PROTOCOL_VERSION,
+        error: { code: "unknown", message: "Unknown error" },
+      }).success,
+    ).toBe(false);
+    expect(
+      RemoteErrorEnvelopeV1Schema.safeParse({
+        protocolVersion: REMOTE_PROTOCOL_VERSION,
+        error: {
+          code: "internal",
+          message: "Failure",
+          details: { token: "must-not-be-returned" },
+        },
+      }).success,
+    ).toBe(false);
   });
 });
 

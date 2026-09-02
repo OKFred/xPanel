@@ -2,8 +2,8 @@
 
 Effective date: 2026-09-02
 
-xPanel does not collect, sell, transmit, or analyze user data. It has no
-analytics, advertising, account system, hosted backend, or telemetry.
+xPanel does not collect, sell, or analyze user data. It has no analytics,
+advertising, account system, xPanel-operated backend, or telemetry.
 
 ## Data handled locally
 
@@ -20,9 +20,27 @@ analytics, advertising, account system, hosted backend, or telemetry.
 
 ## Network behavior
 
-xPanel sends network traffic only to URLs selected by the user or to external
+xPanel sends Browser traffic only to URLs selected by the user or to external
 OpenAPI references the user explicitly agrees to resolve. It does not send a
-copy of requests or responses to the developer.
+copy of Browser requests or responses to the developer.
+
+Remote Relay is optional and self-hosted. A Remote request is sent only through
+the named Relay profile the user explicitly selects. Before the first send in a
+Chrome session, xPanel shows the target origin, Relay host, and data categories
+that will leave the device. The request URL, headers, credentials, files, and
+body then pass through that service to the destination. The relay token is kept
+in browser session storage by default; local plaintext storage requires a
+separate risk confirmation. Relay profiles, tokens, and trust decisions are not
+included in requests, collections, or exports.
+
+The bundled Cloudflare template disables application observability and does not
+use KV, D1, R2, or Cache. A relay operator still controls their deployment and
+Cloudflare account, so users should trust that operator before sending secrets.
+Remote Relay is not an anonymity service: Cloudflare, the Relay operator, and
+the destination may observe network metadata including the originating client
+IP.
+Returned `Set-Cookie` values are displayed and can be copied, but are never
+written to Chrome's cookie jar.
 
 ## User control
 

@@ -1,15 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createDefaultRequest } from "@xpanel/contracts";
+import {
+  REMOTE_MAX_METADATA_BYTES,
+  REMOTE_MAX_REQUEST_BODY_BYTES,
+  REMOTE_MAX_RESPONSE_BODY_BYTES,
+  createDefaultRequest,
+  type ExecutionProgressV1,
+  type RemoteRelayProfileV1,
+} from "@xpanel/contracts";
 
 import {
   browserUnsupportedReasons,
   cancelRequest,
   executeBrowser,
+  executeRemote,
   executeRequest,
+  isRequestCancelling,
+  remoteUnsupportedReasons,
   sanitizeBrowserRequestHeaders,
 } from "../src/lib/execute";
 import { bindFile } from "../src/lib/file-bindings";
+import { ensureRelayPermission } from "../src/lib/remote-profiles";
 
 function chromeMock(
   overrides: Partial<typeof chrome.permissions> = {},
@@ -21,6 +32,81 @@ function chromeMock(
       ...overrides,
     },
   } as unknown as typeof chrome;
+}
+
+function relayProfile(id: string = crypto.randomUUID()): RemoteRelayProfileV1 {
+  return {
+    schemaVersion: 1,
+    id,
+    name: `Relay ${id}`,
+    baseUrl: "https://relay.example/xpanel",
+    tokenStorage: "session",
+  };
+}
+
+function relayCapabilities(): Record<string, unknown> {
+  return {
+    protocolVersion: 1,
+    provider: "cloudflare",
+    targetPolicy: "public-https",
+    maxMetadataBytes: REMOTE_MAX_METADATA_BYTES,
+    maxRequestBodyBytes: REMOTE_MAX_REQUEST_BODY_BYTES,
+    maxResponseBodyBytes: REMOTE_MAX_RESPONSE_BODY_BYTES,
+    features: {
+      explicitCookie: true,
+      responseSetCookie: true,
+      files: true,
+      multipart: true,
+      proxy: false,
+      customTls: false,
+      clientCertificate: false,
+    },
+  };
+}
+
+function encodeRelayMetadata(value: unknown): string {
+  return Buffer.from(JSON.stringify(value)).toString("base64url");
+}
+
+function decodeRelayMetadata(value: string): Record<string, unknown> {
+  return JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as Record<
+    string,
+    unknown
+  >;
+}
+
+function relaySuccess(
+  requestId: string,
+  body = "ok",
+  overrides: Record<string, unknown> = {},
+): Response {
+  const metadata = {
+    protocolVersion: 1,
+    requestId,
+    status: 200,
+    statusText: "OK",
+    headers: [{ name: "Content-Type", value: "text/plain" }],
+    redirects: [],
+    upstreamDurationMs: 3,
+    declaredBodySizeBytes: new TextEncoder().encode(body).byteLength,
+    warnings: [],
+    ...overrides,
+  };
+  return new Response(body, {
+    status: 200,
+    headers: { "X-XPanel-Response": encodeRelayMetadata(metadata) },
+  });
+}
+
+function relayFetch(
+  execute: (url: URL, init: RequestInit) => Response | Promise<Response>,
+): ReturnType<typeof vi.fn> {
+  return vi.fn(async (url: URL, init: RequestInit) => {
+    if (url.pathname.endsWith("/v1/capabilities")) {
+      return new Response(JSON.stringify(relayCapabilities()), { status: 200 });
+    }
+    return execute(url, init);
+  });
 }
 
 beforeEach(() => {
@@ -236,6 +322,28 @@ describe("Browser execution", () => {
     expect(authorization).toBe(
       `Basic ${Buffer.from("用户:密码").toString("base64")}`,
     );
+  });
+
+  it("keeps a Browser response without Content-Type as base64", async () => {
+    const bytes = new Uint8Array([0, 255, 1, 128]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(bytes, { status: 200 })),
+    );
+
+    const response = await executeBrowser(
+      createDefaultRequest({
+        id: "browser-untyped-binary",
+        url: "https://example.com/binary",
+      }),
+    );
+
+    expect(response.body).toEqual({
+      kind: "inline",
+      encoding: "base64",
+      content: Buffer.from(bytes).toString("base64"),
+      sizeBytes: bytes.byteLength,
+    });
   });
 
   it("binds request files without buffering their contents", async () => {
@@ -498,5 +606,592 @@ describe("Browser execution", () => {
 
     await expect(execution).rejects.toThrow("Request cancelled");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("Remote execution", () => {
+  it("requests relay permission once, then only verifies it during execute", async () => {
+    const contains = vi.fn(async () => true);
+    const requestPermission = vi.fn(async () => true);
+    vi.stubGlobal(
+      "chrome",
+      chromeMock({ contains, request: requestPermission }),
+    );
+    const request = createDefaultRequest({
+      id: "preflighted-relay-permission",
+      url: "https://api.example/items",
+    });
+    const profile = relayProfile("preflighted-relay-permission");
+    vi.stubGlobal(
+      "fetch",
+      relayFetch(async () => relaySuccess(request.id)),
+    );
+
+    await ensureRelayPermission(profile);
+    await executeRemote(
+      request,
+      { kind: "remote", profile, token: "relay-token" },
+      { relayPermissionAlreadyGranted: true },
+    );
+
+    expect(requestPermission).toHaveBeenCalledOnce();
+    expect(requestPermission).toHaveBeenCalledWith({
+      origins: ["https://relay.example/*"],
+    });
+    expect(contains).toHaveBeenCalledOnce();
+    expect(contains).toHaveBeenCalledWith({
+      origins: ["https://relay.example/*"],
+    });
+  });
+
+  it("sends Browser-controlled application headers through the versioned wire protocol", async () => {
+    const request = createDefaultRequest({
+      method: "POST",
+      url: "https://api.example/items?existing=1",
+      query: [{ name: "added", value: "two", enabled: true }],
+      headers: [
+        { name: "Cookie", value: "session=secret", enabled: true },
+        { name: "Origin", value: "https://source.example", enabled: true },
+        {
+          name: "Referer",
+          value: "https://source.example/page",
+          enabled: true,
+        },
+        { name: "DNT", value: "1", enabled: true },
+        { name: "Sec-Example", value: "preserved", enabled: true },
+      ],
+      auth: { kind: "bearer", token: "target-token" },
+      body: { kind: "json", text: '{"ok":true}' },
+    });
+    const progress: ExecutionProgressV1[] = [];
+    let metadata: Record<string, unknown> | undefined;
+    let uploaded = "";
+    const fetchMock = relayFetch(async (url, init) => {
+      expect(url.toString()).toBe("https://relay.example/xpanel/v1/execute");
+      const outerHeaders = init.headers as Record<string, string>;
+      expect(outerHeaders.Authorization).toBe("Bearer relay-token");
+      expect(outerHeaders["X-XPanel-Protocol"]).toBe("1");
+      metadata = decodeRelayMetadata(outerHeaders["X-XPanel-Request"]!);
+      expect(init.body).toBeInstanceOf(Blob);
+      uploaded = await (init.body as Blob).text();
+      return relaySuccess(request.id, "not found", {
+        status: 404,
+        statusText: "Not Found",
+        headers: [
+          { name: "Content-Type", value: "text/plain" },
+          { name: "Set-Cookie", value: "sid=next; HttpOnly" },
+        ],
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await executeRequest(request, {
+      target: {
+        kind: "remote",
+        profile: relayProfile("wire-protocol"),
+        token: "relay-token",
+      },
+      onProgress: (value) => progress.push(value),
+    });
+
+    expect(metadata).toMatchObject({
+      protocolVersion: 1,
+      requestId: request.id,
+      method: "POST",
+      url: "https://api.example/items?existing=1&added=two",
+      redirect: "follow",
+      timeoutMs: 60_000,
+      bodySizeBytes: 11,
+    });
+    expect(metadata?.headers).toEqual(
+      expect.arrayContaining([
+        { name: "Cookie", value: "session=secret" },
+        { name: "Origin", value: "https://source.example" },
+        { name: "Referer", value: "https://source.example/page" },
+        { name: "DNT", value: "1" },
+        { name: "Sec-Example", value: "preserved" },
+        { name: "Authorization", value: "Bearer target-token" },
+        { name: "Content-Type", value: "application/json" },
+      ]),
+    );
+    expect(JSON.stringify(metadata)).not.toContain("relay-token");
+    expect(uploaded).toBe('{"ok":true}');
+    expect(response).toMatchObject({ executor: "remote", status: 404 });
+    expect(response.headers).toContainEqual(
+      expect.objectContaining({
+        name: "Set-Cookie",
+        value: "sid=next; HttpOnly",
+      }),
+    );
+    expect(response.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "remote-cookie-mode-not-applied" }),
+        expect.objectContaining({ code: "remote-cookies-not-applied" }),
+      ]),
+    );
+    expect(progress.map((value) => value.phase)).toEqual(
+      expect.arrayContaining([
+        "preparing",
+        "requesting-permission",
+        "uploading",
+        "downloading",
+        "complete",
+      ]),
+    );
+    expect(progress.find((value) => value.phase === "uploading")).toMatchObject(
+      { loadedBytes: 0, totalBytes: 11 },
+    );
+    expect(progress.map((value) => value.phase)).not.toContain("waiting");
+  });
+
+  it("keeps a selected file as the upload body without buffering it", async () => {
+    const file = new File([new Uint8Array([0, 1, 2, 255])], "payload.bin", {
+      type: "application/octet-stream",
+    });
+    const arrayBuffer = vi.spyOn(file, "arrayBuffer");
+    const reference = bindFile(
+      {
+        id: crypto.randomUUID(),
+        name: "Select a file",
+        requiresReselection: true,
+      },
+      file,
+    );
+    const request = createDefaultRequest({
+      id: "remote-file-stream",
+      method: "POST",
+      url: "https://api.example/upload",
+      body: { kind: "file", file: reference },
+    });
+    let uploadedBody: BodyInit | null | undefined;
+    vi.stubGlobal(
+      "fetch",
+      relayFetch(async (_url, init) => {
+        uploadedBody = init.body;
+        return relaySuccess(request.id);
+      }),
+    );
+
+    await executeRemote(request, {
+      kind: "remote",
+      profile: relayProfile("file-stream"),
+      token: "secret",
+    });
+
+    expect(uploadedBody).toBe(file);
+    expect(uploadedBody).toBeInstanceOf(File);
+    expect(arrayBuffer).not.toHaveBeenCalled();
+  });
+
+  it("rejects transport headers and local-only network options before permissions", async () => {
+    const request = createDefaultRequest({
+      url: "https://api.example",
+      headers: [
+        { name: "Host", value: "other.example", enabled: true },
+        { name: "Content-Length", value: "5", enabled: true },
+        { name: "Set-Cookie", value: "request=value", enabled: true },
+      ],
+    });
+    request.options.proxy = { url: "http://proxy.example:8080", bypass: [] };
+
+    expect(remoteUnsupportedReasons(request)).toEqual(
+      expect.arrayContaining([
+        "an explicit proxy",
+        "the unsupported Host header",
+        "the unsupported Content-Length header",
+        "the unsupported Set-Cookie header",
+      ]),
+    );
+    await expect(
+      executeRemote(request, {
+        kind: "remote",
+        profile: relayProfile(),
+        token: "secret",
+      }),
+    ).rejects.toThrow("cannot preserve");
+    expect(chrome.permissions.request).not.toHaveBeenCalled();
+  });
+
+  it("materializes selected raw and multipart files with a deterministic boundary", async () => {
+    const file = new File(["file-body"], "payload.txt", { type: "text/plain" });
+    const reference = bindFile(
+      {
+        id: crypto.randomUUID(),
+        name: "Select a file",
+        requiresReselection: true,
+      },
+      file,
+    );
+    const request = createDefaultRequest({
+      id: "deterministic-multipart",
+      method: "POST",
+      url: "https://api.example/upload",
+      options: {
+        redirect: "follow",
+        cookieMode: "omit",
+        timeoutMs: 60_000,
+        proxy: null,
+        tls: { verify: true },
+      },
+      body: {
+        kind: "multipart",
+        parts: [
+          {
+            kind: "text",
+            name: "label",
+            value: "profile",
+            enabled: true,
+            headers: [{ name: "X-Part", value: "one", enabled: true }],
+          },
+          {
+            kind: "file",
+            name: "upload",
+            file: reference,
+            enabled: true,
+            headers: [],
+          },
+        ],
+      },
+    });
+    const bodies: string[] = [];
+    const contentTypes: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      relayFetch(async (_url, init) => {
+        const outer = init.headers as Record<string, string>;
+        const metadata = decodeRelayMetadata(outer["X-XPanel-Request"]!);
+        const headers = metadata.headers as Array<{
+          name: string;
+          value: string;
+        }>;
+        contentTypes.push(
+          headers.find((header) => header.name === "Content-Type")?.value ?? "",
+        );
+        bodies.push(await (init.body as Blob).text());
+        return relaySuccess(request.id);
+      }),
+    );
+
+    const target = {
+      kind: "remote" as const,
+      profile: relayProfile("multipart"),
+      token: "secret",
+    };
+    await executeRemote(request, target);
+    await executeRemote(request, target);
+
+    expect(contentTypes[0]).toMatch(
+      /^multipart\/form-data; boundary=----xpanel-/u,
+    );
+    expect(contentTypes[1]).toBe(contentTypes[0]);
+    expect(bodies[1]).toBe(bodies[0]);
+    expect(bodies[0]).toContain("X-Part: one\r\n");
+    expect(bodies[0]).toContain('name="label"');
+    expect(bodies[0]).toContain('filename="payload.txt"');
+    expect(bodies[0]).toContain("file-body");
+  });
+
+  it("enforces request metadata and body limits before execute transport", async () => {
+    const oversizedMetadata = createDefaultRequest({
+      id: "oversized-metadata",
+      method: "POST",
+      url: "https://api.example",
+      headers: [
+        {
+          name: "X-Large",
+          value: "x".repeat(REMOTE_MAX_METADATA_BYTES),
+          enabled: true,
+        },
+      ],
+    });
+    const oversizedBody = createDefaultRequest({
+      id: "oversized-body",
+      method: "POST",
+      url: "https://api.example",
+      body: {
+        kind: "text",
+        text: "x".repeat(REMOTE_MAX_REQUEST_BODY_BYTES + 1),
+      },
+    });
+    const fetchMock = relayFetch(async () => relaySuccess("unused"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      executeRemote(oversizedMetadata, {
+        kind: "remote",
+        profile: relayProfile("metadata-limit"),
+        token: "secret",
+      }),
+    ).rejects.toThrow("metadata exceeds 48 KiB");
+    await expect(
+      executeRemote(oversizedBody, {
+        kind: "remote",
+        profile: relayProfile("body-limit"),
+        token: "secret",
+      }),
+    ).rejects.toThrow("body exceeds the 20 MiB");
+    expect(
+      fetchMock.mock.calls.filter(([url]) =>
+        (url as URL).pathname.endsWith("/v1/execute"),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("rejects an oversized outer Content-Length before reading the body", async () => {
+    const request = createDefaultRequest({
+      id: "oversized-response",
+      url: "https://api.example",
+    });
+    const response = new Response("tiny", {
+      status: 200,
+      headers: {
+        "Content-Length": String(REMOTE_MAX_RESPONSE_BODY_BYTES + 1),
+        "X-XPanel-Response": encodeRelayMetadata({
+          protocolVersion: 1,
+          requestId: request.id,
+          status: 200,
+          statusText: "OK",
+          headers: [],
+          redirects: [],
+          upstreamDurationMs: 1,
+          warnings: [],
+        }),
+      },
+    });
+    if (!response.body) throw new Error("Expected a response stream.");
+    const getReader = vi.spyOn(response.body, "getReader");
+    const arrayBuffer = vi.spyOn(response, "arrayBuffer");
+    vi.stubGlobal(
+      "fetch",
+      relayFetch(async () => response),
+    );
+
+    await expect(
+      executeRemote(request, {
+        kind: "remote",
+        profile: relayProfile("response-limit"),
+        token: "secret",
+      }),
+    ).rejects.toThrow("Response body exceeds the 20 MiB");
+    expect(getReader).not.toHaveBeenCalled();
+    expect(arrayBuffer).not.toHaveBeenCalled();
+  });
+
+  it("maps an unknown-length Relay stream overflow to the Remote size limit", async () => {
+    const request = createDefaultRequest({
+      id: "streamed-response-limit",
+      url: "https://api.example",
+    });
+    let sentLimit = false;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (!sentLimit) {
+          sentLimit = true;
+          controller.enqueue(new Uint8Array(REMOTE_MAX_RESPONSE_BODY_BYTES));
+          return;
+        }
+        controller.error(new Error("transport terminated"));
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      relayFetch(
+        async () =>
+          new Response(stream, {
+            headers: {
+              "X-XPanel-Response": encodeRelayMetadata({
+                protocolVersion: 1,
+                requestId: request.id,
+                status: 200,
+                statusText: "OK",
+                headers: [],
+                redirects: [],
+                upstreamDurationMs: 1,
+                warnings: [],
+              }),
+            },
+          }),
+      ),
+    );
+
+    await expect(
+      executeRemote(request, {
+        kind: "remote",
+        profile: relayProfile("streamed-response-limit"),
+        token: "secret",
+      }),
+    ).rejects.toThrow("Response body exceeds the 20 MiB Remote limit");
+  });
+
+  it("keeps a response without Content-Type as base64", async () => {
+    const request = createDefaultRequest({
+      id: "remote-untyped-binary",
+      url: "https://api.example/binary",
+    });
+    const bytes = new Uint8Array([0, 255, 1, 128]);
+    vi.stubGlobal(
+      "fetch",
+      relayFetch(
+        async () =>
+          new Response(bytes, {
+            status: 200,
+            headers: {
+              "X-XPanel-Response": encodeRelayMetadata({
+                protocolVersion: 1,
+                requestId: request.id,
+                status: 200,
+                statusText: "OK",
+                headers: [],
+                redirects: [],
+                upstreamDurationMs: 1,
+                declaredBodySizeBytes: bytes.byteLength,
+                warnings: [],
+              }),
+            },
+          }),
+      ),
+    );
+
+    const response = await executeRemote(request, {
+      kind: "remote",
+      profile: relayProfile("untyped-binary"),
+      token: "secret",
+    });
+
+    expect(response.body).toEqual({
+      kind: "inline",
+      encoding: "base64",
+      content: Buffer.from(bytes).toString("base64"),
+      sizeBytes: bytes.byteLength,
+    });
+  });
+
+  it("stream-rejects oversized non-200 relay error metadata", async () => {
+    const request = createDefaultRequest({
+      id: "oversized-relay-error",
+      url: "https://api.example",
+    });
+    const cancel = vi.fn();
+    const oversized = new Uint8Array(REMOTE_MAX_METADATA_BYTES + 1);
+    oversized.fill(120);
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(oversized.subarray(0, REMOTE_MAX_METADATA_BYTES));
+          controller.enqueue(oversized.subarray(REMOTE_MAX_METADATA_BYTES));
+        },
+        cancel,
+      }),
+      { status: 400 },
+    );
+    const arrayBuffer = vi.spyOn(response, "arrayBuffer");
+    vi.stubGlobal(
+      "fetch",
+      relayFetch(async () => response),
+    );
+
+    await expect(
+      executeRemote(request, {
+        kind: "remote",
+        profile: relayProfile("oversized-error"),
+        token: "secret",
+      }),
+    ).rejects.toThrow("Remote relay failed with HTTP 400");
+
+    expect(cancel).toHaveBeenCalledWith("metadata-too-large");
+    expect(arrayBuffer).not.toHaveBeenCalled();
+  });
+});
+
+describe("Unified progress and cancellation", () => {
+  it("streams Browser download progress and does not claim upload completion", async () => {
+    const encoder = new TextEncoder();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(encoder.encode("one"));
+                controller.enqueue(encoder.encode("two"));
+                controller.close();
+              },
+            }),
+            {
+              headers: { "Content-Type": "text/plain", "Content-Length": "6" },
+            },
+          ),
+      ),
+    );
+    const progress: ExecutionProgressV1[] = [];
+    const request = createDefaultRequest({
+      method: "POST",
+      url: "https://example.com/progress",
+      body: { kind: "text", text: "request" },
+    });
+
+    await executeBrowser(request, {
+      onProgress: (value) => progress.push(value),
+    });
+
+    expect(progress.find((value) => value.phase === "uploading")).toMatchObject(
+      {
+        loadedBytes: 0,
+        totalBytes: 7,
+      },
+    );
+    expect(
+      progress
+        .filter((value) => value.phase === "downloading")
+        .map((value) => value.loadedBytes),
+    ).toEqual([0, 3, 6]);
+  });
+
+  it("preserves byte progress while cancelling and never returns a late success", async () => {
+    const encoder = new TextEncoder();
+    let streamController!: ReadableStreamDefaultController<Uint8Array>;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                streamController = controller;
+                controller.enqueue(encoder.encode("part"));
+              },
+            }),
+            {
+              headers: { "Content-Type": "text/plain", "Content-Length": "8" },
+            },
+          ),
+      ),
+    );
+    const request = createDefaultRequest({
+      id: "late-browser-cancel",
+      url: "https://example.com/slow-response",
+    });
+    const progress: ExecutionProgressV1[] = [];
+    const execution = executeBrowser(request, {
+      onProgress: (value) => progress.push(value),
+    });
+    await vi.waitFor(() =>
+      expect(progress).toContainEqual(
+        expect.objectContaining({ phase: "downloading", loadedBytes: 4 }),
+      ),
+    );
+
+    expect(cancelRequest(request.id)).toBe(true);
+    expect(isRequestCancelling(request.id)).toBe(true);
+    expect(progress.at(-1)).toMatchObject({
+      phase: "cancelling",
+      loadedBytes: 4,
+      totalBytes: 8,
+    });
+    streamController.close();
+
+    await expect(execution).rejects.toThrow("Request cancelled");
+    expect(isRequestCancelling(request.id)).toBe(false);
   });
 });
