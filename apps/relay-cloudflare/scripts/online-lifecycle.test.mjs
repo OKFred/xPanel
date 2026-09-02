@@ -6,6 +6,7 @@ import {
   activeVersionId,
   createFixtureName,
   parseLifecycleEnvironment,
+  preflightRelay,
   relayBindingState,
   runOnlineLifecycle,
 } from "./online-lifecycle-lib.mjs";
@@ -160,6 +161,57 @@ describe("Wrangler state parsing", () => {
           ],
         },
       }),
+    );
+  });
+});
+
+describe("Relay authentication preflight", () => {
+  test("sends the token only as Bearer authentication with protocol V1", async () => {
+    let observedUrl;
+    let observedInit;
+    await preflightRelay(
+      {
+        relayBaseUrl: "https://xpanel-relay-dev.example.workers.dev",
+        relayToken: "synthetic-token",
+      },
+      async (url, init) => {
+        observedUrl = url;
+        observedInit = init;
+        return new Response(
+          JSON.stringify({ protocolVersion: 1, provider: "cloudflare" }),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        );
+      },
+    );
+    assert.equal(
+      observedUrl,
+      "https://xpanel-relay-dev.example.workers.dev/v1/capabilities",
+    );
+    assert.deepEqual(observedInit.headers, {
+      Authorization: "Bearer synthetic-token",
+      "X-XPanel-Protocol": "1",
+    });
+    assert.equal(observedUrl.includes("synthetic-token"), false);
+  });
+
+  test("rejects authentication and unsupported capability responses", async () => {
+    await assert.rejects(
+      preflightRelay(
+        validEnvironment,
+        async () => new Response(null, { status: 401 }),
+      ),
+      /HTTP 401/u,
+    );
+    await assert.rejects(
+      preflightRelay(
+        validEnvironment,
+        async () =>
+          new Response(
+            JSON.stringify({ protocolVersion: 2, provider: "cloudflare" }),
+            { status: 200 },
+          ),
+      ),
+      /unsupported capabilities/u,
     );
   });
 });

@@ -130,6 +130,35 @@ export function relayBindingState(version) {
   };
 }
 
+export async function preflightRelay(config, fetcher = globalThis.fetch) {
+  const response = await fetcher(`${config.relayBaseUrl}/v1/capabilities`, {
+    headers: {
+      Authorization: `Bearer ${config.relayToken}`,
+      "X-XPanel-Protocol": "1",
+    },
+    signal: globalThis.AbortSignal.timeout(10_000),
+  });
+  if (response.status !== 200) {
+    throw new Error(
+      `Relay authentication preflight returned HTTP ${response.status}; verify XPANEL_REMOTE_TOKEN.`,
+    );
+  }
+  let capabilities;
+  try {
+    capabilities = await response.json();
+  } catch {
+    throw new Error("Relay authentication preflight returned invalid JSON.");
+  }
+  if (
+    capabilities?.protocolVersion !== 1 ||
+    capabilities?.provider !== "cloudflare"
+  ) {
+    throw new Error(
+      "Relay authentication preflight returned unsupported capabilities.",
+    );
+  }
+}
+
 function asError(value) {
   return value instanceof Error ? value : new Error(String(value));
 }

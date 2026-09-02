@@ -7,6 +7,7 @@ import {
   activeVersionId,
   createFixtureName,
   parseLifecycleEnvironment,
+  preflightRelay,
   relayBindingState,
   runOnlineLifecycle,
 } from "./online-lifecycle-lib.mjs";
@@ -202,32 +203,6 @@ function childEnvironment(config, targetUrl) {
       ? { XPANEL_CHROMIUM_EXECUTABLE: config.chromiumExecutable }
       : {}),
   };
-}
-
-async function preflightRelay(config) {
-  const response = await fetch(`${config.relayBaseUrl}/v1/capabilities`, {
-    headers: { Authorization: `Bearer ${config.relayToken}` },
-    signal: globalThis.AbortSignal.timeout(10_000),
-  });
-  if (response.status !== 200) {
-    throw new Error(
-      `Relay authentication preflight returned HTTP ${response.status}; verify XPANEL_REMOTE_TOKEN.`,
-    );
-  }
-  let capabilities;
-  try {
-    capabilities = await response.json();
-  } catch {
-    throw new Error("Relay authentication preflight returned invalid JSON.");
-  }
-  if (
-    capabilities?.protocolVersion !== 1 ||
-    capabilities?.provider !== "cloudflare"
-  ) {
-    throw new Error(
-      "Relay authentication preflight returned unsupported capabilities.",
-    );
-  }
 }
 
 async function ensureCleanRepository() {
