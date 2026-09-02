@@ -8,6 +8,7 @@ inspection, and Browser Fetch execution.
 
 - Runs in the **xPanel** DevTools tab; no account or hosted backend.
 - Browser Fetch execution with exact-origin permission prompts.
+- Per-request timeout control with a 60-second default.
 - Imports and exports cURL (Bash), PowerShell, Node.js fetch, HAR 1.2,
   OpenAPI 3.x, Swagger 2.0, and the lossless xPanel collection format.
 - Favorites, collections, JSON formatting, and one-click copy actions.

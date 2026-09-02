@@ -1,9 +1,10 @@
 import { parse } from "acorn";
-import type {
-  ImportWarning,
-  KeyValueItem,
-  MultipartPart,
-  RequestSpecV1,
+import {
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  type ImportWarning,
+  type KeyValueItem,
+  type MultipartPart,
+  type RequestSpecV1,
 } from "@xpanel/contracts";
 
 import {
@@ -13,6 +14,7 @@ import {
   jsonString,
   makeRequest,
   materializeAuth,
+  normalizeImportedTimeoutMs,
   prepareRequestForExport,
   normalizeMethod,
   requestUrl,
@@ -101,6 +103,10 @@ export function parseNodeFetch(input: string): RequestParseResult {
     const headers = parseHeaders(propertyValue(options, "headers"), context);
     const bodyNode = propertyValue(options, "body");
     const body = parseFetchBody(bodyNode, headers, context);
+    const timeoutMs = parseFetchTimeout(
+      propertyValue(options, "signal"),
+      context,
+    );
     const split = splitUrlQuery(rawUrl);
     const extracted = extractStructuredAuth(headers, split.query);
     requests.push(
@@ -137,7 +143,7 @@ export function parseNodeFetch(input: string): RequestParseResult {
                     ) === "same-origin"
                   ? "same-origin"
                   : "include",
-            timeoutMs: 30_000,
+            timeoutMs,
             proxy: null,
             tls: { verify: true },
           },
@@ -238,6 +244,7 @@ export function exportNodeFetch(
     `headers: ${JSON.stringify(headers, null, 2)}`,
     `redirect: ${jsonString(request.options.redirect)}`,
     `credentials: ${jsonString(request.options.cookieMode)}`,
+    `signal: AbortSignal.timeout(${request.options.timeoutMs})`,
   ];
   if (bodyExpression) properties.push(`body: ${bodyExpression}`);
   const code = `const response = await fetch(${jsonString(requestUrl(request))}, {\n${properties
@@ -424,6 +431,38 @@ function parseFetchBody(
   return { kind: "none" };
 }
 
+function parseFetchTimeout(
+  node: AstNode | undefined,
+  context: FetchContext,
+): number {
+  if (!node) return DEFAULT_REQUEST_TIMEOUT_MS;
+  if (!isAbortSignalTimeoutCall(node)) {
+    context.warnings.push(
+      warning(
+        "fetch.signal_unsupported",
+        "Only a static AbortSignal.timeout(milliseconds) signal is imported; xPanel used its 60-second default.",
+      ),
+    );
+    return DEFAULT_REQUEST_TIMEOUT_MS;
+  }
+
+  const argument = asNodes(node.arguments)[0];
+  const value = staticJson(argument, context);
+  if (value === undefined) {
+    context.warnings.push(
+      warning(
+        "fetch.timeout_dynamic",
+        "AbortSignal.timeout() must use a static numeric value; the expression was not evaluated and xPanel used its 60-second default.",
+      ),
+    );
+    return DEFAULT_REQUEST_TIMEOUT_MS;
+  }
+  return normalizeImportedTimeoutMs(value, context.warnings, {
+    codePrefix: "fetch",
+    sourceLabel: "AbortSignal.timeout()",
+  });
+}
+
 function fileBodyFromNode(
   node: AstNode | undefined,
   context: FetchContext,
@@ -509,9 +548,16 @@ function staticJson(node: AstNode | undefined, context: FetchContext): unknown {
     );
     return values.some((value) => value === undefined) ? undefined : values;
   }
-  if (node.type === "UnaryExpression" && node.operator === "-") {
+  if (
+    node.type === "UnaryExpression" &&
+    (node.operator === "-" || node.operator === "+")
+  ) {
     const value = staticJson(asNode(node.argument), context);
-    return typeof value === "number" ? -value : undefined;
+    return typeof value === "number"
+      ? node.operator === "-"
+        ? -value
+        : value
+      : undefined;
   }
   return undefined;
 }
@@ -546,6 +592,17 @@ function isFetchCallee(node: AstNode | undefined): boolean {
     asNode(node.object)?.type === "Identifier" &&
     ["globalThis", "window"].includes(String(asNode(node.object)?.name)) &&
     staticPropertyName(asNode(node.property)) === "fetch"
+  );
+}
+
+function isAbortSignalTimeoutCall(node: AstNode | undefined): boolean {
+  if (node?.type !== "CallExpression") return false;
+  const callee = asNode(node.callee);
+  return (
+    callee?.type === "MemberExpression" &&
+    asNode(callee.object)?.type === "Identifier" &&
+    asNode(callee.object)?.name === "AbortSignal" &&
+    staticPropertyName(asNode(callee.property)) === "timeout"
   );
 }
 

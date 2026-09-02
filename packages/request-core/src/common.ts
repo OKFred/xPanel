@@ -1,5 +1,6 @@
 import {
   createDefaultRequest,
+  DEFAULT_REQUEST_TIMEOUT_MS,
   redactRequestForExport,
   type AuthSpec,
   type ImportSource,
@@ -7,6 +8,73 @@ import {
   type KeyValueItem,
   type RequestSpecV1,
 } from "@xpanel/contracts";
+
+export const MAX_REQUEST_TIMEOUT_MS = 86_400_000;
+
+export function normalizeImportedTimeoutMs(
+  rawTimeoutMs: unknown,
+  warnings: ImportWarning[],
+  options: {
+    codePrefix: "curl" | "powershell" | "fetch";
+    sourceLabel: string;
+    zeroMeansUnlimited?: boolean;
+    roundFractionalMilliseconds?: boolean;
+  },
+): number {
+  const useDefault = (code: string, message: string): number => {
+    warnings.push(warning(code, message));
+    return DEFAULT_REQUEST_TIMEOUT_MS;
+  };
+
+  if (typeof rawTimeoutMs !== "number" || !Number.isFinite(rawTimeoutMs)) {
+    return useDefault(
+      `${options.codePrefix}.timeout_invalid`,
+      `${options.sourceLabel} timeout must be a finite static number; xPanel used its 60-second default.`,
+    );
+  }
+  if (rawTimeoutMs === 0) {
+    return useDefault(
+      options.zeroMeansUnlimited
+        ? `${options.codePrefix}.timeout_unlimited_unsupported`
+        : `${options.codePrefix}.timeout_invalid`,
+      options.zeroMeansUnlimited
+        ? `${options.sourceLabel} uses zero for an unlimited timeout, which xPanel does not support; xPanel used its 60-second default.`
+        : `${options.sourceLabel} timeout must be a positive integer; xPanel used its 60-second default.`,
+    );
+  }
+  if (rawTimeoutMs < 0) {
+    return useDefault(
+      `${options.codePrefix}.timeout_invalid`,
+      `${options.sourceLabel} timeout must be greater than zero; xPanel used its 60-second default.`,
+    );
+  }
+  if (rawTimeoutMs > MAX_REQUEST_TIMEOUT_MS) {
+    warnings.push(
+      warning(
+        `${options.codePrefix}.timeout_clamped`,
+        `${options.sourceLabel} timeout exceeded xPanel's 24-hour limit and was clamped to 24 hours.`,
+      ),
+    );
+    return MAX_REQUEST_TIMEOUT_MS;
+  }
+  if (!Number.isInteger(rawTimeoutMs)) {
+    if (options.roundFractionalMilliseconds) {
+      const rounded = Math.max(1, Math.round(rawTimeoutMs));
+      warnings.push(
+        warning(
+          `${options.codePrefix}.timeout_precision_adjusted`,
+          `${options.sourceLabel} timeout was rounded to ${rounded} milliseconds.`,
+        ),
+      );
+      return rounded;
+    }
+    return useDefault(
+      `${options.codePrefix}.timeout_invalid`,
+      `${options.sourceLabel} timeout must resolve to a positive integer number of milliseconds; xPanel used its 60-second default.`,
+    );
+  }
+  return rawTimeoutMs;
+}
 
 export function warning(
   code: string,

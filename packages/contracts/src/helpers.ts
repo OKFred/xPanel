@@ -13,6 +13,7 @@ import {
 } from "./schemas.js";
 
 export const REDACTED_VALUE = "[REDACTED]";
+export const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
 
 export interface ExportRedactionResult<T> {
   value: T;
@@ -457,7 +458,7 @@ export function createDefaultRequest(
     options: {
       redirect: "follow",
       cookieMode: "include",
-      timeoutMs: 30_000,
+      timeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
       proxy: null,
       tls: { verify: true },
     },

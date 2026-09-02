@@ -8,6 +8,7 @@ Vue 3、shadcn-vue/Tailwind 完成 Manifest V3 重写，并提供请求集合、
 
 - 继续使用 DevTools 的 **xPanel** 页签，无账号、无托管后端。
 - 使用 Browser Fetch 执行，并在发送时按目标站点精确申请权限。
+- 每个请求都可单独设置超时时间，默认 60 秒。
 - 双向支持 cURL（Bash）、PowerShell、Node.js fetch、HAR 1.2、OpenAPI 3.x、
   Swagger 2.0 和无损 xPanel 集合格式。
 - 支持集合、收藏、JSON 美化/压缩及一键复制。

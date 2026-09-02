@@ -1,15 +1,17 @@
-import type {
-  FileReferenceV1,
-  ImportWarning,
-  KeyValueItem,
-  MultipartPart,
-  RequestSpecV1,
+import {
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  type FileReferenceV1,
+  type ImportWarning,
+  type KeyValueItem,
+  type MultipartPart,
+  type RequestSpecV1,
 } from "@xpanel/contracts";
 
 import {
   detectBody,
   extractStructuredAuth,
   makeRequest,
+  normalizeImportedTimeoutMs,
   materializeAuth,
   prepareRequestForExport,
   normalizeMethod,
@@ -100,7 +102,24 @@ export function parsePowerShell(input: string): RequestParseResult {
         }
         continue;
       }
-      if (!valueToken || valueToken.value.startsWith("-")) continue;
+      const negativeTimeoutValue =
+        name === "-timeoutsec" &&
+        valueToken !== undefined &&
+        /^-(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(valueToken.value);
+      if (
+        !valueToken ||
+        (valueToken.value.startsWith("-") && !negativeTimeoutValue)
+      ) {
+        if (name === "-timeoutsec") {
+          timeoutMs = normalizeImportedTimeoutMs(Number.NaN, warnings, {
+            codePrefix: "powershell",
+            sourceLabel: "PowerShell -TimeoutSec",
+            zeroMeansUnlimited: true,
+            roundFractionalMilliseconds: true,
+          });
+        }
+        continue;
+      }
       index += 1;
       const resolved = resolveStaticValue(valueToken, assignments, warnings);
       switch (name) {
@@ -166,9 +185,14 @@ export function parsePowerShell(input: string): RequestParseResult {
           break;
         }
         case "-timeoutsec": {
-          const seconds = Number(resolved);
-          if (Number.isFinite(seconds) && seconds > 0)
-            timeoutMs = seconds * 1000;
+          const seconds =
+            resolved === undefined ? Number.NaN : Number(resolved);
+          timeoutMs = normalizeImportedTimeoutMs(seconds * 1000, warnings, {
+            codePrefix: "powershell",
+            sourceLabel: "PowerShell -TimeoutSec",
+            zeroMeansUnlimited: true,
+            roundFractionalMilliseconds: true,
+          });
           break;
         }
         case "-proxy":
@@ -229,7 +253,7 @@ export function parsePowerShell(input: string): RequestParseResult {
         options: {
           redirect: "follow",
           cookieMode: "include",
-          timeoutMs: timeoutMs ?? 30_000,
+          timeoutMs: timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
           proxy: proxyUrl ? { url: proxyUrl, bypass: [] } : null,
           tls: { verify: !/-SkipCertificateCheck\b/i.test(command) },
         },

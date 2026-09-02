@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   CollectionFileV1Schema,
+  DEFAULT_REQUEST_TIMEOUT_MS,
   REDACTED_VALUE,
   RequestSpecV1Schema,
   createDefaultRequest,
@@ -26,8 +27,13 @@ describe("RequestSpecV1", () => {
       method: "GET",
       auth: { kind: "none" },
       body: { kind: "none" },
-      options: { proxy: null, tls: { verify: true } },
+      options: {
+        timeoutMs: 60_000,
+        proxy: null,
+        tls: { verify: true },
+      },
     });
+    expect(request.options.timeoutMs).toBe(DEFAULT_REQUEST_TIMEOUT_MS);
   });
 
   it("rejects unknown keys and unknown schema versions", () => {

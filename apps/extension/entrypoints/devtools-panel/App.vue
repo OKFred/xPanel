@@ -95,11 +95,73 @@ const copied = ref("");
 const errorMessage = ref("");
 const activeExecutionId = ref("");
 const fileInput = ref<HTMLInputElement>();
+const timeoutSecondsInput = ref("");
+const timeoutEditing = ref(false);
+
+const MIN_TIMEOUT_MS = 1;
+const MAX_TIMEOUT_MS = 86_400_000;
+const MIN_TIMEOUT_SECONDS = MIN_TIMEOUT_MS / 1_000;
+const MAX_TIMEOUT_SECONDS = MAX_TIMEOUT_MS / 1_000;
+const TIMEOUT_RANGE_MESSAGE =
+  "Timeout must be between 0.001 and 86400 seconds.";
 
 const detectedFormat = computed(() =>
   detectImportFormat(importText.value, importFileName.value),
 );
 const bodyKind = computed(() => current.value.body.kind);
+
+function formatTimeoutSeconds(timeoutMs: number): string {
+  return (timeoutMs / 1_000).toString();
+}
+
+function parseTimeoutSeconds(value: string): number | undefined {
+  if (value.trim() === "") return undefined;
+  const seconds = Number(value);
+  if (
+    !Number.isFinite(seconds) ||
+    seconds < MIN_TIMEOUT_SECONDS ||
+    seconds > MAX_TIMEOUT_SECONDS
+  ) {
+    return undefined;
+  }
+  const timeoutMs = Math.round(seconds * 1_000);
+  if (timeoutMs < MIN_TIMEOUT_MS || timeoutMs > MAX_TIMEOUT_MS) {
+    return undefined;
+  }
+  return timeoutMs;
+}
+
+function updateTimeoutInput(event: Event): void {
+  const value = (event.currentTarget as HTMLInputElement).value;
+  timeoutSecondsInput.value = value;
+  const timeoutMs = parseTimeoutSeconds(value);
+  if (timeoutMs !== undefined) current.value.options.timeoutMs = timeoutMs;
+}
+
+function normalizeTimeoutInput(): void {
+  timeoutEditing.value = false;
+  const timeoutMs = parseTimeoutSeconds(timeoutSecondsInput.value);
+  if (timeoutMs === undefined) {
+    timeoutSecondsInput.value = formatTimeoutSeconds(
+      current.value.options.timeoutMs,
+    );
+    errorMessage.value = TIMEOUT_RANGE_MESSAGE;
+    return;
+  }
+  current.value.options.timeoutMs = timeoutMs;
+  timeoutSecondsInput.value = formatTimeoutSeconds(timeoutMs);
+  if (errorMessage.value === TIMEOUT_RANGE_MESSAGE) errorMessage.value = "";
+}
+
+watch(
+  () => [current.value.id, current.value.options.timeoutMs] as const,
+  ([, timeoutMs]) => {
+    if (!timeoutEditing.value) {
+      timeoutSecondsInput.value = formatTimeoutSeconds(timeoutMs);
+    }
+  },
+  { immediate: true },
+);
 const hasHiddenBrowserOptions = computed(
   () =>
     current.value.options.proxy !== null ||
@@ -1065,11 +1127,17 @@ function loadSaved(request: RequestSpecV1, collectionId?: string): void {
             </div>
             <div v-else class="form-stack options-grid">
               <label
-                >Timeout (ms)<input
-                  v-model.number="current.options.timeoutMs"
+                >Timeout (seconds)<input
+                  :value="timeoutSecondsInput"
+                  aria-label="Timeout (seconds)"
                   class="field"
                   type="number"
-                  min="1"
+                  min="0.001"
+                  max="86400"
+                  step="0.001"
+                  @focus="timeoutEditing = true"
+                  @input="updateTimeoutInput"
+                  @blur="normalizeTimeoutInput"
               /></label>
               <label
                 >Redirect<select v-model="current.options.redirect">

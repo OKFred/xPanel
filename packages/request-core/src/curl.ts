@@ -1,15 +1,17 @@
-import type {
-  ImportWarning,
-  KeyValueItem,
-  MultipartPart,
-  FileReferenceV1,
-  RequestSpecV1,
+import {
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  type FileReferenceV1,
+  type ImportWarning,
+  type KeyValueItem,
+  type MultipartPart,
+  type RequestSpecV1,
 } from "@xpanel/contracts";
 
 import {
   detectBody,
   extractStructuredAuth,
   makeRequest,
+  normalizeImportedTimeoutMs,
   materializeAuth,
   prepareRequestForExport,
   normalizeMethod,
@@ -184,8 +186,13 @@ function parseCurlCommand(
         index -= VALUE_OPTIONS.has(token) ? 1 : 0;
         break;
       case "--max-time": {
-        const seconds = Number(value);
-        if (Number.isFinite(seconds) && seconds > 0) timeoutMs = seconds * 1000;
+        const seconds = value === undefined ? Number.NaN : Number(value);
+        timeoutMs = normalizeImportedTimeoutMs(seconds * 1000, warnings, {
+          codePrefix: "curl",
+          sourceLabel: "cURL --max-time",
+          zeroMeansUnlimited: true,
+          roundFractionalMilliseconds: true,
+        });
         break;
       }
       case "-b":
@@ -341,7 +348,7 @@ function parseCurlCommand(
       options: {
         redirect: followRedirects ? "follow" : "manual",
         cookieMode: "include",
-        timeoutMs: timeoutMs ?? 30_000,
+        timeoutMs: timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
         proxy: proxyUrl
           ? {
               url: proxyUrl,

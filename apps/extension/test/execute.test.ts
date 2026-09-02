@@ -350,6 +350,22 @@ describe("Browser execution", () => {
     await expect(execution).rejects.toThrow("Request cancelled");
   });
 
+  it("arms Browser Fetch with the request timeout", async () => {
+    const timeoutSpy = vi.spyOn(window, "setTimeout");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("ok", { status: 200 })),
+    );
+    const request = createDefaultRequest({
+      id: crypto.randomUUID(),
+      url: "https://example.com/timeout",
+    });
+
+    await executeBrowser(request);
+
+    expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 60_000);
+  });
+
   it("remembers cancellation while a host permission prompt is pending", async () => {
     let resolvePermission!: (granted: boolean) => void;
     const requestPermission = vi.fn(

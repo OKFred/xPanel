@@ -39,6 +39,142 @@ function fixture(name: string): string {
 }
 
 describe("static command formats", () => {
+  it("defaults imported requests to 60 seconds and keeps explicit overrides", () => {
+    expect(
+      parseCurlBash("curl 'https://api.example.com'").requests[0]?.options
+        .timeoutMs,
+    ).toBe(60_000);
+    expect(
+      parsePowerShell("Invoke-WebRequest -Uri 'https://api.example.com'")
+        .requests[0]?.options.timeoutMs,
+    ).toBe(60_000);
+    expect(
+      parseNodeFetch("fetch('https://api.example.com')").requests[0]?.options
+        .timeoutMs,
+    ).toBe(60_000);
+    expect(
+      parseCurlBash("curl 'https://api.example.com' --max-time '2.5'")
+        .requests[0]?.options.timeoutMs,
+    ).toBe(2_500);
+    expect(
+      parsePowerShell(
+        "Invoke-WebRequest -Uri 'https://api.example.com' -TimeoutSec 7",
+      ).requests[0]?.options.timeoutMs,
+    ).toBe(7_000);
+  });
+
+  it("round-trips static AbortSignal timeouts and rejects dynamic values", () => {
+    const imported = parseNodeFetch(`
+const timeoutMs = 12_345
+fetch("https://api.example.com", {
+  signal: AbortSignal.timeout(timeoutMs),
+})`);
+    expect(imported.requests[0]?.options.timeoutMs).toBe(12_345);
+
+    const exported = exportNodeFetch(imported.requests[0]!, {
+      includeSensitive: true,
+    });
+    expect(exported.text).toContain("signal: AbortSignal.timeout(12345)");
+    expect(parseNodeFetch(exported.text).requests[0]?.options.timeoutMs).toBe(
+      12_345,
+    );
+
+    const dynamic = parseNodeFetch(
+      'fetch("https://api.example.com", { signal: AbortSignal.timeout(getTimeout()) })',
+    );
+    expect(dynamic.requests[0]?.options.timeoutMs).toBe(60_000);
+    expect(dynamic.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "fetch.timeout_dynamic" }),
+      ]),
+    );
+
+    const nonNumeric = parseNodeFetch(
+      'fetch("https://api.example.com", { signal: AbortSignal.timeout("5000") })',
+    );
+    expect(nonNumeric.requests[0]?.options.timeoutMs).toBe(60_000);
+    expect(nonNumeric.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "fetch.timeout_invalid" }),
+      ]),
+    );
+
+    for (const value of ["0", "12.5"]) {
+      const invalid = parseNodeFetch(
+        `fetch("https://api.example.com", { signal: AbortSignal.timeout(${value}) })`,
+      );
+      expect(invalid.requests[0]?.options.timeoutMs).toBe(60_000);
+      expect(invalid.warnings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: "fetch.timeout_invalid" }),
+        ]),
+      );
+    }
+
+    const tooLong = parseNodeFetch(
+      'fetch("https://api.example.com", { signal: AbortSignal.timeout(86_400_001) })',
+    );
+    expect(tooLong.requests[0]?.options.timeoutMs).toBe(86_400_000);
+    expect(tooLong.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "fetch.timeout_clamped" }),
+      ]),
+    );
+  });
+
+  it("normalizes timeout values that cannot be represented by RequestSpecV1", () => {
+    const curlUnlimited = parseCurlBash(
+      "curl 'https://api.example.com' --max-time 0",
+    );
+    expect(curlUnlimited.requests[0]?.options.timeoutMs).toBe(60_000);
+    expect(curlUnlimited.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "curl.timeout_unlimited_unsupported",
+        }),
+      ]),
+    );
+
+    const curlTooLong = parseCurlBash(
+      "curl 'https://api.example.com' --max-time 90000",
+    );
+    expect(curlTooLong.requests[0]?.options.timeoutMs).toBe(86_400_000);
+    expect(curlTooLong.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "curl.timeout_clamped" }),
+      ]),
+    );
+
+    const powerShellCases = [
+      {
+        value: "0",
+        timeoutMs: 60_000,
+        warning: "powershell.timeout_unlimited_unsupported",
+      },
+      {
+        value: "-1",
+        timeoutMs: 60_000,
+        warning: "powershell.timeout_invalid",
+      },
+      {
+        value: "90000",
+        timeoutMs: 86_400_000,
+        warning: "powershell.timeout_clamped",
+      },
+    ];
+    for (const item of powerShellCases) {
+      const parsed = parsePowerShell(
+        `Invoke-WebRequest -Uri 'https://api.example.com' -TimeoutSec ${item.value}`,
+      );
+      expect(parsed.requests[0]?.options.timeoutMs).toBe(item.timeoutMs);
+      expect(parsed.warnings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: item.warning }),
+        ]),
+      );
+    }
+  });
+
   it("round-trips Chrome cURL without executing shell syntax", () => {
     const parsed = parseCurlBash(fixture("chrome.curl.txt"));
     expect(parsed.requests).toHaveLength(1);
