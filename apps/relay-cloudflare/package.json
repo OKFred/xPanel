@@ -8,8 +8,10 @@
     "build": "wrangler deploy --dry-run --outdir dist",
     "dev": "wrangler dev",
     "generate:token": "node scripts/generate-token.mjs",
-    "test": "vitest run --config vitest.config.ts",
+    "test": "vitest run --config vitest.config.ts && node --test scripts/online-lifecycle.test.mjs",
+    "test:lifecycle": "node --test scripts/online-lifecycle.test.mjs",
     "test:online": "node scripts/online-acceptance.mjs",
+    "test:online:lifecycle": "node scripts/online-lifecycle.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "types": "wrangler types worker-configuration.d.ts",
     "types:check": "wrangler types --check worker-configuration.d.ts"

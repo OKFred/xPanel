@@ -143,3 +143,34 @@ temporary synthetic Fixture Worker with `pnpm --filter
 this protocol suite. The separate Chromium E2E runner sends directly to the
 configured target, so set its `XPANEL_REMOTE_TARGET_URL` to the Fixture's
 concrete `/e2e` URL.
+
+For the complete guarded lifecycle, use `test:online:lifecycle`. It refuses CI,
+requires a clean Git workspace, accepts only a workers.dev Relay whose name
+contains `dev`, `staging`, or `test`, and verifies that the active Relay starts
+with an empty allowlist. It creates a cryptographically random Fixture, runs
+both protocol and Chromium acceptance with the correct target URLs, restores
+the exact prior self-origin aliases with an empty allowlist, and confirms the
+Fixture is gone through both Wrangler and HTTP. Cleanup steps are attempted
+independently even when acceptance fails.
+
+Provide the token through the process environment, never a command argument or
+file. On PowerShell, the maintained `xpanel-relay-dev` flow is:
+
+```powershell
+$env:XPANEL_ONLINE_ACCEPTANCE = "I_UNDERSTAND_THIS_DEPLOYS_AND_DELETES_WORKERS"
+$env:XPANEL_REMOTE_RELAY_NAME = "xpanel-relay-dev"
+$env:XPANEL_REMOTE_BASE_URL = "https://xpanel-relay-dev.example.workers.dev"
+$env:XPANEL_REMOTE_TOKEN = Get-Clipboard -Raw
+try {
+  pnpm --filter @xpanel/relay-cloudflare test:online:lifecycle
+} finally {
+  Remove-Item Env:XPANEL_ONLINE_ACCEPTANCE -ErrorAction SilentlyContinue
+  Remove-Item Env:XPANEL_REMOTE_RELAY_NAME -ErrorAction SilentlyContinue
+  Remove-Item Env:XPANEL_REMOTE_BASE_URL -ErrorAction SilentlyContinue
+  Remove-Item Env:XPANEL_REMOTE_TOKEN -ErrorAction SilentlyContinue
+}
+```
+
+Replace the example workers.dev subdomain with the selected account's actual
+subdomain. The lifecycle runner never prints the token and does not run from
+GitHub Actions.

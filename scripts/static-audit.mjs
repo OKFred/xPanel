@@ -6,6 +6,7 @@ const root = resolve(import.meta.dirname, "..");
 const sourceRoots = [
   "apps/extension/entrypoints",
   "apps/extension/src",
+  "apps/relay-cloudflare/scripts",
   "apps/relay-cloudflare/src",
   "packages/contracts/src",
   "packages/request-core/src",
@@ -102,6 +103,45 @@ if (!existsSync(relayConfigPath)) {
   }
   if (/"nodejs_compat"/u.test(relayConfig)) {
     failures.push("Cloudflare Relay config enables Node compatibility");
+  }
+}
+
+const lifecyclePath = join(
+  root,
+  "apps/relay-cloudflare/scripts/online-lifecycle.mjs",
+);
+const lifecycleLibraryPath = join(
+  root,
+  "apps/relay-cloudflare/scripts/online-lifecycle-lib.mjs",
+);
+if (!existsSync(lifecyclePath) || !existsSync(lifecycleLibraryPath)) {
+  failures.push("guarded Cloudflare online lifecycle runner is missing");
+} else {
+  const lifecycle = readFileSync(lifecyclePath, "utf8");
+  const lifecycleLibrary = readFileSync(lifecycleLibraryPath, "utf8");
+  const requiredLifecyclePatterns = [
+    ["shell-free child processes", /shell:\s*false/u, lifecycle],
+    ["strict Relay deployment", /"--strict"/u, lifecycle],
+    ["cryptographically random Fixture name", /randomBytes\(6\)/u, lifecycle],
+    [
+      "CI refusal",
+      /Online lifecycle acceptance is disabled in CI/u,
+      lifecycleLibrary,
+    ],
+    [
+      "explicit online confirmation",
+      /I_UNDERSTAND_THIS_DEPLOYS_AND_DELETES_WORKERS/u,
+      lifecycleLibrary,
+    ],
+    ["empty allowlist precondition", /empty allowlist/u, lifecycleLibrary],
+  ];
+  for (const [label, pattern, source] of requiredLifecyclePatterns) {
+    if (!pattern.test(source)) {
+      failures.push(`Cloudflare lifecycle runner is missing ${label}`);
+    }
+  }
+  if (/shell:\s*true/u.test(lifecycle)) {
+    failures.push("Cloudflare lifecycle runner enables shell execution");
   }
 }
 
