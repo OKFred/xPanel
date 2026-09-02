@@ -1,4 +1,5 @@
 import {
+  requestSpecV1Schema,
   responseRecordV1Schema,
   type ExecutionWarning,
   type KeyValueItem,
@@ -23,15 +24,23 @@ const forbiddenBrowserHeaders = new Set([
   "host",
   "keep-alive",
   "origin",
-  "permissions-policy",
   "proxy-authorization",
   "referer",
+  "set-cookie",
   "te",
   "trailer",
   "transfer-encoding",
   "upgrade",
   "via",
 ]);
+
+const conditionalForbiddenBrowserHeaders = new Set([
+  "x-http-method",
+  "x-http-method-override",
+  "x-method-override",
+]);
+
+const forbiddenBrowserMethods = new Set(["CONNECT", "TRACE", "TRACK"]);
 
 const activeBrowserRequests = new Map<string, AbortController>();
 
@@ -47,13 +56,66 @@ function warning(
   return { code, message, ...(path ? { path } : {}) };
 }
 
-function isForbiddenBrowserHeader(name: string): boolean {
+function isForbiddenBrowserHeader(name: string, value = ""): boolean {
   const normalized = name.trim().toLowerCase();
   return (
     forbiddenBrowserHeaders.has(normalized) ||
     normalized.startsWith("proxy-") ||
-    normalized.startsWith("sec-")
+    normalized.startsWith("sec-") ||
+    (conditionalForbiddenBrowserHeaders.has(normalized) &&
+      value
+        .split(",")
+        .map((method) => method.trim().toUpperCase())
+        .some((method) => forbiddenBrowserMethods.has(method)))
   );
+}
+
+export interface RemovedBrowserHeader {
+  /** The first spelling encountered, trimmed for display. */
+  name: string;
+  /** Number of enabled headers removed with this case-insensitive name. */
+  occurrences: number;
+}
+
+export interface BrowserHeaderSanitizationResult {
+  request: RequestSpecV1;
+  removedHeaders: RemovedBrowserHeader[];
+}
+
+/**
+ * Create a plain request that Browser Fetch can send after dropping regular
+ * forbidden headers. Disabled headers and non-header unsupported features are
+ * retained so callers can still edit them or report those limitations.
+ */
+export function sanitizeBrowserRequestHeaders(
+  request: RequestSpecV1,
+): BrowserHeaderSanitizationResult {
+  const sanitized = requestSpecV1Schema.parse(request);
+  const removedHeaders: RemovedBrowserHeader[] = [];
+  const removedByName = new Map<string, RemovedBrowserHeader>();
+
+  sanitized.headers = sanitized.headers.filter((header) => {
+    if (
+      !header.enabled ||
+      !isForbiddenBrowserHeader(header.name, header.value)
+    ) {
+      return true;
+    }
+
+    const displayName = header.name.trim();
+    const normalizedName = displayName.toLowerCase();
+    const existing = removedByName.get(normalizedName);
+    if (existing) {
+      existing.occurrences += 1;
+    } else {
+      const removed = { name: displayName, occurrences: 1 };
+      removedByName.set(normalizedName, removed);
+      removedHeaders.push(removed);
+    }
+    return false;
+  });
+
+  return { request: sanitized, removedHeaders };
 }
 
 /**
@@ -85,13 +147,13 @@ export function browserUnsupportedReasons(request: RequestSpecV1): string[] {
     }
     if (
       request.auth.location === "header" &&
-      isForbiddenBrowserHeader(request.auth.name)
+      isForbiddenBrowserHeader(request.auth.name, request.auth.value)
     ) {
       reasons.push(`the forbidden ${request.auth.name} header`);
     }
   }
   for (const header of enabled(request.headers)) {
-    if (isForbiddenBrowserHeader(header.name)) {
+    if (isForbiddenBrowserHeader(header.name, header.value)) {
       reasons.push(`the forbidden ${header.name} header`);
     }
   }

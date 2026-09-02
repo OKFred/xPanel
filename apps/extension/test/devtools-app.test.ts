@@ -29,6 +29,12 @@ const execution = vi.hoisted(() => ({
   cancelRequest: vi.fn<(requestId: string) => void>(),
   executeRequest:
     vi.fn<(request: RequestSpecV1) => Promise<ResponseRecordV1>>(),
+  sanitizeBrowserRequestHeaders: vi.fn<
+    (request: RequestSpecV1) => {
+      request: RequestSpecV1;
+      removedHeaders: { name: string; occurrences: number }[];
+    }
+  >(),
 }));
 
 vi.mock("../src/lib/database", () => database);
@@ -100,6 +106,25 @@ beforeAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   execution.executeRequest.mockReset();
+  execution.sanitizeBrowserRequestHeaders.mockReset();
+  execution.sanitizeBrowserRequestHeaders.mockImplementation((request) => {
+    const sanitized = structuredClone(request);
+    const removed = sanitized.headers.filter((header) =>
+      ["dnt", "origin"].includes(header.name.toLowerCase()),
+    );
+    sanitized.headers = sanitized.headers.filter(
+      (header) => !["dnt", "origin"].includes(header.name.toLowerCase()),
+    );
+    return {
+      request: sanitized,
+      removedHeaders: [...new Set(removed.map((header) => header.name))].map(
+        (name) => ({
+          name,
+          occurrences: removed.filter((header) => header.name === name).length,
+        }),
+      ),
+    };
+  });
 });
 
 describe("DevTools request sending", () => {
@@ -149,6 +174,150 @@ describe("DevTools request sending", () => {
     expect(message.text()).toContain("Network unavailable");
     expect(message.attributes("data-error")).toBe("true");
     expect(wrapper.find("button.send-button").exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it("keeps automatic filtering off and surfaces forbidden-header errors", async () => {
+    const pinia = createPinia();
+    const wrapper = await mountApp(pinia);
+    const store = useWorkbenchStore(pinia);
+    store.current.url = "https://example.com/imported";
+    store.current.headers.push({
+      name: "DNT",
+      value: "1",
+      enabled: true,
+      sensitive: false,
+    });
+    execution.executeRequest.mockRejectedValue(
+      new Error("Browser Fetch cannot preserve the forbidden DNT header."),
+    );
+
+    await wrapper.get("button.send-button").trigger("click");
+    await flushPromises();
+
+    expect(execution.sanitizeBrowserRequestHeaders).not.toHaveBeenCalled();
+    expect(execution.executeRequest.mock.calls[0]?.[0].headers).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "DNT" })]),
+    );
+    expect(wrapper.text()).toContain(
+      "Browser Fetch cannot preserve the forbidden DNT header.",
+    );
+    wrapper.unmount();
+  });
+
+  it("filters only the execution copy and reports the removed headers", async () => {
+    storage.get.mockResolvedValueOnce({ autoFilterBrowserHeaders: true });
+    const pinia = createPinia();
+    const wrapper = await mountApp(pinia);
+    const store = useWorkbenchStore(pinia);
+    store.current.url = "https://example.com/imported";
+    store.current.headers.push(
+      {
+        name: "DNT",
+        value: "1",
+        enabled: true,
+        sensitive: false,
+      },
+      {
+        name: "Origin",
+        value: "https://source.example",
+        enabled: true,
+        sensitive: false,
+      },
+      {
+        name: "X-Trace",
+        value: "kept",
+        enabled: true,
+        sensitive: false,
+      },
+    );
+    execution.executeRequest.mockImplementation(async (request) =>
+      responseFor(request.id),
+    );
+
+    await wrapper.get("button.send-button").trigger("click");
+    await flushPromises();
+
+    expect(execution.sanitizeBrowserRequestHeaders).toHaveBeenCalledOnce();
+    const executed = execution.executeRequest.mock.calls[0]?.[0];
+    expect(executed?.headers.map((header) => header.name)).toEqual(["X-Trace"]);
+    expect(store.current.headers.map((header) => header.name)).toEqual([
+      "DNT",
+      "Origin",
+      "X-Trace",
+    ]);
+    expect(wrapper.text()).toContain(
+      "Filtered 2 browser-controlled header(s) for this send: DNT, Origin.",
+    );
+    const filterWarning = store.response?.warnings.find(
+      (warning) => warning.code === "browser.headers_filtered",
+    );
+    expect(filterWarning?.path).toBe("headers");
+    expect(filterWarning?.message).toContain("DNT, Origin");
+    wrapper.unmount();
+  });
+
+  it("keeps the filtering notice when another unsupported option fails", async () => {
+    storage.get.mockResolvedValueOnce({ autoFilterBrowserHeaders: true });
+    const pinia = createPinia();
+    const wrapper = await mountApp(pinia);
+    const store = useWorkbenchStore(pinia);
+    store.current.url = "https://example.com/imported";
+    store.current.headers.push({
+      name: "DNT",
+      value: "1",
+      enabled: true,
+      sensitive: false,
+    });
+    store.current.options.proxy = {
+      url: "http://proxy.example:8080",
+      bypass: [],
+    };
+    execution.executeRequest.mockRejectedValue(
+      new Error(
+        "Browser Fetch cannot preserve this request because it uses an explicit proxy.",
+      ),
+    );
+
+    await wrapper.get("button.send-button").trigger("click");
+    await flushPromises();
+
+    const message = wrapper.get(".message-strip");
+    expect(message.text()).toContain("an explicit proxy");
+    expect(message.text()).toContain(
+      "Filtered 1 browser-controlled header(s) for this send: DNT.",
+    );
+    expect(message.attributes("data-error")).toBe("true");
+    expect(store.current.headers).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "DNT" })]),
+    );
+    wrapper.unmount();
+  });
+
+  it("loads and saves the automatic filtering preference", async () => {
+    storage.get.mockResolvedValueOnce({ autoFilterBrowserHeaders: true });
+    const wrapper = await mountApp();
+    const optionsTab = wrapper
+      .findAll(".tab-list button")
+      .find((button) => button.text() === "Options");
+    if (!optionsTab) throw new Error("Expected the Options tab.");
+    await optionsTab.trigger("click");
+    const checkbox = wrapper
+      .findAll('input[type="checkbox"]')
+      .find((input) =>
+        input.element.parentElement?.textContent?.includes(
+          "Automatically filter browser-controlled headers",
+        ),
+      );
+    if (!checkbox) throw new Error("Expected the automatic filtering option.");
+    expect((checkbox.element as HTMLInputElement).checked).toBe(true);
+
+    await checkbox.setValue(false);
+    await flushPromises();
+
+    expect(storage.set).toHaveBeenCalledWith({
+      autoFilterBrowserHeaders: false,
+    });
     wrapper.unmount();
   });
 

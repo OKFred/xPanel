@@ -49,7 +49,11 @@ import {
 
 import KeyValueEditor from "../../src/components/KeyValueEditor.vue";
 import { Button } from "../../src/components/ui/button";
-import { cancelRequest, executeRequest } from "../../src/lib/execute";
+import {
+  cancelRequest,
+  executeRequest,
+  sanitizeBrowserRequestHeaders,
+} from "../../src/lib/execute";
 import { bindFile, unbindFile } from "../../src/lib/file-bindings";
 import { useWorkbenchStore } from "../../src/stores/workbench";
 
@@ -99,6 +103,7 @@ const activeExecutionId = ref("");
 const fileInput = ref<HTMLInputElement>();
 const timeoutSecondsInput = ref("");
 const timeoutEditing = ref(false);
+const autoFilterBrowserHeaders = ref(false);
 type DeleteTarget =
   | { kind: "request"; id: string; name: string }
   | {
@@ -245,6 +250,7 @@ onMounted(async () => {
   const preferences = await chrome.storage.local.get([
     "locale",
     "persistSensitive",
+    "autoFilterBrowserHeaders",
   ]);
   await chrome.storage.local.remove("executor");
   const savedLocale: unknown = preferences.locale;
@@ -252,6 +258,8 @@ onMounted(async () => {
     locale.value = savedLocale;
   }
   persistSensitive.value = preferences.persistSensitive === true;
+  autoFilterBrowserHeaders.value =
+    preferences.autoFilterBrowserHeaders === true;
 });
 
 watch(locale, async (value) => {
@@ -260,6 +268,9 @@ watch(locale, async (value) => {
 });
 watch(persistSensitive, async (value) =>
   chrome.storage.local.set({ persistSensitive: value }),
+);
+watch(autoFilterBrowserHeaders, async (value) =>
+  chrome.storage.local.set({ autoFilterBrowserHeaders: value }),
 );
 
 function filePlaceholder(name: string): FileReferenceV1 {
@@ -379,14 +390,48 @@ async function send(): Promise<void> {
   }
   busy.value = true;
   notice.value = t("sending");
+  let filteredHeadersNotice = "";
   try {
-    const request = requestSpecV1Schema.parse(current.value);
+    let request = requestSpecV1Schema.parse(current.value);
+    let filteredWarning:
+      | { code: string; message: string; path: string }
+      | undefined;
+    if (autoFilterBrowserHeaders.value) {
+      const sanitized = sanitizeBrowserRequestHeaders(request);
+      request = sanitized.request;
+      if (sanitized.removedHeaders.length > 0) {
+        const count = sanitized.removedHeaders.reduce(
+          (total, header) => total + header.occurrences,
+          0,
+        );
+        const headers = sanitized.removedHeaders
+          .map((header) => header.name)
+          .join(", ");
+        filteredHeadersNotice = t("browserHeadersFilteredNotice", {
+          count,
+          headers,
+        });
+        filteredWarning = {
+          code: "browser.headers_filtered",
+          message: t("browserHeadersFilteredWarning", { count, headers }),
+          path: "headers",
+        };
+      }
+    }
     activeExecutionId.value = request.id;
-    store.setResponse(await executeRequest(request));
+    const executedResponse = await executeRequest(request);
+    store.setResponse(
+      filteredWarning
+        ? {
+            ...executedResponse,
+            warnings: [...executedResponse.warnings, filteredWarning],
+          }
+        : executedResponse,
+    );
     responseTab.value = "pretty";
-    notice.value = "";
+    notice.value = filteredHeadersNotice;
   } catch (error) {
-    notice.value = "";
+    notice.value = filteredHeadersNotice;
     errorMessage.value = error instanceof Error ? error.message : String(error);
   } finally {
     busy.value = false;
@@ -1037,7 +1082,10 @@ async function confirmDelete(): Promise<void> {
         class="message-strip"
         :data-error="Boolean(errorMessage)"
       >
-        {{ errorMessage || notice }}
+        <template v-if="errorMessage"
+          >{{ errorMessage }}<br v-if="notice"
+        /></template>
+        {{ notice }}
       </div>
 
       <div class="split-pane">
@@ -1325,6 +1373,13 @@ async function confirmDelete(): Promise<void> {
                   Clear unsupported options
                 </button>
               </div>
+              <label class="check-row"
+                ><input v-model="autoFilterBrowserHeaders" type="checkbox" />
+                {{ $t("autoFilterBrowserHeaders") }}</label
+              >
+              <span class="empty-note">
+                {{ $t("autoFilterBrowserHeadersHint") }}
+              </span>
               <label class="check-row"
                 ><input v-model="persistSensitive" type="checkbox" /> Persist
                 sensitive values locally</label

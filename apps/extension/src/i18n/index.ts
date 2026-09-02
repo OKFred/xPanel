@@ -60,6 +60,13 @@ export const messages = {
     closeDialog: "关闭对话框",
     cannotUndo: "此操作无法撤销。",
     deleteFailed: "删除失败。",
+    autoFilterBrowserHeaders: "发送时自动过滤浏览器控制的请求头",
+    autoFilterBrowserHeadersHint:
+      "仅过滤 Headers 表格中的受控项；Cookie 模式由浏览器管理，认证、代理和 TLS 选项仍会单独校验。",
+    browserHeadersFilteredNotice:
+      "本次发送已过滤 {count} 个浏览器控制的请求头：{headers}。原始及已保存请求未被修改。",
+    browserHeadersFilteredWarning:
+      "已过滤 {count} 个浏览器控制的请求头：{headers}。",
   },
   "en-US": {
     send: "Send",
@@ -122,6 +129,14 @@ export const messages = {
     closeDialog: "Close dialog",
     cannotUndo: "This action cannot be undone.",
     deleteFailed: "Delete failed.",
+    autoFilterBrowserHeaders:
+      "Automatically filter browser-controlled headers before sending",
+    autoFilterBrowserHeadersHint:
+      "Only controlled entries in the Headers table are filtered. Browser cookie mode, authentication, proxy, and TLS options are validated separately.",
+    browserHeadersFilteredNotice:
+      "Filtered {count} browser-controlled header(s) for this send: {headers}. The original and saved request were not changed.",
+    browserHeadersFilteredWarning:
+      "Filtered {count} browser-controlled header(s): {headers}.",
   },
 } as const;
 

@@ -7,6 +7,7 @@ import {
   cancelRequest,
   executeBrowser,
   executeRequest,
+  sanitizeBrowserRequestHeaders,
 } from "../src/lib/execute";
 import { bindFile } from "../src/lib/file-bindings";
 
@@ -59,6 +60,114 @@ describe("Browser execution", () => {
         `the forbidden ${name} header`,
       );
     }
+  });
+
+  it("sanitizes enabled forbidden regular headers for Browser Fetch", () => {
+    const request = createDefaultRequest({
+      headers: [
+        { name: "DNT", value: "1", enabled: true },
+        { name: "Origin", value: "https://source.example", enabled: true },
+        {
+          name: "Referer",
+          value: "https://source.example/page",
+          enabled: true,
+        },
+        { name: "sec-ch-ua", value: '"Chromium"', enabled: true },
+        { name: "SEC-CH-UA", value: '"duplicate"', enabled: true },
+        { name: "sec-ch-ua-mobile", value: "?0", enabled: true },
+        {
+          name: "sec-ch-ua-platform",
+          value: '"Windows"',
+          enabled: true,
+        },
+        { name: "sec-fetch-dest", value: "empty", enabled: true },
+        { name: "sec-fetch-mode", value: "cors", enabled: true },
+        { name: "sec-fetch-site", value: "same-origin", enabled: true },
+        { name: "X-Trace", value: "trace", enabled: true },
+        { name: "Cookie", value: "session=secret", enabled: true },
+        { name: "Host", value: "example.com", enabled: true },
+        { name: "Set-Cookie", value: "session=ignored", enabled: true },
+        { name: "X-HTTP-Method-Override", value: "TRACE", enabled: true },
+        { name: "X-Method-Override", value: "PATCH", enabled: true },
+        {
+          name: "Permissions-Policy",
+          value: "geolocation=()",
+          enabled: true,
+        },
+      ],
+    });
+
+    const result = sanitizeBrowserRequestHeaders(request);
+
+    expect(result.request.headers).toEqual([
+      { name: "X-Trace", value: "trace", enabled: true },
+      { name: "X-Method-Override", value: "PATCH", enabled: true },
+      {
+        name: "Permissions-Policy",
+        value: "geolocation=()",
+        enabled: true,
+      },
+    ]);
+    expect(result.removedHeaders).toEqual([
+      { name: "DNT", occurrences: 1 },
+      { name: "Origin", occurrences: 1 },
+      { name: "Referer", occurrences: 1 },
+      { name: "sec-ch-ua", occurrences: 2 },
+      { name: "sec-ch-ua-mobile", occurrences: 1 },
+      { name: "sec-ch-ua-platform", occurrences: 1 },
+      { name: "sec-fetch-dest", occurrences: 1 },
+      { name: "sec-fetch-mode", occurrences: 1 },
+      { name: "sec-fetch-site", occurrences: 1 },
+      { name: "Cookie", occurrences: 1 },
+      { name: "Host", occurrences: 1 },
+      { name: "Set-Cookie", occurrences: 1 },
+      { name: "X-HTTP-Method-Override", occurrences: 1 },
+    ]);
+  });
+
+  it("returns a plain clone, preserves disabled headers, and does not mutate input", () => {
+    const request = createDefaultRequest({
+      headers: [
+        { name: " DNT ", value: "1", enabled: true },
+        { name: "Origin", value: "disabled", enabled: false },
+        { name: "X-Trace", value: "trace", enabled: true },
+      ],
+    });
+    const original = structuredClone(request);
+
+    const result = sanitizeBrowserRequestHeaders(request);
+
+    expect(request).toEqual(original);
+    expect(result.request).not.toBe(request);
+    expect(result.request.headers).not.toBe(request.headers);
+    expect(() => structuredClone(result.request)).not.toThrow();
+    expect(result.request.headers).toEqual([
+      { name: "Origin", value: "disabled", enabled: false },
+      { name: "X-Trace", value: "trace", enabled: true },
+    ]);
+    expect(result.removedHeaders).toEqual([{ name: "DNT", occurrences: 1 }]);
+  });
+
+  it("does not hide unsupported auth or proxy features", () => {
+    const request = createDefaultRequest({
+      headers: [{ name: "DNT", value: "1", enabled: true }],
+      auth: {
+        kind: "api-key",
+        location: "header",
+        name: "Cookie",
+        value: "session=secret",
+      },
+    });
+    request.options.proxy = { url: "http://127.0.0.1:8080", bypass: [] };
+
+    const result = sanitizeBrowserRequestHeaders(request);
+
+    expect(result.request.auth).toEqual(request.auth);
+    expect(result.request.options.proxy).toEqual(request.options.proxy);
+    expect(browserUnsupportedReasons(result.request)).toEqual([
+      "an explicit proxy",
+      "the forbidden Cookie header",
+    ]);
   });
 
   it("rejects custom multipart part headers", () => {
