@@ -1,0 +1,2 @@
+# Store only the SHA-256 hex digest here, never the plaintext bearer token.
+RELAY_TOKEN_SHA256=replace-with-64-lowercase-hex-characters

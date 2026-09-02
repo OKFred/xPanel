@@ -6,6 +6,11 @@ allowBuilds:
   "@tailwindcss/oxide": true
   esbuild: true
   vue-demi: true
+  workerd: true
+
+minimumReleaseAgeExclude:
+  - miniflare@5.20260831.0-alpha
+  - wrangler@4.128.0
 
 onlyBuiltDependencies:
   - "@tailwindcss/oxide"

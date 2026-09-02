@@ -6,3 +6,4 @@ dist/
 legacy/
 node_modules/
 pnpm-lock.yaml
+**/worker-configuration.d.ts

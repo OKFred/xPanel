@@ -1,0 +1,26 @@
+{
+  "name": "@xpanel/relay-cloudflare",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "User-owned Cloudflare Worker relay for xPanel remote HTTP execution.",
+  "scripts": {
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "dev": "wrangler dev",
+    "generate:token": "node scripts/generate-token.mjs",
+    "test": "vitest run --config vitest.config.ts",
+    "test:online": "node scripts/online-acceptance.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "types": "wrangler types worker-configuration.d.ts",
+    "types:check": "wrangler types --check worker-configuration.d.ts"
+  },
+  "dependencies": {
+    "@xpanel/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.22.0",
+    "typescript": "5.9.2",
+    "vitest": "4.1.0",
+    "wrangler": "4.128.0"
+  }
+}
