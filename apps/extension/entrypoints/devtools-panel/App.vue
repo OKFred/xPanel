@@ -15,11 +15,12 @@ import {
   Plus,
   Save,
   Square,
+  Trash2,
   Upload,
   X,
 } from "lucide-vue-next";
 import { storeToRefs } from "pinia";
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { strToU8, zipSync } from "fflate";
 import { stringify as stringifyYaml } from "yaml";
@@ -39,6 +40,7 @@ import {
 import {
   type AuthSpec,
   type BodySpec,
+  type CollectionRecord,
   collectionRecordSchema,
   type FileReferenceV1,
   requestSpecV1Schema,
@@ -97,6 +99,22 @@ const activeExecutionId = ref("");
 const fileInput = ref<HTMLInputElement>();
 const timeoutSecondsInput = ref("");
 const timeoutEditing = ref(false);
+type DeleteTarget =
+  | { kind: "request"; id: string; name: string }
+  | {
+      kind: "collection";
+      id: string;
+      name: string;
+      requestCount: number;
+      exclusiveRequestCount: number;
+      sharedRequestCount: number;
+    };
+const deleteTarget = ref<DeleteTarget | null>(null);
+const deleteCollectionRequests = ref(false);
+const deleteBusy = ref(false);
+const deleteError = ref("");
+const deleteCancelButton = ref<HTMLButtonElement>();
+const deleteReturnFocus = ref<HTMLElement>();
 
 const MIN_TIMEOUT_MS = 1;
 const MAX_TIMEOUT_MS = 86_400_000;
@@ -430,9 +448,10 @@ async function importRequests(): Promise<void> {
       result.collections,
       result.responses,
     );
-    if (importWarnings.value.length === 0) importOpen.value = false;
-    else
-      notice.value = `Imported with ${importWarnings.value.length} warning(s); review the import dialog.`;
+    importOpen.value = false;
+    if (importWarnings.value.length > 0) {
+      notice.value = `Imported with ${importWarnings.value.length} warning(s). Reopen Import to review them.`;
+    }
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : String(error);
   }
@@ -697,11 +716,108 @@ async function createCollection(): Promise<void> {
 function loadSaved(request: RequestSpecV1, collectionId?: string): void {
   store.loadRequest(request.id, collectionId);
 }
+
+function askDeleteRequest(request: RequestSpecV1): void {
+  deleteReturnFocus.value =
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : undefined;
+  deleteCollectionRequests.value = false;
+  deleteError.value = "";
+  deleteTarget.value = {
+    kind: "request",
+    id: request.id,
+    name: request.name,
+  };
+  void nextTick(() => deleteCancelButton.value?.focus());
+}
+
+function askDeleteCollection(collection: CollectionRecord): void {
+  deleteReturnFocus.value =
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : undefined;
+  const savedRequestIds = new Set(requests.value.map((request) => request.id));
+  const collectionRequestIds = [
+    ...new Set(
+      collection.requestIds.filter((requestId) =>
+        savedRequestIds.has(requestId),
+      ),
+    ),
+  ];
+  const sharedRequestCount = collectionRequestIds.filter((requestId) =>
+    collections.value.some(
+      (candidate) =>
+        candidate.id !== collection.id &&
+        candidate.requestIds.includes(requestId),
+    ),
+  ).length;
+  deleteCollectionRequests.value = false;
+  deleteError.value = "";
+  deleteTarget.value = {
+    kind: "collection",
+    id: collection.id,
+    name: collection.name,
+    requestCount: collectionRequestIds.length,
+    exclusiveRequestCount: collectionRequestIds.length - sharedRequestCount,
+    sharedRequestCount,
+  };
+  void nextTick(() => deleteCancelButton.value?.focus());
+}
+
+function restoreFocusAfterDeleteDialog(): void {
+  const returnFocus = deleteReturnFocus.value;
+  deleteReturnFocus.value = undefined;
+  void nextTick(() => {
+    if (returnFocus?.isConnected) {
+      returnFocus.focus();
+      return;
+    }
+    document
+      .querySelector<HTMLButtonElement>(".sidebar button:not([disabled])")
+      ?.focus();
+  });
+}
+
+function closeDeleteDialog(): void {
+  if (deleteBusy.value) return;
+  deleteTarget.value = null;
+  deleteCollectionRequests.value = false;
+  deleteError.value = "";
+  restoreFocusAfterDeleteDialog();
+}
+
+async function confirmDelete(): Promise<void> {
+  const target = deleteTarget.value;
+  if (!target || busy.value || deleteBusy.value) return;
+
+  deleteBusy.value = true;
+  deleteError.value = "";
+  try {
+    if (target.kind === "request") {
+      await store.deleteRequest(target.id);
+    } else {
+      await store.deleteCollection(target.id, deleteCollectionRequests.value);
+    }
+    deleteTarget.value = null;
+    deleteCollectionRequests.value = false;
+    restoreFocusAfterDeleteDialog();
+  } catch (error) {
+    deleteError.value =
+      error instanceof Error ? error.message : t("deleteFailed");
+  } finally {
+    deleteBusy.value = false;
+  }
+}
 </script>
 
 <template>
   <main class="workbench-shell">
-    <aside class="sidebar">
+    <aside
+      class="sidebar"
+      :inert="deleteTarget !== null"
+      :aria-hidden="deleteTarget ? 'true' : undefined"
+    >
       <div class="brand-row">
         <div class="brand-mark">x</div>
         <div>
@@ -737,37 +853,76 @@ function loadSaved(request: RequestSpecV1, collectionId?: string): void {
           :key="collection.id"
           class="collection-group"
         >
-          <div class="collection-name">{{ collection.name }}</div>
-          <button
+          <div class="collection-heading">
+            <div class="collection-name">{{ collection.name }}</div>
+            <button
+              class="icon-button delete-icon"
+              type="button"
+              :disabled="busy || deleteBusy"
+              :aria-label="
+                $t('deleteCollectionLabel', { name: collection.name })
+              "
+              @click.stop="askDeleteCollection(collection)"
+            >
+              <Trash2 :size="13" />
+            </button>
+          </div>
+          <div
             v-for="request in requests.filter((item) =>
               collection.requestIds.includes(item.id),
             )"
             :key="request.id"
-            class="request-link"
+            class="request-link-row"
             :data-active="request.id === current.id"
-            type="button"
-            :disabled="busy"
-            @click="loadSaved(request, collection.id)"
           >
-            <span class="method-mini">{{ request.method }}</span>
-            <span>{{ request.name }}</span>
-          </button>
+            <button
+              class="request-link"
+              type="button"
+              :disabled="busy || deleteBusy"
+              @click="loadSaved(request, collection.id)"
+            >
+              <span class="method-mini">{{ request.method }}</span>
+              <span>{{ request.name }}</span>
+            </button>
+            <button
+              class="icon-button delete-icon"
+              type="button"
+              :disabled="busy || deleteBusy"
+              :aria-label="$t('deleteRequestLabel', { name: request.name })"
+              @click.stop="askDeleteRequest(request)"
+            >
+              <Trash2 :size="13" />
+            </button>
+          </div>
         </div>
       </section>
 
       <section class="sidebar-section favorites">
         <h2><Heart :size="15" /> {{ $t("favorites") }}</h2>
-        <button
+        <div
           v-for="request in favorites"
           :key="request.id"
-          class="request-link"
-          type="button"
-          :disabled="busy"
-          @click="loadSaved(request)"
+          class="request-link-row"
         >
-          <span class="method-mini">{{ request.method }}</span>
-          <span>{{ request.name }}</span>
-        </button>
+          <button
+            class="request-link"
+            type="button"
+            :disabled="busy || deleteBusy"
+            @click="loadSaved(request)"
+          >
+            <span class="method-mini">{{ request.method }}</span>
+            <span>{{ request.name }}</span>
+          </button>
+          <button
+            class="icon-button delete-icon"
+            type="button"
+            :disabled="busy || deleteBusy"
+            :aria-label="$t('deleteRequestLabel', { name: request.name })"
+            @click.stop="askDeleteRequest(request)"
+          >
+            <Trash2 :size="13" />
+          </button>
+        </div>
         <p v-if="favorites.length === 0" class="empty-note">
           {{ $t("noFavorites") }}
         </p>
@@ -786,7 +941,11 @@ function loadSaved(request: RequestSpecV1, collectionId?: string): void {
       </div>
     </aside>
 
-    <section class="workspace">
+    <section
+      class="workspace"
+      :inert="deleteTarget !== null"
+      :aria-hidden="deleteTarget ? 'true' : undefined"
+    >
       <header class="toolbar">
         <input
           v-model="current.name"
@@ -1258,6 +1417,113 @@ function loadSaved(request: RequestSpecV1, collectionId?: string): void {
         </section>
       </div>
     </section>
+
+    <div
+      v-if="deleteTarget"
+      class="dialog-backdrop"
+      @click.self="closeDeleteDialog"
+      @keydown.esc="closeDeleteDialog"
+    >
+      <section
+        class="dialog-card confirm-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-description"
+      >
+        <header>
+          <div>
+            <span class="eyebrow">{{ $t("permanentAction") }}</span>
+            <h2 id="delete-dialog-title">
+              {{
+                deleteTarget.kind === "request"
+                  ? $t("deleteRequestTitle")
+                  : $t("deleteCollectionTitle")
+              }}
+            </h2>
+          </div>
+          <button
+            class="icon-button"
+            type="button"
+            :disabled="deleteBusy"
+            :aria-label="$t('closeDialog')"
+            @click="closeDeleteDialog"
+          >
+            <X :size="18" />
+          </button>
+        </header>
+        <div class="confirmation-content">
+          <p id="delete-dialog-description">
+            {{
+              deleteTarget.kind === "request"
+                ? $t("deleteRequestDescription", { name: deleteTarget.name })
+                : $t("deleteCollectionDescription", {
+                    name: deleteTarget.name,
+                    count: deleteTarget.requestCount,
+                  })
+            }}
+          </p>
+          <label
+            v-if="
+              deleteTarget.kind === 'collection' &&
+              deleteTarget.exclusiveRequestCount > 0
+            "
+            class="check-row cascade-delete"
+          >
+            <input
+              v-model="deleteCollectionRequests"
+              type="checkbox"
+              :disabled="busy || deleteBusy"
+            />
+            <span>
+              {{
+                $t("deleteCollectionRequests", {
+                  count: deleteTarget.exclusiveRequestCount,
+                })
+              }}
+            </span>
+          </label>
+          <p
+            v-if="
+              deleteTarget.kind === 'collection' && deleteCollectionRequests
+            "
+            class="destructive-warning"
+          >
+            {{
+              $t("deleteCollectionCascadeWarning", {
+                exclusive: deleteTarget.exclusiveRequestCount,
+                shared: deleteTarget.sharedRequestCount,
+              })
+            }}
+          </p>
+          <p class="destructive-warning">{{ $t("cannotUndo") }}</p>
+          <p v-if="deleteError" class="dialog-error" role="alert">
+            {{ deleteError }}
+          </p>
+        </div>
+        <footer>
+          <button
+            ref="deleteCancelButton"
+            class="ghost-button"
+            type="button"
+            :disabled="busy || deleteBusy"
+            @click="closeDeleteDialog"
+          >
+            {{ $t("cancel") }}
+          </button>
+          <button
+            class="danger-button"
+            type="button"
+            :disabled="busy || deleteBusy"
+            @click="confirmDelete"
+          >
+            <LoaderCircle v-if="deleteBusy" class="spin" :size="15" />
+            <Trash2 v-else :size="15" />
+            {{ $t("delete") }}
+          </button>
+        </footer>
+      </section>
+    </div>
 
     <div
       v-if="importOpen"

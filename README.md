@@ -11,7 +11,8 @@ inspection, and Browser Fetch execution.
 - Per-request timeout control with a 60-second default.
 - Imports and exports cURL (Bash), PowerShell, Node.js fetch, HAR 1.2,
   OpenAPI 3.x, Swagger 2.0, and the lossless xPanel collection format.
-- Favorites, collections, JSON formatting, and one-click copy actions.
+- Favorites and collections with confirmed deletion, JSON formatting, and
+  one-click copy actions.
 - English and Simplified Chinese interface.
 - Imported commands are parsed as static text and are never evaluated or
   executed as Bash, PowerShell, or JavaScript.

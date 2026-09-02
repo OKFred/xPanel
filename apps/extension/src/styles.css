@@ -128,11 +128,29 @@ button {
   gap: 7px;
 }
 
+.collection-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 29px;
+  align-items: center;
+  gap: 3px;
+}
+
 .collection-name {
+  min-width: 0;
+  overflow: hidden;
   padding: 7px 7px 5px;
   color: #c7d2e3;
   font-size: 12px;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.request-link-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 29px;
+  align-items: center;
+  gap: 3px;
 }
 
 .request-link {
@@ -156,9 +174,26 @@ button {
 }
 
 .request-link:hover,
-.request-link[data-active="true"] {
+.request-link-row[data-active="true"] .request-link {
   background: #111a2a;
   color: #e1e9f5;
+}
+
+.delete-icon {
+  color: #9a6570;
+  opacity: 0.72;
+}
+
+.collection-heading:hover .delete-icon,
+.request-link-row:hover .delete-icon,
+.delete-icon:focus-visible {
+  color: #ff8d9c;
+  opacity: 1;
+}
+
+.delete-icon:focus-visible {
+  outline: 2px solid #ff8d9c;
+  outline-offset: 1px;
 }
 
 .method-mini {
@@ -265,7 +300,8 @@ button {
 .stop-button,
 .primary-button,
 .ghost-button,
-.icon-button {
+.icon-button,
+.danger-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -327,6 +363,31 @@ button {
   border: 1px solid transparent;
   background: transparent;
   color: #7989a2;
+}
+
+.danger-button {
+  border: 1px solid #a83c4d;
+  background: #8e2f3e;
+  padding: 7px 11px;
+  color: #fff;
+  font-weight: 650;
+}
+
+.danger-button:hover {
+  border-color: #e26779;
+  background: #a83c4d;
+}
+
+.danger-button:disabled,
+.ghost-button:disabled,
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.danger-button:focus-visible {
+  outline: 2px solid #ff8d9c;
+  outline-offset: 2px;
 }
 
 .message-strip {
@@ -661,6 +722,48 @@ select:focus,
   border-radius: 12px;
   background: #0d1523;
   box-shadow: 0 30px 70px rgb(0 0 0 / 0.5);
+}
+
+.dialog-card.confirm-dialog {
+  width: min(500px, calc(100vw - 42px));
+  grid-template-rows: auto auto auto;
+}
+
+.confirmation-content {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  color: #bdc9da;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.confirmation-content p {
+  margin: 0;
+}
+
+.cascade-delete {
+  border: 1px solid #603541;
+  border-radius: 8px;
+  background: #25151b;
+  padding: 10px;
+  color: #f3c1c8;
+}
+
+.cascade-delete input {
+  accent-color: #d64e5c;
+}
+
+.destructive-warning {
+  color: #ff9ba8;
+}
+
+.dialog-error {
+  border: 1px solid #713946;
+  border-radius: 6px;
+  background: #2b151d;
+  padding: 8px 10px;
+  color: #ff9ba8;
 }
 
 .dialog-card header,

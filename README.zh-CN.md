@@ -11,7 +11,7 @@ Vue 3、shadcn-vue/Tailwind 完成 Manifest V3 重写，并提供请求集合、
 - 每个请求都可单独设置超时时间，默认 60 秒。
 - 双向支持 cURL（Bash）、PowerShell、Node.js fetch、HAR 1.2、OpenAPI 3.x、
   Swagger 2.0 和无损 xPanel 集合格式。
-- 支持集合、收藏、JSON 美化/压缩及一键复制。
+- 支持集合、收藏及带确认的安全删除、JSON 美化/压缩和一键复制。
 - 中英文界面。
 - 导入命令只做静态解析，绝不执行粘贴的 Bash、PowerShell 或 JavaScript。
 

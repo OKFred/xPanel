@@ -1,8 +1,11 @@
 import { defineStore } from "pinia";
 
 import {
+  collectionRecordSchema,
   createDefaultRequest,
   redactRequest,
+  requestSpecV1Schema,
+  responseRecordV1Schema,
   type CollectionRecord,
   type FileReferenceV1,
   type RequestSpecV1,
@@ -10,6 +13,8 @@ import {
 } from "@xpanel/contracts";
 
 import {
+  deleteCollectionFromWorkspace,
+  deleteRequestFromWorkspace,
   loadWorkspace,
   saveCollection,
   saveRequest,
@@ -22,10 +27,10 @@ function now(): string {
   return new Date().toISOString();
 }
 
-function defaultCollection(): CollectionRecord {
+function defaultCollection(id = DEFAULT_COLLECTION_ID): CollectionRecord {
   const timestamp = now();
   return {
-    id: DEFAULT_COLLECTION_ID,
+    id,
     name: "My requests",
     description: "Requests saved from the xPanel workbench.",
     requestIds: [],
@@ -37,7 +42,7 @@ function defaultCollection(): CollectionRecord {
 function resetImportedFileReference(
   reference: FileReferenceV1,
 ): FileReferenceV1 {
-  const rest = structuredClone(reference);
+  const rest = { ...reference };
   delete rest.pathHint;
   return {
     ...rest,
@@ -46,8 +51,34 @@ function resetImportedFileReference(
   };
 }
 
+function fallbackRequest(
+  requests: RequestSpecV1[],
+  collections: CollectionRecord[],
+  selectedCollectionId: string,
+): RequestSpecV1 | undefined {
+  const selected = collections.find(
+    (collection) => collection.id === selectedCollectionId,
+  );
+  return (
+    selected?.requestIds
+      .map((id) => requests.find((request) => request.id === id))
+      .find((request): request is RequestSpecV1 => request !== undefined) ??
+    requests[0]
+  );
+}
+
+function cloneRequest(request: RequestSpecV1): RequestSpecV1 {
+  return requestSpecV1Schema.parse(request);
+}
+
+function cloneResponse(
+  response: ResponseRecordV1 | undefined,
+): ResponseRecordV1 | null {
+  return response ? responseRecordV1Schema.parse(response) : null;
+}
+
 function resetImportedFiles(request: RequestSpecV1): RequestSpecV1 {
-  const reset = structuredClone(request);
+  const reset = cloneRequest(request);
   if (reset.body.kind === "file") {
     reset.body.file = resetImportedFileReference(reset.body.file);
   }
@@ -93,7 +124,7 @@ function remapImportedWorkspace(
     return { ...resetImportedFiles(request), id };
   });
   const remappedCollections = collections.map((collection) => ({
-    ...structuredClone(collection),
+    ...collectionRecordSchema.parse(collection),
     id: crypto.randomUUID(),
     requestIds: collection.requestIds
       .map((requestId) => requestIds.get(requestId))
@@ -163,11 +194,10 @@ export const useWorkbenchStore = defineStore("workbench", {
       const request = this.requests.find((candidate) => candidate.id === id);
       if (request) {
         if (collectionId) this.selectedCollectionId = collectionId;
-        this.current = structuredClone(request);
-        this.response =
-          structuredClone(
-            this.responses.find((response) => response.requestId === id),
-          ) ?? null;
+        this.current = cloneRequest(request);
+        this.response = cloneResponse(
+          this.responses.find((response) => response.requestId === id),
+        );
       }
     },
     async createCollection(name: string): Promise<void> {
@@ -184,18 +214,190 @@ export const useWorkbenchStore = defineStore("workbench", {
       this.selectedCollectionId = collection.id;
       await saveCollection(collection);
     },
-    setResponse(response: ResponseRecordV1): void {
-      const index = this.responses.findIndex(
-        (candidate) => candidate.requestId === response.requestId,
+    async deleteRequest(id: string): Promise<void> {
+      const timestamp = now();
+      const nextRequests = this.requests.filter((request) => request.id !== id);
+      const nextCollections = this.collections.map((collection) => {
+        if (!collection.requestIds.includes(id)) return collection;
+        return {
+          ...collection,
+          requestIds: collection.requestIds.filter(
+            (requestId) => requestId !== id,
+          ),
+          updatedAt: timestamp,
+        };
+      });
+
+      await deleteRequestFromWorkspace(id, nextCollections);
+
+      const nextResponses = this.responses.filter(
+        (response) => response.requestId !== id,
       );
-      if (index >= 0)
-        this.responses.splice(index, 1, structuredClone(response));
-      else this.responses.push(structuredClone(response));
-      this.response = response;
+      this.requests = nextRequests;
+      this.collections = nextCollections;
+      this.responses = nextResponses;
+      if (this.current.id === id) {
+        const fallback = fallbackRequest(
+          nextRequests,
+          nextCollections,
+          this.selectedCollectionId,
+        );
+        this.current = fallback
+          ? cloneRequest(fallback)
+          : createDefaultRequest();
+        this.response = cloneResponse(
+          nextResponses.find(
+            (response) => response.requestId === this.current.id,
+          ),
+        );
+      } else if (this.response?.requestId === id) {
+        this.response = null;
+      }
+      this.notice = "Deleted saved request.";
+    },
+    async deleteCollection(id: string, cascadeRequests = false): Promise<void> {
+      const target = this.collections.find(
+        (collection) => collection.id === id,
+      );
+      if (!target) return;
+
+      const timestamp = now();
+      const remainingCollections = this.collections.filter(
+        (collection) => collection.id !== id,
+      );
+      const remainingReferences = new Set(
+        remainingCollections.flatMap((collection) => collection.requestIds),
+      );
+      const existingRequestIds = new Set(
+        this.requests.map((request) => request.id),
+      );
+      const exclusiveRequestIds = [
+        ...new Set(
+          target.requestIds.filter(
+            (requestId) =>
+              existingRequestIds.has(requestId) &&
+              !remainingReferences.has(requestId),
+          ),
+        ),
+      ];
+      const requestIdsToDelete = cascadeRequests ? exclusiveRequestIds : [];
+      const deletedRequestIds = new Set(requestIdsToDelete);
+      let nextCollections = remainingCollections;
+
+      if (!cascadeRequests) {
+        if (exclusiveRequestIds.length > 0) {
+          let fallbackIndex = nextCollections.findIndex(
+            (collection) =>
+              collection.id === DEFAULT_COLLECTION_ID ||
+              collection.name === "My requests",
+          );
+          if (fallbackIndex < 0) {
+            const fallbackId =
+              id === DEFAULT_COLLECTION_ID
+                ? crypto.randomUUID()
+                : DEFAULT_COLLECTION_ID;
+            nextCollections = [
+              ...nextCollections,
+              defaultCollection(fallbackId),
+            ];
+            fallbackIndex = nextCollections.length - 1;
+          }
+          const fallback = nextCollections[fallbackIndex]!;
+          nextCollections.splice(fallbackIndex, 1, {
+            ...fallback,
+            requestIds: [
+              ...new Set([...fallback.requestIds, ...exclusiveRequestIds]),
+            ],
+            updatedAt: timestamp,
+          });
+        }
+      }
+
+      if (nextCollections.length === 0) {
+        const fallbackId =
+          id === DEFAULT_COLLECTION_ID
+            ? crypto.randomUUID()
+            : DEFAULT_COLLECTION_ID;
+        nextCollections = [defaultCollection(fallbackId)];
+      }
+
+      await deleteCollectionFromWorkspace(
+        id,
+        nextCollections,
+        requestIdsToDelete,
+      );
+
+      const nextRequests = cascadeRequests
+        ? this.requests.filter((request) => !deletedRequestIds.has(request.id))
+        : this.requests;
+      const nextResponses = cascadeRequests
+        ? this.responses.filter(
+            (response) => !deletedRequestIds.has(response.requestId),
+          )
+        : this.responses;
+      this.collections = nextCollections;
+      this.requests = nextRequests;
+      this.responses = nextResponses;
+      if (
+        !nextCollections.some(
+          (collection) => collection.id === this.selectedCollectionId,
+        )
+      ) {
+        this.selectedCollectionId =
+          nextCollections.find((collection) =>
+            collection.requestIds.includes(this.current.id),
+          )?.id ??
+          (!cascadeRequests && exclusiveRequestIds.length > 0
+            ? nextCollections.find(
+                (collection) =>
+                  collection.id === DEFAULT_COLLECTION_ID ||
+                  collection.name === "My requests",
+              )?.id
+            : undefined) ??
+          nextCollections[0]!.id;
+      }
+      if (deletedRequestIds.has(this.current.id)) {
+        const fallback = fallbackRequest(
+          nextRequests,
+          nextCollections,
+          this.selectedCollectionId,
+        );
+        this.current = fallback
+          ? cloneRequest(fallback)
+          : createDefaultRequest();
+        this.response = cloneResponse(
+          nextResponses.find(
+            (response) => response.requestId === this.current.id,
+          ),
+        );
+      } else if (
+        this.response &&
+        deletedRequestIds.has(this.response.requestId)
+      ) {
+        this.response = null;
+      }
+      this.notice = cascadeRequests
+        ? `Deleted collection and ${requestIdsToDelete.length} exclusive request${requestIdsToDelete.length === 1 ? "" : "s"}; shared requests were kept.`
+        : exclusiveRequestIds.length > 0
+          ? "Deleted collection; its exclusive requests were moved to My requests."
+          : target.requestIds.some((requestId) =>
+                remainingReferences.has(requestId),
+              )
+            ? "Deleted collection; shared requests were kept."
+            : "Deleted collection.";
+    },
+    setResponse(response: ResponseRecordV1): void {
+      const storedResponse = responseRecordV1Schema.parse(response);
+      const index = this.responses.findIndex(
+        (candidate) => candidate.requestId === storedResponse.requestId,
+      );
+      if (index >= 0) this.responses.splice(index, 1, storedResponse);
+      else this.responses.push(storedResponse);
+      this.response = storedResponse;
     },
     async saveCurrent(): Promise<void> {
       const request = this.persistSensitive
-        ? structuredClone(this.current)
+        ? cloneRequest(this.current)
         : redactRequest(this.current);
       const existingIndex = this.requests.findIndex(
         (candidate) => candidate.id === request.id,
@@ -233,7 +435,7 @@ export const useWorkbenchStore = defineStore("workbench", {
     ): Promise<void> {
       const imported = remapImportedWorkspace(requests, collections);
       const storedRequests = this.persistSensitive
-        ? imported.requests.map((request) => structuredClone(request))
+        ? imported.requests.map(cloneRequest)
         : imported.requests.map(redactRequest);
 
       this.requests.push(...storedRequests);
@@ -242,18 +444,19 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.selectedCollectionId = imported.collections[0].id;
       const importedResponses = responses.flatMap((response) => {
         const requestId = imported.requestIds.get(response.requestId);
-        return requestId ? [{ ...structuredClone(response), requestId }] : [];
+        return requestId
+          ? [{ ...responseRecordV1Schema.parse(response), requestId }]
+          : [];
       });
       this.responses.push(...importedResponses);
       await saveWorkspace(this.collections, this.requests);
       if (imported.requests[0]) {
-        this.current = structuredClone(imported.requests[0]);
-        this.response =
-          structuredClone(
-            importedResponses.find(
-              (response) => response.requestId === imported.requests[0]?.id,
-            ),
-          ) ?? null;
+        this.current = cloneRequest(imported.requests[0]);
+        this.response = cloneResponse(
+          importedResponses.find(
+            (response) => response.requestId === imported.requests[0]?.id,
+          ),
+        );
       }
       this.notice = `Imported ${requests.length} request${requests.length === 1 ? "" : "s"}.`;
     },

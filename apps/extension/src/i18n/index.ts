@@ -45,6 +45,21 @@ export const messages = {
     formatted: "JSON 已美化。",
     compacted: "JSON 已压缩。",
     openDevtools: "打开开发者工具并选择 xPanel 页签。",
+    delete: "删除",
+    permanentAction: "永久操作",
+    deleteRequestTitle: "删除请求？",
+    deleteCollectionTitle: "删除集合？",
+    deleteRequestDescription: "请求“{name}”会从所有集合和收藏中永久删除。",
+    deleteCollectionDescription:
+      "仅删除集合“{name}”时，其中的 {count} 个请求会保留；未被其他集合引用的请求会移到“My requests”。",
+    deleteCollectionRequests: "同时永久删除仅属于此集合的请求（{count} 个）",
+    deleteCollectionCascadeWarning:
+      "将永久删除 {exclusive} 个仅属于此集合的请求，并移除对应收藏；{shared} 个共享请求会保留在其他集合中。",
+    deleteRequestLabel: "删除请求：{name}",
+    deleteCollectionLabel: "删除集合：{name}",
+    closeDialog: "关闭对话框",
+    cannotUndo: "此操作无法撤销。",
+    deleteFailed: "删除失败。",
   },
   "en-US": {
     send: "Send",
@@ -90,6 +105,23 @@ export const messages = {
     formatted: "JSON formatted.",
     compacted: "JSON compacted.",
     openDevtools: "Open DevTools and select the xPanel tab.",
+    delete: "Delete",
+    permanentAction: "Permanent action",
+    deleteRequestTitle: "Delete request?",
+    deleteCollectionTitle: "Delete collection?",
+    deleteRequestDescription:
+      "Request “{name}” will be permanently removed from every collection and Favorites.",
+    deleteCollectionDescription:
+      "Deleting only collection “{name}” keeps its {count} request(s). Requests not referenced by another collection move to My requests.",
+    deleteCollectionRequests:
+      "Also permanently delete requests that belong only to this collection ({count})",
+    deleteCollectionCascadeWarning:
+      "Exclusive requests permanently deleted and removed from Favorites: {exclusive}. Shared requests kept in their other collections: {shared}.",
+    deleteRequestLabel: "Delete request: {name}",
+    deleteCollectionLabel: "Delete collection: {name}",
+    closeDialog: "Close dialog",
+    cannotUndo: "This action cannot be undone.",
+    deleteFailed: "Delete failed.",
   },
 } as const;
 

@@ -108,7 +108,53 @@ export async function saveWorkspace(
   ]);
 }
 
-export async function removeRequest(id: string): Promise<void> {
+export async function deleteRequestFromWorkspace(
+  id: string,
+  collections: CollectionRecord[],
+): Promise<void> {
   const db = await database();
-  await db.delete("requests", id);
+  const validatedId = requestSpecV1Schema.shape.id.parse(id);
+  const validatedCollections = collections.map((collection) =>
+    collectionRecordSchema.parse(collection),
+  );
+  const transaction = db.transaction(["collections", "requests"], "readwrite");
+
+  await Promise.all([
+    transaction.objectStore("requests").delete(validatedId),
+    ...validatedCollections.map((collection) =>
+      transaction.objectStore("collections").put(collection),
+    ),
+    transaction.done,
+  ]);
+}
+
+export async function deleteCollectionFromWorkspace(
+  id: string,
+  collections: CollectionRecord[],
+  requestIds: string[] = [],
+): Promise<void> {
+  const db = await database();
+  const validatedId = collectionRecordSchema.shape.id.parse(id);
+  const validatedCollections = collections.map((collection) =>
+    collectionRecordSchema.parse(collection),
+  );
+  const validatedRequestIds = [
+    ...new Set(
+      requestIds.map((requestId) =>
+        requestSpecV1Schema.shape.id.parse(requestId),
+      ),
+    ),
+  ];
+  const transaction = db.transaction(["collections", "requests"], "readwrite");
+
+  await Promise.all([
+    transaction.objectStore("collections").delete(validatedId),
+    ...validatedCollections.map((collection) =>
+      transaction.objectStore("collections").put(collection),
+    ),
+    ...validatedRequestIds.map((requestId) =>
+      transaction.objectStore("requests").delete(requestId),
+    ),
+    transaction.done,
+  ]);
 }
