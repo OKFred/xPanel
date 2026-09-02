@@ -1,9 +1,11 @@
 # xPanel Privacy Policy
 
-Effective date: 2026-09-02
+Effective date: 2026-09-03
 
-xPanel does not collect, sell, or analyze user data. It has no analytics,
-advertising, account system, xPanel-operated backend, or telemetry.
+xPanel processes request data only to provide the API-client features that the
+user explicitly invokes. xPanel does not transmit request data to the developer
+and does not sell or analyze user data. It has no analytics, advertising,
+account system, xPanel-operated backend, or telemetry.
 
 ## Data handled locally
 
@@ -44,6 +46,21 @@ written to Chrome's cookie jar.
 
 ## User control
 
-Removing the extension deletes its browser-managed local storage.
+- Request data saved in local extension storage remains until the user deletes
+  it or removes the extension.
+- Session-only Relay tokens and trust decisions are cleared when the Chrome
+  session ends. Locally persisted Relay tokens remain until the user deletes
+  the profile or removes the extension.
+- Removing the extension deletes its browser-managed local storage.
+
+## Chrome Web Store Limited Use
+
+The use of information received from Chrome APIs will adhere to the Chrome Web
+Store User Data Policy, including the Limited Use requirements. xPanel uses
+that information only to provide or improve its user-facing API-client
+features. It is not used for personalized advertising, creditworthiness or
+lending decisions, and it is not sold to third parties. The developer does not
+permit humans to read user data except with the user's affirmative consent for
+support, when required for security, or when required by law.
 
 Questions can be sent to zq.admin.vip@gmail.com.
