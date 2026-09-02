@@ -159,6 +159,51 @@ export async function preflightRelay(config, fetcher = globalThis.fetch) {
   }
 }
 
+export async function relayTargetReadiness(
+  config,
+  expectedOpen,
+  fetcher = globalThis.fetch,
+) {
+  const requestId = `online-readiness-${config.runId}`;
+  const metadata = Buffer.from(
+    JSON.stringify({
+      protocolVersion: 1,
+      requestId,
+      method: "GET",
+      url: `${config.fixtureOrigin}/e2e`,
+      headers: [],
+      redirect: "follow",
+      timeoutMs: 10_000,
+      bodySizeBytes: 0,
+    }),
+    "utf8",
+  ).toString("base64url");
+  const response = await fetcher(`${config.relayBaseUrl}/v1/execute`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.relayToken}`,
+      "Content-Type": "application/octet-stream",
+      "X-XPanel-Protocol": "1",
+      "X-XPanel-Request": metadata,
+    },
+    signal: globalThis.AbortSignal.timeout(15_000),
+  });
+  if (expectedOpen) {
+    return (
+      response.status === 200 &&
+      response.headers.has("X-XPanel-Response") &&
+      (await response.text()).includes("remote-e2e-ok")
+    );
+  }
+  if (response.status !== 403) return false;
+  try {
+    const error = await response.json();
+    return error?.error?.code === "target_not_allowed";
+  } catch {
+    return false;
+  }
+}
+
 export function isTransientWranglerReadFailure(result) {
   return (
     result?.code !== 0 &&
@@ -213,6 +258,7 @@ export async function runOnlineLifecycle(config, operations) {
 
     relayTouched = true;
     await operations.openRelay(config, baseline);
+    await operations.waitForRelayOpen(config);
     await operations.runProtocolAcceptance(config);
     await operations.runChromiumAcceptance(config);
   } catch (error) {
@@ -221,6 +267,7 @@ export async function runOnlineLifecycle(config, operations) {
     if (relayTouched) {
       try {
         await operations.restoreRelay(config, baseline);
+        await operations.waitForRelayClosed(config);
       } catch (error) {
         cleanupErrors.push(asError(error));
       }

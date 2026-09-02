@@ -9,6 +9,7 @@ import {
   parseLifecycleEnvironment,
   preflightRelay,
   relayBindingState,
+  relayTargetReadiness,
   retryTransientWranglerRead,
   runOnlineLifecycle,
 } from "./online-lifecycle-lib.mjs";
@@ -201,6 +202,24 @@ async function waitForHttp(url, predicate, label, options = {}) {
   );
 }
 
+async function waitForRelayReadiness(config, expectedOpen) {
+  let lastError;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (interruptedSignal && expectedOpen) {
+      throw new Error(`Interrupted by ${interruptedSignal}.`);
+    }
+    try {
+      if (await relayTargetReadiness(config, expectedOpen)) return;
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolveWait) => setTimeout(resolveWait, 1_000));
+  }
+  throw new Error(
+    `Relay data plane did not become ${expectedOpen ? "open" : "closed"}.${lastError instanceof Error ? ` ${lastError.message}` : ""}`,
+  );
+}
+
 function childEnvironment(config, targetUrl) {
   return {
     ...process.env,
@@ -280,6 +299,7 @@ async function main() {
       );
       process.stdout.write(`Temporary Relay version: ${state.versionId}\n`);
     },
+    waitForRelayOpen: () => waitForRelayReadiness(config, true),
     async runProtocolAcceptance() {
       await runProcess(process.execPath, [protocolScript], {
         env: childEnvironment(config, fixtureOrigin),
@@ -305,6 +325,7 @@ async function main() {
       const state = await assertRelayState(config, "", baseline.selfOrigins);
       process.stdout.write(`Restored Relay version: ${state.versionId}\n`);
     },
+    waitForRelayClosed: () => waitForRelayReadiness(config, false),
     async deleteFixture() {
       const deletion = await runWrangler(
         ["delete", "--config", fixtureConfig, "--name", fixtureName, "--force"],

@@ -9,6 +9,7 @@ import {
   parseLifecycleEnvironment,
   preflightRelay,
   relayBindingState,
+  relayTargetReadiness,
   retryTransientWranglerRead,
   runOnlineLifecycle,
 } from "./online-lifecycle-lib.mjs";
@@ -49,9 +50,11 @@ function fakeOperations(overrides = {}) {
       deployFixture: operation("deployFixture"),
       waitForFixture: operation("waitForFixture"),
       openRelay: operation("openRelay"),
+      waitForRelayOpen: operation("waitForRelayOpen"),
       runProtocolAcceptance: operation("runProtocolAcceptance"),
       runChromiumAcceptance: operation("runChromiumAcceptance"),
       restoreRelay: operation("restoreRelay"),
+      waitForRelayClosed: operation("waitForRelayClosed"),
       deleteFixture: operation("deleteFixture"),
       ...overrides,
     },
@@ -218,6 +221,56 @@ describe("Relay authentication preflight", () => {
   });
 });
 
+describe("Relay data-plane readiness", () => {
+  const config = {
+    fixtureOrigin:
+      "https://xpanel-relay-fixture-0123456789ab.example.workers.dev",
+    relayBaseUrl: "https://xpanel-relay-dev.example.workers.dev",
+    relayToken: "synthetic-token",
+    runId: "0123456789ab",
+  };
+
+  test("probes the allowlisted target through the Relay", async () => {
+    let observedMetadata;
+    const ready = await relayTargetReadiness(
+      config,
+      true,
+      async (_url, init) => {
+        observedMetadata = JSON.parse(
+          Buffer.from(init.headers["X-XPanel-Request"], "base64url").toString(
+            "utf8",
+          ),
+        );
+        return new Response("remote-e2e-ok", {
+          headers: { "X-XPanel-Response": "synthetic" },
+          status: 200,
+        });
+      },
+    );
+    assert.equal(ready, true);
+    assert.equal(observedMetadata.url, `${config.fixtureOrigin}/e2e`);
+    assert.equal(observedMetadata.bodySizeBytes, 0);
+  });
+
+  test("recognizes only an explicit target_not_allowed closure", async () => {
+    assert.equal(
+      await relayTargetReadiness(config, false, async () =>
+        Response.json(
+          { error: { code: "target_not_allowed" } },
+          { status: 403 },
+        ),
+      ),
+      true,
+    );
+    assert.equal(
+      await relayTargetReadiness(config, false, async () =>
+        Response.json({ error: { code: "unauthorized" } }, { status: 401 }),
+      ),
+      false,
+    );
+  });
+});
+
 describe("Wrangler read retries", () => {
   test("retries only explicit transient network failures", async () => {
     const results = [
@@ -265,15 +318,17 @@ describe("guarded online lifecycle", () => {
         "deployFixture",
         "waitForFixture",
         "openRelay",
+        "waitForRelayOpen",
         "runProtocolAcceptance",
         "runChromiumAcceptance",
         "restoreRelay",
+        "waitForRelayClosed",
         "deleteFixture",
       ],
     );
     assert.equal(calls[4][1].fixtureOrigin.endsWith("workers.dev"), true);
     assert.equal(calls[4][2].selfOrigins, "https://relay-alias.example.com");
-    assert.equal(calls[7][2].selfOrigins, "https://relay-alias.example.com");
+    assert.equal(calls[8][2].selfOrigins, "https://relay-alias.example.com");
   });
 
   test("deletes a possibly-created Fixture when deployment reports failure", async () => {
@@ -313,6 +368,7 @@ describe("guarded online lifecycle", () => {
         "waitForFixture",
         "openRelay",
         "restoreRelay",
+        "waitForRelayClosed",
         "deleteFixture",
       ],
     );
@@ -337,8 +393,10 @@ describe("guarded online lifecycle", () => {
         "deployFixture",
         "waitForFixture",
         "openRelay",
+        "waitForRelayOpen",
         "runProtocolAcceptance",
         "restoreRelay",
+        "waitForRelayClosed",
         "deleteFixture",
       ],
     );
