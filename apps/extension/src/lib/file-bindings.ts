@@ -1,43 +1,31 @@
 import type { FileReferenceV1, RequestSpecV1 } from "@xpanel/contracts";
 
-export type NativeFilePurpose =
-  | "body"
-  | "multipart"
-  | "ca"
-  | "clientCert"
-  | "clientKey";
+export type RequestFilePurpose = "body" | "multipart";
 
-export interface BoundNativeFile {
+export interface BoundRequestFile {
   file: File;
-  purpose: NativeFilePurpose;
+  purpose: RequestFilePurpose;
   reference: FileReferenceV1;
 }
 
-const bindings = new Map<string, File>();
-
-function toHex(buffer: ArrayBuffer): string {
-  return [...new Uint8Array(buffer)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
+interface FileBinding {
+  file: File;
 }
 
-export async function sha256File(file: File): Promise<string> {
-  return toHex(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()));
-}
+const bindings = new Map<string, FileBinding>();
 
-export async function bindFile(
+export function bindFile(
   reference: FileReferenceV1,
   file: File,
-): Promise<FileReferenceV1> {
+): FileReferenceV1 {
   const updated: FileReferenceV1 = {
     id: reference.id,
     name: file.name,
     size: file.size,
     ...(file.type ? { mediaType: file.type } : {}),
-    sha256: await sha256File(file),
     requiresReselection: false,
   };
-  bindings.set(reference.id, file);
+  bindings.set(reference.id, { file });
   return updated;
 }
 
@@ -46,28 +34,34 @@ export function unbindFile(referenceId: string): void {
 }
 
 function addBoundFile(
-  result: BoundNativeFile[],
+  result: BoundRequestFile[],
   reference: FileReferenceV1,
-  purpose: NativeFilePurpose,
+  purpose: RequestFilePurpose,
 ): void {
   if (reference.requiresReselection) {
-    throw new Error(
-      `${reference.name} must be selected again before Native execution.`,
-    );
+    throw new Error(`${reference.name} must be selected again before sending.`);
   }
-  const file = bindings.get(reference.id);
-  if (!file) {
-    throw new Error(
-      `${reference.name} must be selected again before Native execution.`,
-    );
+  const binding = bindings.get(reference.id);
+  if (
+    !binding ||
+    binding.file.name !== reference.name ||
+    (reference.size !== undefined && binding.file.size !== reference.size)
+  ) {
+    throw new Error(`${reference.name} must be selected again before sending.`);
   }
-  result.push({ file, purpose, reference });
+  result.push({ file: binding.file, purpose, reference });
+}
+
+export function boundFile(reference: FileReferenceV1): File {
+  const result: BoundRequestFile[] = [];
+  addBoundFile(result, reference, "body");
+  return result[0]!.file;
 }
 
 export function boundFilesForRequest(
   request: RequestSpecV1,
-): BoundNativeFile[] {
-  const files: BoundNativeFile[] = [];
+): BoundRequestFile[] {
+  const files: BoundRequestFile[] = [];
   if (request.body.kind === "file")
     addBoundFile(files, request.body.file, "body");
   if (request.body.kind === "multipart") {
@@ -76,27 +70,12 @@ export function boundFilesForRequest(
         addBoundFile(files, part.file, "multipart");
     }
   }
-  if (request.options.tls.caFile)
-    addBoundFile(files, request.options.tls.caFile, "ca");
-  if (request.options.tls.clientCertificate) {
-    addBoundFile(
-      files,
-      request.options.tls.clientCertificate.certificate,
-      "clientCert",
-    );
-    addBoundFile(
-      files,
-      request.options.tls.clientCertificate.privateKey,
-      "clientKey",
-    );
-  }
-
-  const unique = new Map<string, BoundNativeFile>();
+  const unique = new Map<string, BoundRequestFile>();
   for (const binding of files) {
     const existing = unique.get(binding.reference.id);
     if (existing && existing.purpose !== binding.purpose) {
       throw new Error(
-        `File ${binding.reference.name} is assigned to more than one security role.`,
+        `File ${binding.reference.name} is assigned to more than one request role.`,
       );
     }
     unique.set(binding.reference.id, binding);

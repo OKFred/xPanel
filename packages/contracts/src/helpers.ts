@@ -386,26 +386,15 @@ export function redactResponseForExport(
   return {
     value: responseRecordV1Schema.parse({
       ...persisted,
-      body:
-        persisted.body.kind === "inline"
-          ? {
-              kind: "inline",
-              encoding: "utf8",
-              content: REDACTED_VALUE,
-              ...(persisted.body.mediaType === undefined
-                ? {}
-                : { mediaType: persisted.body.mediaType }),
-              sizeBytes: new TextEncoder().encode(REDACTED_VALUE).byteLength,
-            }
-          : {
-              kind: "transfer",
-              encoding: persisted.body.encoding,
-              transferId: REDACTED_VALUE,
-              ...(persisted.body.mediaType === undefined
-                ? {}
-                : { mediaType: persisted.body.mediaType }),
-              sizeBytes: 0,
-            },
+      body: {
+        kind: "inline",
+        encoding: "utf8",
+        content: REDACTED_VALUE,
+        ...(persisted.body.mediaType === undefined
+          ? {}
+          : { mediaType: persisted.body.mediaType }),
+        sizeBytes: new TextEncoder().encode(REDACTED_VALUE).byteLength,
+      },
     }),
     warnings: [
       {

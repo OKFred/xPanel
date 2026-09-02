@@ -39,17 +39,15 @@ import {
 import {
   type AuthSpec,
   type BodySpec,
+  collectionRecordSchema,
   type FileReferenceV1,
+  requestSpecV1Schema,
   type RequestSpecV1,
 } from "@xpanel/contracts";
 
 import KeyValueEditor from "../../src/components/KeyValueEditor.vue";
 import { Button } from "../../src/components/ui/button";
-import {
-  cancelRequest,
-  executeRequest,
-  type ExecutorPreference,
-} from "../../src/lib/execute";
+import { cancelRequest, executeRequest } from "../../src/lib/execute";
 import { bindFile, unbindFile } from "../../src/lib/file-bindings";
 import { useWorkbenchStore } from "../../src/stores/workbench";
 
@@ -72,7 +70,6 @@ const requestTab = ref<"params" | "headers" | "body" | "auth" | "options">(
   "params",
 );
 const responseTab = ref<"pretty" | "raw" | "headers" | "timing">("pretty");
-const executor = ref<ExecutorPreference>("auto");
 const importOpen = ref(false);
 const exportOpen = ref(false);
 const importText = ref("");
@@ -103,16 +100,21 @@ const detectedFormat = computed(() =>
   detectImportFormat(importText.value, importFileName.value),
 );
 const bodyKind = computed(() => current.value.body.kind);
-const proxyBypassText = computed({
-  get: () => current.value.options.proxy?.bypass.join(", ") ?? "",
-  set: (value: string) => {
-    if (!current.value.options.proxy) return;
-    current.value.options.proxy.bypass = value
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  },
-});
+const hasHiddenBrowserOptions = computed(
+  () =>
+    current.value.options.proxy !== null ||
+    !current.value.options.tls.verify ||
+    current.value.options.tls.caFile !== undefined ||
+    current.value.options.tls.clientCertificate !== undefined ||
+    (current.value.body.kind === "multipart" &&
+      current.value.body.parts.some(
+        (part) =>
+          part.enabled &&
+          part.headers?.some(
+            (header) => header.enabled && header.name.trim() !== "",
+          ),
+      )),
+);
 const bodyText = computed({
   get: () =>
     current.value.body.kind === "json" || current.value.body.kind === "text"
@@ -128,10 +130,7 @@ const bodyText = computed({
   },
 });
 const responseRaw = computed(() => {
-  if (!response.value) return "";
-  return response.value.body.kind === "inline"
-    ? response.value.body.content
-    : `Streaming response ${response.value.body.transferId}`;
+  return response.value?.body.content ?? "";
 });
 const responsePretty = computed(() => {
   const raw = responseRaw.value;
@@ -164,26 +163,17 @@ const responseFull = computed(() => {
 onMounted(async () => {
   await store.initialize();
   const preferences = await chrome.storage.local.get([
-    "executor",
     "locale",
     "persistSensitive",
   ]);
-  const savedExecutor: unknown = preferences.executor;
+  await chrome.storage.local.remove("executor");
   const savedLocale: unknown = preferences.locale;
-  if (
-    savedExecutor === "auto" ||
-    savedExecutor === "browser" ||
-    savedExecutor === "native"
-  ) {
-    executor.value = savedExecutor;
-  }
   if (savedLocale === "zh-CN" || savedLocale === "en-US") {
     locale.value = savedLocale;
   }
   persistSensitive.value = preferences.persistSensitive === true;
 });
 
-watch(executor, async (value) => chrome.storage.local.set({ executor: value }));
 watch(locale, async (value) => {
   document.documentElement.lang = value;
   await chrome.storage.local.set({ locale: value });
@@ -227,61 +217,35 @@ function removeMultipartPart(index: number): void {
   current.value.body.parts.splice(index, 1);
 }
 
-async function selectMultipartFile(index: number, event: Event): Promise<void> {
+function selectMultipartFile(index: number, event: Event): void {
   const file = (event.target as HTMLInputElement).files?.[0];
   if (!file || current.value.body.kind !== "multipart") return;
   const part = current.value.body.parts[index];
   if (part?.kind !== "file") return;
-  part.file = await bindFile(part.file, file);
+  part.file = bindFile(part.file, file);
 }
 
-async function selectRawBodyFile(event: Event): Promise<void> {
+function selectRawBodyFile(event: Event): void {
   const file = (event.target as HTMLInputElement).files?.[0];
   if (!file || current.value.body.kind !== "file") return;
-  current.value.body.file = await bindFile(current.value.body.file, file);
+  current.value.body.file = bindFile(current.value.body.file, file);
   if (file.type) current.value.body.mediaType = file.type;
 }
 
-async function selectCaFile(event: Event): Promise<void> {
-  const file = (event.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-  const reference =
-    current.value.options.tls.caFile ?? filePlaceholder("Custom CA");
-  current.value.options.tls.caFile = await bindFile(reference, file);
-}
-
-function clearCaFile(): void {
-  const reference = current.value.options.tls.caFile;
-  if (reference) unbindFile(reference.id);
-  delete current.value.options.tls.caFile;
-}
-
-function ensureClientCertificate(): NonNullable<
-  RequestSpecV1["options"]["tls"]["clientCertificate"]
-> {
-  current.value.options.tls.clientCertificate ??= {
-    certificate: filePlaceholder("Select client certificate"),
-    privateKey: filePlaceholder("Select private key"),
-  };
-  return current.value.options.tls.clientCertificate;
-}
-
-async function selectClientCertificateFile(
-  role: "certificate" | "privateKey",
-  event: Event,
-): Promise<void> {
-  const file = (event.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-  const clientCertificate = ensureClientCertificate();
-  clientCertificate[role] = await bindFile(clientCertificate[role], file);
-}
-
-function clearClientCertificate(): void {
-  const clientCertificate = current.value.options.tls.clientCertificate;
-  if (!clientCertificate) return;
-  unbindFile(clientCertificate.certificate.id);
-  unbindFile(clientCertificate.privateKey.id);
-  delete current.value.options.tls.clientCertificate;
+function clearHiddenBrowserOptions(): void {
+  const tls = current.value.options.tls;
+  if (tls.caFile) unbindFile(tls.caFile.id);
+  if (tls.clientCertificate) {
+    unbindFile(tls.clientCertificate.certificate.id);
+    unbindFile(tls.clientCertificate.privateKey.id);
+  }
+  current.value.options.proxy = null;
+  current.value.options.tls = { verify: true };
+  if (current.value.body.kind === "multipart") {
+    for (const part of current.value.body.parts) delete part.headers;
+  }
+  notice.value =
+    "Browser-unsupported proxy, TLS, and multipart header options were cleared.";
 }
 
 function setBodyKind(kind: BodySpec["kind"]): void {
@@ -301,17 +265,6 @@ function setBodyKind(kind: BodySpec["kind"]): void {
     multipart: { kind: "multipart", parts: [] },
   };
   current.value.body = bodies[kind];
-}
-
-function setProxyUrl(value: string): void {
-  if (!value) {
-    current.value.options.proxy = null;
-    return;
-  }
-  current.value.options.proxy = {
-    ...(current.value.options.proxy ?? { bypass: [] }),
-    url: value,
-  };
 }
 
 function updateMethod(event: Event): void {
@@ -344,13 +297,16 @@ async function send(): Promise<void> {
     errorMessage.value = t("enterUrl");
     return;
   }
-  const request = structuredClone(current.value);
-  activeExecutionId.value = request.id;
   busy.value = true;
+  notice.value = t("sending");
   try {
-    store.setResponse(await executeRequest(request, executor.value));
+    const request = requestSpecV1Schema.parse(current.value);
+    activeExecutionId.value = request.id;
+    store.setResponse(await executeRequest(request));
     responseTab.value = "pretty";
+    notice.value = "";
   } catch (error) {
+    notice.value = "";
     errorMessage.value = error instanceof Error ? error.message : String(error);
   } finally {
     busy.value = false;
@@ -466,9 +422,7 @@ async function resolveImportReference(absoluteUrl: string): Promise<string> {
       );
     }
     const originPermission = { origins: [`${url.origin}/*`] };
-    const granted =
-      (await chrome.permissions.contains(originPermission)) ||
-      (await chrome.permissions.request(originPermission));
+    const granted = await chrome.permissions.request(originPermission);
     if (!granted)
       throw new Error(`Host permission was not granted for ${url.origin}.`);
     approvedReferenceOrigins.add(url.origin);
@@ -516,8 +470,10 @@ function prepareExport(): void {
   try {
     if (exportFormat.value === "xpanel-collection") {
       const result = exportCollectionFileWithWarnings(
-        structuredClone(collections.value),
-        structuredClone(requests.value),
+        collections.value.map((collection) =>
+          collectionRecordSchema.parse(collection),
+        ),
+        requests.value.map((request) => requestSpecV1Schema.parse(request)),
         { includeSensitive: includeSensitiveExport.value },
       );
       exportText.value = JSON.stringify(result.value, null, 2);
@@ -528,8 +484,8 @@ function prepareExport(): void {
     }
     const sourceRequests =
       exportScope.value === "saved"
-        ? requests.value.map((request) => structuredClone(request))
-        : [structuredClone(current.value)];
+        ? requests.value.map((request) => requestSpecV1Schema.parse(request))
+        : [requestSpecV1Schema.parse(current.value)];
     if (sourceRequests.length === 0)
       throw new Error("There are no saved requests to export.");
     const sourceIds = new Set(sourceRequests.map((request) => request.id));
@@ -835,8 +791,6 @@ function loadSaved(request: RequestSpecV1, collectionId?: string): void {
               'DELETE',
               'HEAD',
               'OPTIONS',
-              'TRACE',
-              'CONNECT',
             ]"
             :key="method"
             :value="method"
@@ -849,15 +803,6 @@ function loadSaved(request: RequestSpecV1, collectionId?: string): void {
           aria-label="Request URL"
           @keyup.enter="send"
         />
-        <select
-          v-model="executor"
-          class="executor-select"
-          aria-label="Executor"
-        >
-          <option value="auto">{{ $t("auto") }}</option>
-          <option value="browser">{{ $t("browser") }}</option>
-          <option value="native">{{ $t("native") }}</option>
-        </select>
         <button v-if="!busy" class="send-button" type="button" @click="send">
           <Play :size="16" fill="currentColor" /> {{ $t("send") }}
         </button>
@@ -929,7 +874,7 @@ function loadSaved(request: RequestSpecV1, collectionId?: string): void {
                   <option value="none">None</option>
                   <option value="json">JSON</option>
                   <option value="text">Text</option>
-                  <option value="file">File (Native)</option>
+                  <option value="file">File</option>
                   <option value="urlencoded">URL encoded</option>
                   <option value="multipart">Multipart</option>
                 </select>
@@ -966,7 +911,7 @@ function loadSaved(request: RequestSpecV1, collectionId?: string): void {
                 v-else-if="current.body.kind === 'file'"
                 class="file-option raw-file-option"
               >
-                <span>Raw request body (Native)</span>
+                <span>Raw request body</span>
                 <label class="file-picker ghost-button">
                   <FileInput :size="14" /> {{ current.body.file.name }}
                   <input type="file" @change="selectRawBodyFile" />
@@ -1088,7 +1033,9 @@ function loadSaved(request: RequestSpecV1, collectionId?: string): void {
                 <select v-model="current.auth.location">
                   <option value="header">Header</option>
                   <option value="query">Query</option>
-                  <option value="cookie">Cookie</option>
+                  <option value="cookie" disabled>
+                    Cookie (Browser unsupported)
+                  </option>
                 </select>
                 <input
                   v-model="current.auth.name"
@@ -1138,96 +1085,17 @@ function loadSaved(request: RequestSpecV1, collectionId?: string): void {
                   <option value="omit">Omit</option>
                 </select></label
               >
-              <label class="check-row"
-                ><input v-model="current.options.tls.verify" type="checkbox" />
-                Verify TLS certificate</label
-              >
-              <label
-                >Proxy URL<input
-                  :value="current.options.proxy?.url ?? ''"
-                  class="field"
-                  placeholder="Native only"
-                  @input="
-                    setProxyUrl(($event.target as HTMLInputElement).value)
-                  "
-              /></label>
-              <template v-if="current.options.proxy">
-                <label
-                  >Proxy username<input
-                    v-model="current.options.proxy.username"
-                    class="field"
-                    autocomplete="off"
-                /></label>
-                <label
-                  >Proxy password<input
-                    v-model="current.options.proxy.password"
-                    class="field"
-                    type="password"
-                    autocomplete="new-password"
-                /></label>
-                <label
-                  >Proxy bypass list<input
-                    v-model="proxyBypassText"
-                    class="field"
-                    placeholder="localhost, *.internal"
-                /></label>
-              </template>
-              <div class="file-option">
-                <span>Custom CA (Native)</span>
-                <label class="file-picker ghost-button">
-                  <FileInput :size="14" />
-                  {{ current.options.tls.caFile?.name ?? "Choose CA file" }}
-                  <input type="file" @change="selectCaFile" />
-                </label>
+              <div v-if="hasHiddenBrowserOptions" class="compatibility-note">
+                <span>
+                  Imported proxy, custom TLS, or multipart header options are
+                  preserved for export, but Browser Fetch cannot send them.
+                </span>
                 <button
-                  v-if="current.options.tls.caFile"
-                  class="icon-button"
+                  class="ghost-button"
                   type="button"
-                  aria-label="Clear CA file"
-                  @click="clearCaFile"
+                  @click="clearHiddenBrowserOptions"
                 >
-                  <X :size="14" />
-                </button>
-              </div>
-              <div class="file-option certificate-option">
-                <span>Client certificate (Native)</span>
-                <label class="file-picker ghost-button">
-                  <FileInput :size="14" />
-                  {{
-                    current.options.tls.clientCertificate?.certificate.name ??
-                    "Choose certificate"
-                  }}
-                  <input
-                    type="file"
-                    @change="selectClientCertificateFile('certificate', $event)"
-                  />
-                </label>
-                <label class="file-picker ghost-button">
-                  <FileInput :size="14" />
-                  {{
-                    current.options.tls.clientCertificate?.privateKey.name ??
-                    "Choose private key"
-                  }}
-                  <input
-                    type="file"
-                    @change="selectClientCertificateFile('privateKey', $event)"
-                  />
-                </label>
-                <input
-                  v-if="current.options.tls.clientCertificate"
-                  v-model="current.options.tls.clientCertificate.passphrase"
-                  class="field"
-                  type="password"
-                  placeholder="Private-key passphrase (optional)"
-                />
-                <button
-                  v-if="current.options.tls.clientCertificate"
-                  class="icon-button"
-                  type="button"
-                  aria-label="Clear client certificate"
-                  @click="clearClientCertificate"
-                >
-                  <X :size="14" />
+                  Clear unsupported options
                 </button>
               </div>
               <label class="check-row"
@@ -1252,7 +1120,7 @@ function loadSaved(request: RequestSpecV1, collectionId?: string): void {
             </div>
             <div v-if="response" class="response-meta">
               {{ Math.round(response.timings.durationMs) }} ms ·
-              {{ response.body.sizeBytes }} B · {{ response.executor }}
+              {{ response.body.sizeBytes }} B
             </div>
           </div>
           <ul v-if="response?.warnings.length" class="response-warning-list">

@@ -6,7 +6,6 @@ const root = resolve(import.meta.dirname, "..");
 const sourceRoots = [
   "apps/extension/entrypoints",
   "apps/extension/src",
-  "apps/native-host/src",
   "packages/contracts/src",
   "packages/request-core/src",
 ];
@@ -33,6 +32,8 @@ const forbiddenSourcePatterns = [
   ["MV2 blocking webRequest", /webRequestBlocking/u],
   ["declarativeNetRequest", /declarativeNetRequest/u],
   ["webRequest interception", /chrome\.webRequest/u],
+  ["Native Messaging connection", /\bconnectNative\s*\(/u],
+  ["nativeMessaging permission", /["']nativeMessaging["']/u],
 ];
 
 const failures = [];
@@ -106,9 +107,7 @@ if (!existsSync(manifestPath)) {
       `required permissions are not storage-only: ${requiredPermissions.join(", ")}`,
     );
   }
-  if (
-    JSON.stringify(optionalPermissions) !== JSON.stringify(["nativeMessaging"])
-  ) {
+  if (optionalPermissions.length !== 0) {
     failures.push(
       `optional permissions are unexpected: ${optionalPermissions.join(", ")}`,
     );
@@ -129,6 +128,7 @@ if (!existsSync(manifestPath)) {
     "webRequest",
     "webRequestBlocking",
     "declarativeNetRequest",
+    "nativeMessaging",
   ]) {
     if (serialized.includes(forbidden))
       failures.push(`built manifest contains ${forbidden}`);

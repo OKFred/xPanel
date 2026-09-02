@@ -224,28 +224,16 @@ export const requestSpecV1Schema = z
   .strict();
 export type RequestSpecV1 = z.infer<typeof requestSpecV1Schema>;
 
-export const responseBodySchema = z.discriminatedUnion("kind", [
-  z
-    .object({
-      kind: z.literal("inline"),
-      encoding: z.enum(["utf8", "base64"]),
-      content: z.string(),
-      mediaType: z.string().min(1).optional(),
-      sizeBytes: z.number().int().nonnegative(),
-      sha256: sha256Schema.optional(),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal("transfer"),
-      encoding: z.enum(["utf8", "base64"]),
-      transferId: z.string().min(1),
-      mediaType: z.string().min(1).optional(),
-      sizeBytes: z.number().int().nonnegative(),
-      sha256: sha256Schema.optional(),
-    })
-    .strict(),
-]);
+export const responseBodySchema = z
+  .object({
+    kind: z.literal("inline"),
+    encoding: z.enum(["utf8", "base64"]),
+    content: z.string(),
+    mediaType: z.string().min(1).optional(),
+    sizeBytes: z.number().int().nonnegative(),
+    sha256: sha256Schema.optional(),
+  })
+  .strict();
 export type ResponseBody = z.infer<typeof responseBodySchema>;
 
 export const timingInfoSchema = z
@@ -275,7 +263,7 @@ export type RedirectRecord = z.infer<typeof redirectRecordSchema>;
 export const responseRecordV1Schema = z
   .object({
     requestId: z.string().min(1),
-    executor: z.enum(["browser", "native"]),
+    executor: z.literal("browser"),
     status: z.number().int().min(0).max(999),
     statusText: z.string(),
     headers: z.array(keyValueItemSchema),
@@ -309,121 +297,8 @@ export const collectionFileV1Schema = z
   .strict();
 export type CollectionFileV1 = z.infer<typeof collectionFileV1Schema>;
 
-const nativeEnvelopeBase = {
-  version: z.literal(1),
-  id: z.string().min(1),
-};
-
-export const nativeFileDescriptorV1Schema = z
-  .object({
-    id: z.string().min(1),
-    name: z.string().min(1),
-    size: z.number().int().nonnegative(),
-    sha256: sha256Schema,
-    purpose: z.enum(["body", "multipart", "ca", "clientCert", "clientKey"]),
-  })
-  .strict();
-export type NativeFileDescriptorV1 = z.infer<
-  typeof nativeFileDescriptorV1Schema
->;
-
-export const helloMessageSchema = z
-  .object({
-    ...nativeEnvelopeBase,
-    type: z.literal("hello"),
-    client: z
-      .object({
-        name: z.string().min(1),
-        version: z.string().min(1),
-      })
-      .strict(),
-    capabilities: z.array(z.string().min(1)),
-  })
-  .strict();
-export type HelloMessage = z.infer<typeof helloMessageSchema>;
-
-export const executeMessageSchema = z
-  .object({
-    ...nativeEnvelopeBase,
-    type: z.literal("execute"),
-    request: requestSpecV1Schema,
-    files: z.array(nativeFileDescriptorV1Schema).optional(),
-  })
-  .strict();
-export type ExecuteMessage = z.infer<typeof executeMessageSchema>;
-
-export const cancelMessageSchema = z
-  .object({
-    ...nativeEnvelopeBase,
-    type: z.literal("cancel"),
-    requestId: z.string().min(1),
-  })
-  .strict();
-export type CancelMessage = z.infer<typeof cancelMessageSchema>;
-
-export const chunkMessageSchema = z
-  .object({
-    ...nativeEnvelopeBase,
-    type: z.literal("chunk"),
-    requestId: z.string().min(1),
-    transferId: z.string().min(1),
-    sequence: z.number().int().nonnegative(),
-    data: z.string(),
-    eof: z.boolean(),
-    sha256: sha256Schema.optional(),
-  })
-  .strict();
-export type ChunkMessage = z.infer<typeof chunkMessageSchema>;
-
-export const ackMessageSchema = z
-  .object({
-    ...nativeEnvelopeBase,
-    type: z.literal("ack"),
-    requestId: z.string().min(1).optional(),
-    transferId: z.string().min(1).optional(),
-    sequence: z.number().int().nonnegative().optional(),
-    phase: z.enum(["ready", "chunk", "cancelled"]),
-  })
-  .strict();
-export type AckMessage = z.infer<typeof ackMessageSchema>;
-
-export const completeMessageSchema = z
-  .object({
-    ...nativeEnvelopeBase,
-    type: z.literal("complete"),
-    requestId: z.string().min(1),
-    response: responseRecordV1Schema,
-  })
-  .strict();
-export type CompleteMessage = z.infer<typeof completeMessageSchema>;
-
-export const errorMessageSchema = z
-  .object({
-    ...nativeEnvelopeBase,
-    type: z.literal("error"),
-    requestId: z.string().min(1).optional(),
-    code: z.string().min(1),
-    message: z.string().min(1),
-    retryable: z.boolean(),
-    details: z.record(z.string(), z.unknown()).optional(),
-  })
-  .strict();
-export type ErrorMessage = z.infer<typeof errorMessageSchema>;
-
-export const nativeEnvelopeV1Schema = z.discriminatedUnion("type", [
-  helloMessageSchema,
-  executeMessageSchema,
-  cancelMessageSchema,
-  chunkMessageSchema,
-  ackMessageSchema,
-  completeMessageSchema,
-  errorMessageSchema,
-]);
-export type NativeEnvelopeV1 = z.infer<typeof nativeEnvelopeV1Schema>;
-
 // PascalCase aliases keep call sites readable and make the runtime schemas
 // discoverable next to their TypeScript counterparts.
 export const RequestSpecV1Schema = requestSpecV1Schema;
 export const ResponseRecordV1Schema = responseRecordV1Schema;
 export const CollectionFileV1Schema = collectionFileV1Schema;
-export const NativeEnvelopeV1Schema = nativeEnvelopeV1Schema;

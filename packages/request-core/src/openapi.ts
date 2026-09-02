@@ -867,14 +867,6 @@ function buildSwaggerResponses(
       { type: "string", default: header.value },
     ]),
   );
-  if (response.body.kind === "transfer") {
-    return {
-      [key]: {
-        description: response.statusText || "Generated response",
-        headers,
-      },
-    };
-  }
   let example: unknown = response.body.content;
   if (
     response.body.encoding === "utf8" &&

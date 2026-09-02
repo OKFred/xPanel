@@ -437,13 +437,6 @@ function requestBodySize(request: RequestSpecV1): number {
 }
 
 function responseContent(response: ResponseRecordV1): Record<string, unknown> {
-  if (response.body.kind === "transfer") {
-    return {
-      size: response.body.sizeBytes,
-      mimeType: response.body.mediaType ?? "application/octet-stream",
-      comment: `Body is stored in xPanel transfer ${response.body.transferId}.`,
-    };
-  }
   return {
     size: response.body.sizeBytes,
     mimeType: response.body.mediaType ?? "application/octet-stream",

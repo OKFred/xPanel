@@ -3,24 +3,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDefaultRequest } from "@xpanel/contracts";
 
 import {
+  browserUnsupportedReasons,
   cancelRequest,
   executeBrowser,
-  executeNative,
   executeRequest,
-  prepareNativePayload,
-  requiresNative,
 } from "../src/lib/execute";
+import { bindFile } from "../src/lib/file-bindings";
 
-function chromeMock(overrides: Partial<typeof chrome> = {}): typeof chrome {
+function chromeMock(
+  overrides: Partial<typeof chrome.permissions> = {},
+): typeof chrome {
   return {
     permissions: {
       contains: vi.fn(async () => true),
       request: vi.fn(async () => true),
+      ...overrides,
     },
-    runtime: {
-      connectNative: vi.fn(),
-    },
-    ...overrides,
   } as unknown as typeof chrome;
 }
 
@@ -29,39 +27,41 @@ beforeEach(() => {
   vi.stubGlobal("chrome", chromeMock());
 });
 
-describe("executor selection", () => {
-  it("keeps ordinary requests in the browser", () => {
+describe("Browser execution", () => {
+  it("keeps ordinary requests in Fetch", () => {
     expect(
-      requiresNative(createDefaultRequest({ url: "https://example.com" })),
-    ).toBe(false);
+      browserUnsupportedReasons(
+        createDefaultRequest({ url: "https://example.com" }),
+      ),
+    ).toEqual([]);
   });
 
-  it("routes forbidden browser headers to native replay", () => {
+  it("refuses unsupported features instead of silently dropping them", async () => {
     const request = createDefaultRequest({
+      url: "https://example.com",
       headers: [{ name: "Cookie", value: "session=secret", enabled: true }],
     });
-    expect(requiresNative(request)).toBe(true);
+    request.options.proxy = { url: "http://127.0.0.1:8080", bypass: [] };
+    request.options.tls.verify = false;
+
+    await expect(executeRequest(request)).rejects.toThrow(
+      /explicit proxy.*disabled TLS.*forbidden Cookie header/,
+    );
+    expect(chrome.permissions.request).not.toHaveBeenCalled();
   });
 
-  it("routes every Proxy- and Sec- header prefix to native replay", () => {
+  it("rejects Proxy-, Sec-, and browser-forbidden header names", () => {
     for (const name of ["Proxy-Connection", "Sec-Example", "Cookie2"]) {
       const request = createDefaultRequest({
         headers: [{ name, value: "value", enabled: true }],
       });
-      expect(requiresNative(request)).toBe(true);
+      expect(browserUnsupportedReasons(request)).toContain(
+        `the forbidden ${name} header`,
+      );
     }
   });
 
-  it("routes proxy and custom TLS requests to native replay", () => {
-    const request = createDefaultRequest();
-    request.options.proxy = { url: "http://127.0.0.1:8080", bypass: [] };
-    expect(requiresNative(request)).toBe(true);
-    request.options.proxy = null;
-    request.options.tls.verify = false;
-    expect(requiresNative(request)).toBe(true);
-  });
-
-  it("routes multipart part headers to native replay", () => {
+  it("rejects custom multipart part headers", () => {
     const request = createDefaultRequest({
       body: {
         kind: "multipart",
@@ -69,7 +69,7 @@ describe("executor selection", () => {
           {
             kind: "text",
             name: "metadata",
-            value: "value",
+            value: "{}",
             enabled: true,
             headers: [
               {
@@ -82,35 +82,26 @@ describe("executor selection", () => {
         ],
       },
     });
-    expect(requiresNative(request)).toBe(true);
-  });
-
-  it("refuses to silently drop native-only fields in explicit Browser mode", async () => {
-    const request = createDefaultRequest({
-      url: "https://example.com",
-      headers: [{ name: "Cookie", value: "session=secret", enabled: true }],
-    });
-    await expect(executeRequest(request, "browser")).rejects.toThrow(
-      "cannot preserve",
+    expect(browserUnsupportedReasons(request)).toContain(
+      "custom multipart part headers",
     );
   });
 
-  it("reports a denied origin permission before fetching", async () => {
+  it("requests host access directly and reports denial before fetching", async () => {
     const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
+    const contains = vi.fn(async () => false);
+    const requestPermission = vi.fn(async () => false);
     vi.stubGlobal(
       "chrome",
-      chromeMock({
-        permissions: {
-          contains: vi.fn(async () => false),
-          request: vi.fn(async () => false),
-        } as unknown as typeof chrome.permissions,
-      }),
+      chromeMock({ contains, request: requestPermission }),
     );
-    const request = createDefaultRequest({ url: "https://example.com/data" });
-    await expect(executeBrowser(request)).rejects.toThrow(
-      "permission was not granted",
-    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      executeBrowser(createDefaultRequest({ url: "https://example.com/data" })),
+    ).rejects.toThrow("permission was not granted");
+    expect(requestPermission).toHaveBeenCalledOnce();
+    expect(contains).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -130,13 +121,161 @@ describe("executor selection", () => {
       url: "https://example.com/data",
       auth: { kind: "basic", username: "用户", password: "密码" },
     });
+
     await executeBrowser(request);
+
     expect(authorization).toBe(
       `Basic ${Buffer.from("用户:密码").toString("base64")}`,
     );
   });
 
-  it("strips custom credentials before following a cross-origin redirect", async () => {
+  it("binds request files without buffering their contents", async () => {
+    const file = new File(["large-placeholder"], "large.bin", {
+      type: "application/octet-stream",
+    });
+    const read = vi.spyOn(file, "arrayBuffer");
+
+    const reference = bindFile(
+      {
+        id: crypto.randomUUID(),
+        name: "Select a file",
+        requiresReselection: true,
+      },
+      file,
+    );
+
+    expect(read).not.toHaveBeenCalled();
+    expect(reference).toMatchObject({
+      name: "large.bin",
+      size: file.size,
+      requiresReselection: false,
+    });
+    expect(reference.sha256).toBeUndefined();
+  });
+
+  it("sends a selected raw file through Fetch", async () => {
+    const originalReference = {
+      id: crypto.randomUUID(),
+      name: "payload.bin",
+      requiresReselection: true,
+    };
+    const file = new File(["raw-payload"], "payload.bin", {
+      type: "application/octet-stream",
+    });
+    const reference = bindFile(originalReference, file);
+    let capturedBody: BodyInit | null | undefined;
+    let capturedType: string | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: URL, init: RequestInit) => {
+        capturedBody = init.body;
+        capturedType = (init.headers as Headers).get("Content-Type");
+        return new Response("ok", {
+          status: 200,
+          headers: { "content-type": "text/plain" },
+        });
+      }),
+    );
+
+    await executeBrowser(
+      createDefaultRequest({
+        method: "POST",
+        url: "https://example.com/upload",
+        body: { kind: "file", file: reference },
+      }),
+    );
+
+    expect(capturedBody).toBe(file);
+    expect(capturedType).toBe("application/octet-stream");
+  });
+
+  it("sends selected multipart files and lets Fetch set the boundary", async () => {
+    const originalReference = {
+      id: crypto.randomUUID(),
+      name: "avatar.txt",
+      requiresReselection: true,
+    };
+    const file = new File(["avatar"], "avatar.txt", { type: "text/plain" });
+    const reference = bindFile(originalReference, file);
+    let capturedBody: FormData | undefined;
+    let contentType: string | null = "not-captured";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: URL, init: RequestInit) => {
+        capturedBody = init.body as FormData;
+        contentType = (init.headers as Headers).get("Content-Type");
+        return new Response("ok", {
+          status: 200,
+          headers: { "content-type": "text/plain" },
+        });
+      }),
+    );
+
+    const response = await executeBrowser(
+      createDefaultRequest({
+        method: "POST",
+        url: "https://example.com/upload",
+        headers: [
+          {
+            name: "Content-Type",
+            value: "multipart/form-data; boundary=wrong",
+            enabled: true,
+          },
+        ],
+        body: {
+          kind: "multipart",
+          parts: [
+            {
+              kind: "text",
+              name: "label",
+              value: "profile",
+              enabled: true,
+              headers: [],
+            },
+            {
+              kind: "file",
+              name: "avatar",
+              file: reference,
+              enabled: true,
+              headers: [],
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(capturedBody?.get("label")).toBe("profile");
+    const uploaded = capturedBody?.get("avatar") as File;
+    expect(uploaded.name).toBe(file.name);
+    expect(await uploaded.text()).toBe("avatar");
+    expect(contentType).toBeNull();
+    expect(response.warnings).toContainEqual(
+      expect.objectContaining({ code: "browser-multipart-content-type" }),
+    );
+  });
+
+  it("requires imported files to be selected again before permission prompts", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    const request = createDefaultRequest({
+      method: "POST",
+      url: "https://example.com/upload",
+      body: {
+        kind: "file",
+        file: {
+          id: crypto.randomUUID(),
+          name: "secret.bin",
+          requiresReselection: true,
+        },
+      },
+    });
+
+    await expect(executeBrowser(request)).rejects.toThrow(
+      "must be selected again",
+    );
+    expect(chrome.permissions.request).not.toHaveBeenCalled();
+  });
+
+  it("strips credentials before following a cross-origin redirect", async () => {
     const forwardedHeaders: Array<string | null> = [];
     const forwardedCredentials: Array<RequestCredentials | undefined> = [];
     vi.stubGlobal(
@@ -160,48 +299,12 @@ describe("executor selection", () => {
       url: "https://first.example/start",
       headers: [{ name: "X-API-Key", value: "KEY_SECRET", enabled: true }],
     });
+
     const response = await executeBrowser(request);
+
     expect(forwardedHeaders).toEqual([null]);
     expect(forwardedCredentials).toEqual(["omit"]);
     expect(response.redirects).toHaveLength(1);
-  });
-
-  it("chunks large native request bodies instead of placing them in execute messages", async () => {
-    const secret = "large-secret-".repeat(100_000);
-    const request = createDefaultRequest({
-      method: "POST",
-      url: "https://example.com/upload",
-      body: { kind: "json", text: JSON.stringify({ secret }) },
-    });
-    const payload = await prepareNativePayload(request);
-    expect(payload.request.body.kind).toBe("file");
-    expect(payload.files).toHaveLength(1);
-    expect(payload.files[0]?.file.size).toBeGreaterThan(1024 * 1024);
-    expect(JSON.stringify(payload.request)).not.toContain(secret.slice(0, 200));
-  });
-
-  it("keeps multipart names inside their quoted disposition boundary", async () => {
-    const request = createDefaultRequest({
-      method: "POST",
-      body: {
-        kind: "multipart",
-        parts: [
-          {
-            kind: "text",
-            name: "unsafe\\",
-            value: "value",
-            enabled: true,
-            headers: [],
-          },
-        ],
-      },
-    });
-    const payload = await prepareNativePayload(request);
-    const body = new TextDecoder().decode(
-      await payload.files[0]?.file.arrayBuffer(),
-    );
-    expect(body).toContain('name="unsafe_"');
-    expect(body).not.toContain('name="unsafe\\"');
   });
 
   it("refuses to replay a body through a cross-origin 307 redirect", async () => {
@@ -218,70 +321,57 @@ describe("executor selection", () => {
       url: "https://first.example/start",
       body: { kind: "json", text: '{"token":"secret"}' },
     });
+
     await expect(executeBrowser(request)).rejects.toThrow(
       "attempted to replay the request body",
     );
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
-  it("reports a denied Native Messaging permission", async () => {
-    vi.stubGlobal(
-      "chrome",
-      chromeMock({
-        permissions: {
-          contains: vi.fn(async () => false),
-          request: vi.fn(async () => false),
-        } as unknown as typeof chrome.permissions,
-      }),
+  it("cancels an active Fetch request", async () => {
+    const fetchMock = vi.fn(
+      async (_url: URL, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () => {
+            reject(new DOMException("aborted", "AbortError"));
+          });
+        }),
     );
-    await expect(executeNative(createDefaultRequest())).rejects.toThrow(
-      "Native Messaging permission was not granted",
-    );
+    vi.stubGlobal("fetch", fetchMock);
+    const request = createDefaultRequest({
+      id: crypto.randomUUID(),
+      url: "https://example.com/slow",
+    });
+    const execution = executeRequest(request);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+
+    cancelRequest(request.id);
+
+    await expect(execution).rejects.toThrow("Request cancelled");
   });
 
-  it("cancels while the native handshake is still in progress", async () => {
-    const messageListeners: Array<(message: unknown) => void> = [];
-    const disconnectListeners: Array<() => void> = [];
-    const sent: unknown[] = [];
-    const port = {
-      onMessage: {
-        addListener: (listener: (message: unknown) => void) =>
-          messageListeners.push(listener),
-      },
-      onDisconnect: {
-        addListener: (listener: () => void) =>
-          disconnectListeners.push(listener),
-      },
-      postMessage: (message: unknown) => sent.push(message),
-      disconnect: () => disconnectListeners.forEach((listener) => listener()),
-    } as unknown as chrome.runtime.Port;
-    vi.stubGlobal(
-      "chrome",
-      chromeMock({
-        runtime: {
-          connectNative: vi.fn(() => port),
-        } as unknown as typeof chrome.runtime,
-      }),
+  it("remembers cancellation while a host permission prompt is pending", async () => {
+    let resolvePermission!: (granted: boolean) => void;
+    const requestPermission = vi.fn(
+      async () =>
+        new Promise<boolean>((resolve) => {
+          resolvePermission = resolve;
+        }),
     );
-    const request = createDefaultRequest();
-    const execution = executeNative(request);
-    await Promise.resolve();
+    vi.stubGlobal("chrome", chromeMock({ request: requestPermission }));
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const request = createDefaultRequest({
+      id: crypto.randomUUID(),
+      url: "https://example.com/pending-permission",
+    });
+    const execution = executeBrowser(request);
+    await vi.waitFor(() => expect(requestPermission).toHaveBeenCalledOnce());
+
     cancelRequest(request.id);
-    messageListeners.forEach((listener) =>
-      listener({
-        version: 1,
-        id: crypto.randomUUID(),
-        type: "hello",
-        client: { name: "test-host", version: "2.0.0" },
-        capabilities: [],
-      }),
-    );
-    await expect(execution).rejects.toThrow("cancelled");
-    expect(
-      sent.filter(
-        (message) => (message as { type?: string }).type === "execute",
-      ),
-    ).toHaveLength(0);
-    port.disconnect();
+    resolvePermission(true);
+
+    await expect(execution).rejects.toThrow("Request cancelled");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

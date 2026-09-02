@@ -14,7 +14,6 @@ export default defineConfig({
     version: "2.0.0",
     minimum_chrome_version: "120",
     permissions: ["storage"],
-    optional_permissions: ["nativeMessaging"],
     optional_host_permissions: ["http://*/*", "https://*/*"],
     action: {
       default_title: "__MSG_extensionName__",

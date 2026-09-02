@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   CollectionFileV1Schema,
-  NativeEnvelopeV1Schema,
   REDACTED_VALUE,
   RequestSpecV1Schema,
   createDefaultRequest,
@@ -415,38 +414,5 @@ describe("redaction", () => {
       text: REDACTED_VALUE,
     });
     expect(collectionExport.warnings[0]?.path).toBe("requests.0.body");
-  });
-});
-
-describe("NativeEnvelopeV1", () => {
-  it("accepts chunked transfer messages", () => {
-    expect(
-      NativeEnvelopeV1Schema.safeParse({
-        version: 1,
-        id: "message-1",
-        type: "chunk",
-        requestId: "request-1",
-        transferId: "response-body-1",
-        sequence: 0,
-        data: "eFBhbmVs",
-        eof: true,
-      }).success,
-    ).toBe(true);
-  });
-
-  it("rejects shell-like fields on execute envelopes", () => {
-    const request = createDefaultRequest(
-      { url: "https://example.com" },
-      fixedId,
-    );
-    expect(
-      NativeEnvelopeV1Schema.safeParse({
-        version: 1,
-        id: "message-1",
-        type: "execute",
-        request,
-        command: "curl https://example.com | sh",
-      }).success,
-    ).toBe(false);
   });
 });

@@ -15,9 +15,8 @@ analytics, advertising, account system, hosted backend, or telemetry.
   user explicitly chooses to save them.
 - Exported files are created only after a user action and are sanitized by
   default.
-- The optional native host receives only requests explicitly sent through the
-  Native executor. Communication stays on the same device through Chrome
-  Native Messaging.
+- Files selected for request bodies remain in the extension page's memory and
+  are sent only with the request the user explicitly starts.
 
 ## Network behavior
 
@@ -27,8 +26,6 @@ copy of requests or responses to the developer.
 
 ## User control
 
-Removing the extension deletes its browser-managed local storage. The native
-host has separate uninstall scripts that remove its executable, registration,
-and temporary working files.
+Removing the extension deletes its browser-managed local storage.
 
 Questions can be sent to zq.admin.vip@gmail.com.

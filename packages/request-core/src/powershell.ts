@@ -173,14 +173,20 @@ export function parsePowerShell(input: string): RequestParseResult {
         }
         case "-proxy":
           proxyUrl = resolved;
+          warnings.push(
+            warning(
+              "powershell.browser_unsupported_option",
+              `${token} cannot be applied by Browser execution; its structure is preserved for import and export.`,
+            ),
+          );
           break;
         case "-proxycredential":
         case "-certificate":
         case "-certificatethumbprint":
           warnings.push(
             warning(
-              "powershell.native_option_requires_confirmation",
-              `${token} requires confirmation in Native mode.`,
+              "powershell.browser_unsupported_option",
+              `${token} cannot be applied by Browser execution and is preserved only as an import warning.`,
             ),
           );
           break;

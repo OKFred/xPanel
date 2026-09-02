@@ -1,7 +1,0 @@
-{
-  "name": "com.okfred.xpanel",
-  "description": "xPanel secure native HTTP companion",
-  "path": "__HOST_PATH__",
-  "type": "stdio",
-  "allowed_origins": ["chrome-extension://diaemdialoooebdennhpgnmobnjabohm/"]
-}

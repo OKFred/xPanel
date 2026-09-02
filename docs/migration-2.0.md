@@ -8,17 +8,20 @@ client. The existing Chrome Web Store identity remains
 
 The old global localhost CORS response-header modification has been removed.
 Manifest V3 no longer permits the previous `webRequestBlocking` implementation
-for ordinary store extensions. Requests sent from xPanel use exact optional
-host access, or the optional native host.
+for ordinary store extensions. Requests sent from xPanel use Browser Fetch with
+exact optional host access.
 
 ## Upgrade behavior
 
 - Existing users retain the xPanel DevTools entry point.
-- Native Messaging and host access are optional and requested only when used.
+- HTTP and HTTPS host access is optional and requested for the selected request
+  origin only when sending.
 - The old version did not persist request collections, so no legacy collection
   migration is required.
-- The native companion is installed separately and is not bundled inside the
-  Chrome Web Store ZIP.
+- Proxy selection, custom TLS verification, client certificates, and restricted
+  request headers cannot be applied by Browser Fetch. Imports preserve their
+  static structure and report the unsupported options instead of silently
+  dropping them.
 
 The archived 1.1.1 source remains under `legacy/xpanel-mv2-1.1.1` for reference
 and is excluded from every new build.

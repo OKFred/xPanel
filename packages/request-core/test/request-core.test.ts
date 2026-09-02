@@ -156,7 +156,7 @@ describe("static command formats", () => {
     );
   });
 
-  it("preserves raw file bodies and native cURL options without reading files", () => {
+  it("preserves raw file bodies and browser-unsupported cURL options without reading files", () => {
     const parsed = parseCurlBash(
       "curl 'https://api.example.com/upload' --data-binary '@C:\\private\\payload.bin' --proxy 'http://localhost:8080' --proxy-user 'alice:proxy-secret' --noproxy 'localhost,127.0.0.1' --cacert 'C:\\private\\ca.pem' --cert 'C:\\private\\client.pem:cert-secret' --key 'C:\\private\\client.key'",
     );
@@ -185,6 +185,13 @@ describe("static command formats", () => {
         },
       },
     });
+    expect(
+      parsed.warnings.some(
+        (item) =>
+          item.code === "curl.browser_unsupported_option" &&
+          item.message.includes("explicit proxy"),
+      ),
+    ).toBe(true);
     const exported = exportCurlBash(request);
     expect(exported.warnings).toEqual(
       expect.arrayContaining([
@@ -217,6 +224,17 @@ describe("static command formats", () => {
       enabled: true,
     });
     expect(exportPowerShell(request).text).toContain("Invoke-WebRequest");
+    expect(
+      parsePowerShell(
+        "Invoke-WebRequest -Uri 'https://api.example.com' -Proxy 'http://127.0.0.1:8080'",
+      ).warnings,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "powershell.browser_unsupported_option",
+        }),
+      ]),
+    );
     expect(
       parsePowerShell('Invoke-WebRequest -Uri "$(Get-Item x)"').warnings,
     ).toEqual(

@@ -218,6 +218,12 @@ function parseCurlCommand(
       case "-x":
       case "--proxy":
         proxyUrl = value;
+        warnings.push(
+          warning(
+            "curl.browser_unsupported_option",
+            `${token} was detected. Browser execution cannot apply an explicit proxy; its structure is preserved for import and export.`,
+          ),
+        );
         break;
       case "--proxy-user":
         if (value) {
@@ -225,6 +231,12 @@ function parseCurlCommand(
           proxyUsername = separator < 0 ? value : value.slice(0, separator);
           proxyPassword = separator < 0 ? "" : value.slice(separator + 1);
         }
+        warnings.push(
+          warning(
+            "curl.browser_unsupported_option",
+            `${token} was detected. Browser execution cannot apply proxy credentials; their structure is preserved for import and export.`,
+          ),
+        );
         break;
       case "--noproxy":
         proxyBypass = value
@@ -233,13 +245,19 @@ function parseCurlCommand(
               .map((item) => item.trim())
               .filter(Boolean)
           : [];
+        warnings.push(
+          warning(
+            "curl.browser_unsupported_option",
+            `${token} was detected. Browser execution cannot apply proxy bypass rules; their structure is preserved for import and export.`,
+          ),
+        );
         break;
       case "--cacert":
         if (value) caFile = pathFileReference(value, "ca");
         warnings.push(
           warning(
-            "curl.native_option_requires_confirmation",
-            `${token} was detected. Native-only paths and credentials must be confirmed again.`,
+            "curl.browser_unsupported_option",
+            `${token} was detected. Browser execution cannot apply this local TLS option; its structure is preserved for import and export.`,
           ),
         );
         break;
@@ -251,8 +269,8 @@ function parseCurlCommand(
         }
         warnings.push(
           warning(
-            "curl.native_option_requires_confirmation",
-            `${token} was detected. Native-only paths and credentials must be confirmed again.`,
+            "curl.browser_unsupported_option",
+            `${token} was detected. Browser execution cannot apply this local TLS option; its structure is preserved for import and export.`,
           ),
         );
         break;
@@ -260,8 +278,8 @@ function parseCurlCommand(
         if (value) privateKeyFile = pathFileReference(value, "private-key");
         warnings.push(
           warning(
-            "curl.native_option_requires_confirmation",
-            `${token} was detected. Native-only paths and credentials must be confirmed again.`,
+            "curl.browser_unsupported_option",
+            `${token} was detected. Browser execution cannot apply this local TLS option; its structure is preserved for import and export.`,
           ),
         );
         break;
@@ -279,7 +297,7 @@ function parseCurlCommand(
         warnings.push(
           warning(
             "curl.tls_insecure",
-            "TLS verification was disabled by the imported command.",
+            "TLS verification was disabled by the imported command. Browser execution cannot apply this option.",
           ),
         );
         break;

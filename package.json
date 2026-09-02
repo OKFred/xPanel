@@ -9,9 +9,8 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "build": "pnpm build:packages && pnpm build:extension && pnpm build:native",
+    "build": "pnpm build:packages && pnpm build:extension",
     "build:extension": "pnpm build:packages && pnpm --filter @xpanel/extension build",
-    "build:native": "pnpm --filter @xpanel/contracts build && pnpm --filter @xpanel/native-host build",
     "build:packages": "pnpm --filter @xpanel/contracts build && pnpm --filter @xpanel/request-core build",
     "audit:static": "node scripts/static-audit.mjs",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm audit:static",
