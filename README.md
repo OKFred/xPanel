@@ -62,6 +62,7 @@ directly to destinations chosen by the user. A Remote request is sent only
 after the user explicitly selects and trusts their own relay profile; its URL,
 headers, credentials, and body pass through that service. See
 [Relay deployment](apps/relay-cloudflare/README.md), [Privacy](docs/privacy.md),
+[Chrome Web Store submission kit](docs/chrome-web-store/submission.md),
 [Permissions](docs/permissions.md), and the [2.0 migration notes](docs/migration-2.0.md).
 
 The current development branch does not publish a GitHub Release or submit a

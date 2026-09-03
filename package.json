@@ -13,12 +13,16 @@
     "build:extension": "pnpm build:packages && pnpm --filter @xpanel/extension build",
     "build:relay": "pnpm build:packages && pnpm --filter @xpanel/relay-cloudflare build",
     "build:packages": "pnpm --filter @xpanel/contracts build && pnpm --filter @xpanel/request-core build",
+    "assets:brand": "node scripts/generate-brand-assets.mjs",
+    "assets:store": "pnpm assets:brand && pnpm build:extension && node scripts/e2e-chromium.mjs --store-assets",
+    "assets:verify": "node scripts/verify-store-assets.mjs",
     "e2e:chromium": "pnpm build:extension && node scripts/e2e-chromium.mjs",
     "audit:static": "node scripts/static-audit.mjs",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm --filter @xpanel/relay-cloudflare types:check && pnpm build && pnpm audit:static",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm --filter @xpanel/relay-cloudflare types:check && pnpm build && pnpm audit:static && pnpm assets:verify",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "pnpm build:packages && eslint .",
+    "release:prepare": "pnpm check && pnpm e2e:chromium && pnpm --filter @xpanel/extension zip && node scripts/prepare-release.mjs",
     "test": "pnpm build:packages && pnpm -r --if-present test",
     "test:watch": "vitest",
     "typecheck": "pnpm build:packages && pnpm -r --if-present typecheck"
@@ -29,10 +33,12 @@
     "eslint": "9.35.0",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-vue": "10.4.0",
+    "fflate": "0.8.2",
     "prettier": "3.6.2",
+    "sharp": "0.35.2",
     "typescript": "5.9.2",
     "typescript-eslint": "8.42.0",
-    "vue-eslint-parser": "10.2.0",
-    "vitest": "3.2.4"
+    "vitest": "3.2.4",
+    "vue-eslint-parser": "10.2.0"
   }
 }

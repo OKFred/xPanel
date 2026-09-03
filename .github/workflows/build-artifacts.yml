@@ -40,6 +40,8 @@ jobs:
             apps/extension/.output/*-chrome.zip
             apps/extension/.output/SHA256SUMS
             apps/extension/.output/sbom.spdx.json
+            docs/chrome-web-store
+            docs/privacy.md
 
   relay:
     runs-on: windows-latest
