@@ -408,9 +408,13 @@ describe("document formats", () => {
     expect(imported.requests).toHaveLength(1);
     expect(imported.responses[0]).toMatchObject({ status: 201 });
     const result = exportHarWithWarnings(imported.requests, imported.responses);
-    expect(result.value.log.creator).toEqual({
-      name: "xPanel",
-      version: "2.0.1",
+    expect(result.value).toMatchObject({
+      log: {
+        creator: {
+          name: "xPanel",
+          version: "2.0.1",
+        },
+      },
     });
     const exported = JSON.stringify(result.value);
     expect(exported).toContain(REDACTED_VALUE);
