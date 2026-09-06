@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "releaseLine": "2.0.x",
+  "chromiumBaselineCommit": "37a565c9f68a5a7efc33f309a5c196a9aaa7671c",
+  "chromiumBaselineVersion": "2.0.0",
+  "targetVersion": "2.1.0",
+  "requiredPermissions": ["storage"],
+  "optionalPermissions": [],
+  "optionalHostPermissions": ["http://*/*", "https://*/*"],
+  "expectedAddedWarninglessPermissions": ["alarms", "offscreen"],
+  "reviewedWarninglessPermissions": ["alarms", "offscreen", "storage"],
+  "reviewedAt": "2026-09-06",
+  "references": [
+    "https://developer.chrome.com/docs/extensions/reference/permissions-list",
+    "https://developer.chrome.com/docs/extensions/develop/concepts/permission-warnings#update_permissions"
+  ]
+}

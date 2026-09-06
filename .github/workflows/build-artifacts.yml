@@ -23,15 +23,23 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:packages
       - run: pnpm --filter @xpanel/extension zip
+      - run: pnpm audit:static
       - uses: anchore/sbom-action@v0
         with:
           path: apps/extension/.output/chrome-mv3
           output-file: apps/extension/.output/sbom.spdx.json
       - shell: pwsh
         run: |
-          Get-ChildItem apps/extension/.output/*-chrome.zip | ForEach-Object {
-            "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant(), $_.Name
-          } | Set-Content apps/extension/.output/SHA256SUMS -Encoding utf8NoBOM
+          $manifest = Get-Content -Raw -LiteralPath "apps/extension/.output/chrome-mv3/manifest.json" | ConvertFrom-Json
+          $packagePath = "apps/extension/.output/xpanelextension-$($manifest.version)-chrome.zip"
+          $packages = @(Get-ChildItem -LiteralPath "apps/extension/.output" -Filter "*-chrome.zip")
+          if ($packages.Count -ne 1 -or $packages[0].FullName -ne (Resolve-Path -LiteralPath $packagePath).Path) {
+            throw "Expected exactly the version-matched Chrome package $packagePath"
+          }
+          "{0}  {1}" -f (
+            Get-FileHash -Algorithm SHA256 -LiteralPath $packagePath
+          ).Hash.ToLowerInvariant(), $packages[0].Name |
+            Set-Content apps/extension/.output/SHA256SUMS -Encoding utf8NoBOM
       - uses: actions/upload-artifact@v4
         with:
           name: xpanel-chrome-mv3-review

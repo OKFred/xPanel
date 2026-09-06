@@ -1,13 +1,18 @@
-# xPanel 2.0
+# xPanel 2.1.0
 
-xPanel is a local-first API client embedded in Chrome DevTools. Version 2.0 is
-a Manifest V3 rewrite with request collections, safe import/export, response
-inspection, Browser Fetch execution, and an optional self-hosted Remote Relay.
+xPanel is a local-first API workbench available both as a standalone extension
+page and inside Chrome DevTools. Version 2.1.0 adds extension-managed background
+execution while retaining request collections, safe import/export, response
+inspection, Browser Fetch, and the optional self-hosted Remote Relay.
 
 ## Highlights
 
-- Runs in the **xPanel** DevTools tab; no xPanel account or xPanel-operated
-  backend.
+- Runs as a standalone workbench or in the **xPanel** DevTools tab; only the
+  DevTools surface can import the current tab's Network HAR.
+- Runs a request explicitly started by the user in a temporary extension
+  offscreen document so it can continue when either workbench surface closes. Staged
+  inputs are removed when the run ends; local results expire after ten minutes
+  by default.
 - Browser Fetch execution with exact-origin permission prompts by default, plus
   an explicit one-time all-HTTP/HTTPS grant for users who regularly switch API
   domains.
@@ -54,21 +59,27 @@ cannot discover one. Optional online Relay acceptance also reads
 the synthetic Fixture origin as the target, while Chromium E2E expects the
 fixture's concrete `/e2e` URL.
 
-Load `apps/extension/.output/chrome-mv3-dev` from `chrome://extensions`, open
-DevTools, then select the xPanel tab.
+Load `apps/extension/.output/chrome-mv3-dev` from `chrome://extensions`. Open
+the standalone workbench from the extension action, or open DevTools and select
+the xPanel tab.
 
 ## Privacy and distribution
 
 xPanel has no telemetry and operates no relay service. Browser requests go
 directly to destinations chosen by the user. A Remote request is sent only
 after the user explicitly selects and trusts their own relay profile; its URL,
-headers, credentials, and body pass through that service. See
+headers, credentials, and body pass through that service. Background execution
+does not schedule or invent requests: the service worker and offscreen document
+only continue work the user started, and alarms only remove expired local
+execution data. See
 [Relay deployment](apps/relay-cloudflare/README.md), [Privacy](docs/privacy.md),
 [Chrome Web Store submission kit](docs/chrome-web-store/submission.md),
-[Permissions](docs/permissions.md), and the [2.0 migration notes](docs/migration-2.0.md).
+[Permissions](docs/permissions.md), and the [2.1 migration notes](docs/migration-2.1.md).
 
-GitHub Actions produces review artifacts but does not publish a GitHub Release
-or submit a Chrome Web Store update automatically.
+GitHub Actions does not upload, submit, or publish a Chrome Web Store update.
+After the reviewed commit reaches `main` and release checks pass, a maintainer
+must upload and submit it with automatic publishing disabled. Approval then
+stages the update for a separate manual publish action within 30 days.
 
 ## License
 

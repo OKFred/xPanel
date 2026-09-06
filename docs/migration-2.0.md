@@ -1,4 +1,4 @@
-# Migrating from xPanel 1.1.1 to 2.0.1
+# Migrating from xPanel 1.1.1 to 2.0.0
 
 xPanel 2.0 replaces the Manifest V2 extension with a Manifest V3 DevTools API
 client. The existing Chrome Web Store identity remains

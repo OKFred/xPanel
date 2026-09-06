@@ -361,13 +361,17 @@ export async function testRelayConnection(
     force?: boolean;
     signal?: AbortSignal;
     permissionAlreadyGranted?: boolean;
+    permissionPreflighted?: boolean;
   } = {},
 ): Promise<RemoteCapabilitiesV1> {
   const validated = validateRelayProfile(profile);
   if (token.trim() === "") throw new Error("A Remote relay token is required.");
   // Keep the permission prompt as the first asynchronous browser operation in
   // the direct user gesture. WebCrypto and cache lookup happen afterwards.
-  if (options.permissionAlreadyGranted) {
+  if (options.permissionPreflighted) {
+    // Offscreen documents do not expose chrome.permissions. A visible
+    // workbench already completed the explicit grant before staging this run.
+  } else if (options.permissionAlreadyGranted) {
     await assertRelayPermission(validated);
   } else {
     await ensureRelayPermission(validated);

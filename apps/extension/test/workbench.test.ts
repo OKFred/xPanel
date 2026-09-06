@@ -5,6 +5,7 @@ import {
   createDefaultRequest,
   REDACTED_VALUE,
   type CollectionRecord,
+  type ResponseRecordV1,
 } from "@xpanel/contracts";
 
 const database = vi.hoisted(() => ({
@@ -56,8 +57,28 @@ describe("workbench persistence boundaries", () => {
       createdAt: timestamp,
       updatedAt: timestamp,
     };
+    const response: ResponseRecordV1 = {
+      requestId: request.id,
+      executor: "browser",
+      status: 201,
+      statusText: "Created",
+      headers: [],
+      body: {
+        kind: "inline",
+        encoding: "utf8",
+        content: "response-body-must-not-enter-pinia",
+        sizeBytes: 34,
+      },
+      timings: { startedAt: timestamp, durationMs: 1 },
+      redirects: [],
+      warnings: [],
+    };
 
-    await store.addImported([request], [collection]);
+    const importedResponses = await store.addImported(
+      [request],
+      [collection],
+      [response],
+    );
 
     expect(store.requests).toHaveLength(1);
     expect(store.requests[0]?.id).not.toBe(request.id);
@@ -80,6 +101,17 @@ describe("workbench persistence boundaries", () => {
       expect(store.current.body.file.pathHint).toBeUndefined();
       expect(store.current.body.file.requiresReselection).toBe(true);
     }
+    expect(importedResponses).toHaveLength(1);
+    expect(importedResponses[0]).toMatchObject({
+      requestId: store.current.id,
+      body: { content: "response-body-must-not-enter-pinia" },
+    });
+    expect(store.$state).not.toHaveProperty("response");
+    expect(store.$state).not.toHaveProperty("responses");
+    expect(store).not.toHaveProperty("setResponse");
+    expect(JSON.stringify(store.$state)).not.toContain(
+      "response-body-must-not-enter-pinia",
+    );
     expect(database.saveWorkspace).toHaveBeenCalledOnce();
   });
 
@@ -102,28 +134,10 @@ describe("workbench persistence boundaries", () => {
       createdAt: timestamp,
       updatedAt: timestamp,
     };
-    const response = (requestId: string) => ({
-      requestId,
-      executor: "browser" as const,
-      status: 200,
-      statusText: "OK",
-      headers: [],
-      body: {
-        kind: "inline" as const,
-        encoding: "utf8" as const,
-        content: "ok",
-        sizeBytes: 2,
-      },
-      timings: { startedAt: timestamp, durationMs: 1 },
-      redirects: [],
-      warnings: [],
-    });
     store.requests = [deleted, fallback];
     store.collections = [collection];
     store.selectedCollectionId = collection.id;
     store.current = deleted;
-    store.responses = [response(deleted.id), response(fallback.id)];
-    store.response = response(deleted.id);
 
     await store.deleteRequest(deleted.id);
 
@@ -134,11 +148,7 @@ describe("workbench persistence boundaries", () => {
     );
     expect(store.requests.map((request) => request.id)).toEqual([fallback.id]);
     expect(store.collections[0]?.requestIds).toEqual([fallback.id]);
-    expect(store.responses.map((item) => item.requestId)).toEqual([
-      fallback.id,
-    ]);
     expect(store.current.id).toBe(fallback.id);
-    expect(store.response?.requestId).toBe(fallback.id);
   });
 
   it("keeps non-cascade collection requests reachable without duplicating shared requests", async () => {
@@ -203,28 +213,10 @@ describe("workbench persistence boundaries", () => {
       name: "Other",
       requestIds: [shared.id],
     };
-    const response = (requestId: string) => ({
-      requestId,
-      executor: "browser" as const,
-      status: 200,
-      statusText: "OK",
-      headers: [],
-      body: {
-        kind: "inline" as const,
-        encoding: "utf8" as const,
-        content: "ok",
-        sizeBytes: 2,
-      },
-      timings: { startedAt: timestamp, durationMs: 1 },
-      redirects: [],
-      warnings: [],
-    });
     store.requests = [exclusive, shared];
     store.collections = [target, other];
     store.selectedCollectionId = target.id;
     store.current = exclusive;
-    store.responses = [response(exclusive.id), response(shared.id)];
-    store.response = response(exclusive.id);
 
     await store.deleteCollection(target.id, true);
 
@@ -234,9 +226,7 @@ describe("workbench persistence boundaries", () => {
       [exclusive.id],
     );
     expect(store.requests.map((request) => request.id)).toEqual([shared.id]);
-    expect(store.responses.map((item) => item.requestId)).toEqual([shared.id]);
     expect(store.current.id).toBe(shared.id);
-    expect(store.response?.requestId).toBe(shared.id);
     expect(store.selectedCollectionId).toBe(other.id);
     expect(store.notice).toContain("1 exclusive request");
   });
@@ -269,7 +259,6 @@ describe("workbench persistence boundaries", () => {
     });
     expect(store.selectedCollectionId).toBe("collection-default");
     expect(store.current.id).not.toBe(request.id);
-    expect(store.response).toBeNull();
   });
 
   it("does not mutate in-memory state when the atomic delete fails", async () => {

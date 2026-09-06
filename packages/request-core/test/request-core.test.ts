@@ -412,7 +412,7 @@ describe("document formats", () => {
       log: {
         creator: {
           name: "xPanel",
-          version: "2.0.1",
+          version: "2.1.0",
         },
       },
     });

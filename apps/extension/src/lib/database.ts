@@ -7,7 +7,15 @@ import {
   type RequestSpecV1,
 } from "@xpanel/contracts";
 
-interface XPanelDatabase extends DBSchema {
+import type {
+  ExecutionFileRecord,
+  ExecutionPayloadRecord,
+  StoredExecutionRecord,
+  StoredResponseBody,
+  StoredResponseMetadata,
+} from "./execution-storage";
+
+export interface XPanelDatabase extends DBSchema {
   collections: {
     key: string;
     value: CollectionRecord;
@@ -17,12 +25,40 @@ interface XPanelDatabase extends DBSchema {
     value: RequestSpecV1;
     indexes: { "by-favorite": number };
   };
+  executions: {
+    key: string;
+    value: StoredExecutionRecord;
+    indexes: {
+      "by-state": string;
+      "by-updated-at": string;
+    };
+  };
+  "execution-payloads": {
+    key: string;
+    value: ExecutionPayloadRecord;
+    indexes: { "by-execution": string };
+  };
+  "execution-files": {
+    key: string;
+    value: ExecutionFileRecord;
+    indexes: { "by-payload": string };
+  };
+  "execution-responses": {
+    key: string;
+    value: StoredResponseMetadata;
+    indexes: { "by-execution": string };
+  };
+  "execution-bodies": {
+    key: string;
+    value: StoredResponseBody;
+    indexes: { "by-execution": string };
+  };
 }
 
 let databasePromise: Promise<IDBPDatabase<XPanelDatabase>> | undefined;
 
-function database(): Promise<IDBPDatabase<XPanelDatabase>> {
-  databasePromise ??= openDB<XPanelDatabase>("xpanel", 1, {
+export function database(): Promise<IDBPDatabase<XPanelDatabase>> {
+  databasePromise ??= openDB<XPanelDatabase>("xpanel", 2, {
     upgrade(db) {
       if (!db.objectStoreNames.contains("collections")) {
         db.createObjectStore("collections", { keyPath: "id" });
@@ -30,6 +66,43 @@ function database(): Promise<IDBPDatabase<XPanelDatabase>> {
       if (!db.objectStoreNames.contains("requests")) {
         const requests = db.createObjectStore("requests", { keyPath: "id" });
         requests.createIndex("by-favorite", "favorite");
+      }
+      if (!db.objectStoreNames.contains("executions")) {
+        const executions = db.createObjectStore("executions", {
+          keyPath: "summary.executionId",
+        });
+        executions.createIndex("by-state", "summary.state");
+        executions.createIndex("by-updated-at", "summary.updatedAt");
+      }
+      if (!db.objectStoreNames.contains("execution-payloads")) {
+        const payloads = db.createObjectStore("execution-payloads", {
+          keyPath: "handle",
+        });
+        payloads.createIndex("by-execution", "executionId", {
+          unique: true,
+        });
+      }
+      if (!db.objectStoreNames.contains("execution-files")) {
+        const files = db.createObjectStore("execution-files", {
+          keyPath: "key",
+        });
+        files.createIndex("by-payload", "payloadHandle");
+      }
+      if (!db.objectStoreNames.contains("execution-responses")) {
+        const responses = db.createObjectStore("execution-responses", {
+          keyPath: "handle",
+        });
+        responses.createIndex("by-execution", "executionId", {
+          unique: true,
+        });
+      }
+      if (!db.objectStoreNames.contains("execution-bodies")) {
+        const bodies = db.createObjectStore("execution-bodies", {
+          keyPath: "handle",
+        });
+        bodies.createIndex("by-execution", "executionId", {
+          unique: true,
+        });
       }
     },
   });
