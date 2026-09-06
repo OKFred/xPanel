@@ -51,79 +51,83 @@ export async function generatePromoTile({ workspaceRoot, storeAssetsRoot }) {
 }
 
 export async function generateStoreScreenshots(
-  panel,
-  devtoolsPage,
+  workbench,
   fixtureOrigin,
   storeAssetsRoot,
 ) {
-  await setPanelLanguage(panel, "en");
-  await panel.evaluate(`(() => {
+  await setPanelLanguage(workbench, "en");
+  await workbench.evaluate(`(() => {
     chrome.permissions.request = async () => true;
     chrome.permissions.contains = async () => true;
   })()`);
-  await panel.evaluate(
+  await workbench.evaluate(
     `document.querySelector(".sidebar > button.w-full").click()`,
     { userGesture: true },
   );
   await waitFor(
     () =>
-      panel.evaluate(
+      workbench.evaluate(
         `document.querySelector('[aria-label="Request URL"]')?.value === ""`,
       ),
     "clean store request",
   );
   await setInput(
-    panel,
+    workbench,
     '[aria-label="Request URL"]',
     `${fixtureOrigin}/stream`,
   );
-  await panel.evaluate(clickTextScript("Send"), { userGesture: true });
+  await workbench.evaluate(clickTextScript("Send"), { userGesture: true });
   await waitFor(
-    () => panel.evaluate(`document.body.innerText.includes("browser-e2e-ok")`),
+    () =>
+      workbench.evaluate(`document.body.innerText.includes("browser-e2e-ok")`),
     "store response",
   );
   await capturePng(
-    devtoolsPage,
+    workbench,
     join(storeAssetsRoot, "en", "01-api-workbench-1280x800.png"),
     1280,
     800,
   );
-  await setPanelLanguage(panel, "zh_CN");
+  await setPanelLanguage(workbench, "zh_CN");
   await capturePng(
-    devtoolsPage,
+    workbench,
     join(storeAssetsRoot, "zh_CN", "01-api-workbench-1280x800.png"),
     1280,
     800,
   );
 
-  await setPanelLanguage(panel, "en");
-  await panel.evaluate(clickTextScript("Import"), { userGesture: true });
+  await setPanelLanguage(workbench, "en");
+  await workbench.evaluate(clickTextScript("Import"), { userGesture: true });
   const curlExample = `curl --request POST 'https://api.example.com/v1/orders' \\
   --header 'Accept: application/json' \\
   --header 'Content-Type: application/json' \\
   --data '{"sku":"XP-20","quantity":2}'`;
-  await setInput(panel, '[aria-label="Import requests"] textarea', curlExample);
+  await setInput(
+    workbench,
+    '[aria-label="Import requests"] textarea',
+    curlExample,
+  );
   await waitFor(
     () =>
-      panel.evaluate(
+      workbench.evaluate(
         `document.querySelector(".detected-format")?.textContent.includes("curl-bash")`,
       ),
     "cURL detection",
   );
   await capturePng(
-    devtoolsPage,
+    workbench,
     join(storeAssetsRoot, "en", "02-universal-import-1280x800.png"),
     1280,
     800,
   );
-  await setPanelLanguage(panel, "zh_CN");
+  await setPanelLanguage(workbench, "zh_CN");
   await capturePng(
-    devtoolsPage,
+    workbench,
     join(storeAssetsRoot, "zh_CN", "02-universal-import-1280x800.png"),
     1280,
     800,
   );
-  await panel.evaluate(
+  await workbench.evaluate(
     clickTextScript(
       "取消",
       `document.querySelector('[aria-label="导入请求"]')`,
@@ -131,37 +135,38 @@ export async function generateStoreScreenshots(
     { userGesture: true },
   );
 
-  await setPanelLanguage(panel, "en");
-  await panel.evaluate(
+  await setPanelLanguage(workbench, "en");
+  await workbench.evaluate(
     `document.querySelector(".relay-manage-button").click()`,
     {
       userGesture: true,
     },
   );
   await waitFor(
-    () => panel.evaluate(`Boolean(document.querySelector(".relay-dialog"))`),
+    () =>
+      workbench.evaluate(`Boolean(document.querySelector(".relay-dialog"))`),
     "Relay manager for store screenshot",
   );
-  await fillFirstInputs(panel, [
+  await fillFirstInputs(workbench, [
     "Private Cloudflare Relay",
     "https://xpanel-relay.example.workers.dev",
   ]);
   await capturePng(
-    devtoolsPage,
+    workbench,
     join(storeAssetsRoot, "en", "03-remote-relay-1280x800.png"),
     1280,
     800,
   );
-  await setPanelLanguage(panel, "zh_CN");
+  await setPanelLanguage(workbench, "zh_CN");
   await capturePng(
-    devtoolsPage,
+    workbench,
     join(storeAssetsRoot, "zh_CN", "03-remote-relay-1280x800.png"),
     1280,
     800,
   );
-  await panel.evaluate(
+  await workbench.evaluate(
     clickTextScript("取消", `document.querySelector(".relay-dialog")`),
     { userGesture: true },
   );
-  await setPanelLanguage(panel, "en");
+  await setPanelLanguage(workbench, "en");
 }

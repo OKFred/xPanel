@@ -108,6 +108,7 @@ export async function openPageTarget(browser, port, url) {
 
 export async function capturePng(client, filePath, width, height) {
   await client.send("Page.enable");
+  await client.send("Overlay.setShowViewportSizeOnResize", { show: false });
   await client.send("Emulation.setDeviceMetricsOverride", {
     width,
     height,

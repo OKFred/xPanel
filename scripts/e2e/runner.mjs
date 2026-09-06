@@ -1,12 +1,17 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 
 import { runBrowserFlow } from "./browser-flow.mjs";
 import { runBackgroundWorkbenchFlow } from "./background-workbench-flow.mjs";
-import { CdpClient, jsonEndpoint, targets } from "./cdp-client.mjs";
+import {
+  CdpClient,
+  jsonEndpoint,
+  openPageTarget,
+  targets,
+} from "./cdp-client.mjs";
 import { availablePort, findChromium } from "./chromium.mjs";
 import { e2eConfig } from "./config.mjs";
 import { assertNoPageFailures, monitorPage } from "./diagnostics.mjs";
@@ -33,6 +38,8 @@ export async function runChromiumE2e(config = e2eConfig) {
   let devtoolsClient;
   let panelClient;
   let inspectedClient;
+  let storeWorkbenchClient;
+  let storeWorkbenchTargetId;
   let chromeProcess;
   let profileRoot;
   const pageFailures = [];
@@ -47,21 +54,6 @@ export async function runChromiumE2e(config = e2eConfig) {
     const debugPort = await availablePort();
     const executable = await findChromium();
     profileRoot = await mkdtemp(join(tmpdir(), "xpanel-chromium-e2e-"));
-    if (captureStoreAssets) {
-      const defaultProfile = join(profileRoot, "Default");
-      await mkdir(defaultProfile, { recursive: true });
-      await writeFile(
-        join(defaultProfile, "Preferences"),
-        JSON.stringify({
-          devtools: {
-            preferences: {
-              currentDockState: '"undocked"',
-              lastDockState: '"right"',
-            },
-          },
-        }),
-      );
-    }
     let stderr = "";
     chromeProcess = spawn(
       executable,
@@ -129,6 +121,8 @@ export async function runChromiumE2e(config = e2eConfig) {
           entry.type === "iframe" && entry.url.includes("devtools-panel.html"),
       );
     }, "xPanel DevTools panel");
+    const panelUrl = new URL(panelTarget.url);
+    const extensionOrigin = `${panelUrl.protocol}//${panelUrl.host}`;
     panelClient = await new CdpClient(panelTarget.webSocketDebuggerUrl).open();
     await monitorPage(panelClient, "devtools-panel", pageFailures);
     await waitFor(
@@ -156,26 +150,48 @@ export async function runChromiumE2e(config = e2eConfig) {
     await runBrowserFlow(panelClient, fixtureOrigin);
     await runHarFlow(panelClient, inspectedClient);
     const remoteChecked = await runRemoteFlow(panelClient, config);
-    if (captureStoreAssets) {
-      await generateStoreScreenshots(
-        panelClient,
-        devtoolsClient,
-        fixtureOrigin,
-        storeAssetsRoot,
-      );
-      await generatePromoTile({ workspaceRoot, storeAssetsRoot });
-    }
-
-    const panelUrl = new URL(panelTarget.url);
     const background = await runBackgroundWorkbenchFlow({
       browser: browserClient,
       debugPort,
       devtoolsTarget: initialTargets.devtools,
-      extensionOrigin: `${panelUrl.protocol}//${panelUrl.host}`,
+      extensionOrigin,
       failures: pageFailures,
       fixtureOrigin,
       panel: panelClient,
     });
+    if (captureStoreAssets) {
+      const standalonePage = await openPageTarget(
+        browserClient,
+        debugPort,
+        `${extensionOrigin}/workbench.html`,
+      );
+      storeWorkbenchClient = standalonePage.client;
+      storeWorkbenchTargetId = standalonePage.target.id;
+      await monitorPage(
+        storeWorkbenchClient,
+        "store-standalone-workbench",
+        pageFailures,
+      );
+      await waitFor(
+        () =>
+          storeWorkbenchClient.evaluate(
+            `Boolean(document.querySelector(".workbench-shell"))`,
+          ),
+        "standalone store workbench",
+      );
+      await generateStoreScreenshots(
+        storeWorkbenchClient,
+        fixtureOrigin,
+        storeAssetsRoot,
+      );
+      storeWorkbenchClient.close();
+      storeWorkbenchClient = undefined;
+      await browserClient.send("Target.closeTarget", {
+        targetId: storeWorkbenchTargetId,
+      });
+      storeWorkbenchTargetId = undefined;
+      await generatePromoTile({ workspaceRoot, storeAssetsRoot });
+    }
     await new Promise((resolveWait) => setTimeout(resolveWait, 100));
     assertNoPageFailures(pageFailures);
 
@@ -186,6 +202,16 @@ export async function runChromiumE2e(config = e2eConfig) {
     await new Promise((resolveClosed) => fixture.close(resolveClosed));
     panelClient?.close();
     inspectedClient?.close();
+    storeWorkbenchClient?.close();
+    if (browserClient && storeWorkbenchTargetId) {
+      try {
+        await browserClient.send("Target.closeTarget", {
+          targetId: storeWorkbenchTargetId,
+        });
+      } catch {
+        // Browser cleanup below also closes the disposable store page.
+      }
+    }
     devtoolsClient?.close();
     if (browserClient) {
       try {

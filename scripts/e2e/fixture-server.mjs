@@ -101,7 +101,9 @@ export function fixtureServer() {
       });
       response.flushHeaders();
       response.write('{"marker":"background-e2e-ok","payload":"');
-      let remaining = 96;
+      // Leave enough time for DevTools closure, explicit service-worker
+      // termination, and Popup startup on slower Windows CI hosts.
+      let remaining = 180;
       const interval = globalThis.setInterval(() => {
         if (response.destroyed) {
           globalThis.clearInterval(interval);
