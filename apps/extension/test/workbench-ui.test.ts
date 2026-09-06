@@ -41,6 +41,27 @@ describe("HTTP method combobox", () => {
     expect(wrapper.get("input").attributes("aria-invalid")).toBe("true");
     expect(wrapper.get("[role='alert']").text()).toBe("Invalid method");
   });
+
+  it("supports arrow navigation, Enter selection, and Escape dismissal", async () => {
+    const wrapper = mount(HttpMethodCombobox, {
+      props: {
+        modelValue: "GET",
+        label: "HTTP method",
+        invalidMessage: "Invalid method",
+      },
+    });
+    const input = wrapper.get("input[role='combobox']");
+    expect(input.attributes("aria-autocomplete")).toBe("list");
+
+    await input.trigger("keydown", { key: "ArrowDown" });
+    await input.trigger("keydown", { key: "Enter" });
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual(["POST"]);
+    expect(input.attributes("aria-expanded")).toBe("false");
+
+    await input.trigger("focus");
+    await input.trigger("keydown", { key: "Escape" });
+    expect(input.attributes("aria-expanded")).toBe("false");
+  });
 });
 
 describe("native application dialog", () => {
@@ -70,6 +91,7 @@ describe("native application dialog", () => {
     await trigger.trigger("click");
     await flushPromises();
     const dialog = wrapper.get("dialog[open]");
+    expect(wrapper.find("[aria-hidden='true']").exists()).toBe(false);
     const first = wrapper.get<HTMLButtonElement>("button.first");
     const last = wrapper.get<HTMLButtonElement>("button.last");
     expect(document.activeElement).toBe(first.element);

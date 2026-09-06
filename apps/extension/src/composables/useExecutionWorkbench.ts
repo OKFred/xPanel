@@ -1,10 +1,4 @@
-import {
-  computed,
-  nextTick,
-  ref,
-  shallowRef,
-  type Ref,
-} from "vue";
+import { computed, nextTick, ref, shallowRef, type Ref } from "vue";
 
 import type {
   ExecutionEventV1,
@@ -114,9 +108,7 @@ export function useExecutionWorkbench(options: UseExecutionWorkbenchOptions) {
     return true;
   }
 
-  async function loadResponse(
-    summary: ExecutionSummaryV1,
-  ): Promise<void> {
+  async function loadResponse(summary: ExecutionSummaryV1): Promise<void> {
     if (!summary.responseHandle) return;
     const revision = ++responseLoadRevision;
     try {
@@ -125,7 +117,19 @@ export function useExecutionWorkbench(options: UseExecutionWorkbenchOptions) {
         loadExecutionResponseBody(summary.responseHandle),
         loadExecutionPrettyBody(summary.responseHandle),
       ]);
-      if (revision !== responseLoadRevision || !metadata || !body) return;
+      if (revision !== responseLoadRevision) return;
+      if (!metadata || !body) {
+        throw new Error("The stored response handle is unavailable.");
+      }
+      if (
+        metadata.handle !== summary.responseHandle ||
+        metadata.executionId !== summary.executionId ||
+        metadata.requestId !== summary.requestId
+      ) {
+        throw new Error(
+          "The stored response handle does not match its execution.",
+        );
+      }
       const warning = localWarnings.get(summary.executionId);
       const displayedMetadata = warning
         ? { ...metadata, warnings: [...metadata.warnings, warning] }
@@ -170,14 +174,17 @@ export function useExecutionWorkbench(options: UseExecutionWorkbenchOptions) {
     activeExecutionId.value = "";
     if (summary.state === "succeeded") {
       await loadResponse(summary);
-    } else if (summary.error) {
-      options.errorMessage.value = summary.error.message;
+    } else {
+      executionProgress.value = null;
+      if (summary.error) options.errorMessage.value = summary.error.message;
     }
   }
 
   function handleEvent(event: ExecutionEventV1): void {
     if (event.type === "execution.snapshot") {
-      const incoming = new Set(event.executions.map((item) => item.executionId));
+      const incoming = new Set(
+        event.executions.map((item) => item.executionId),
+      );
       for (const [id, summary] of summaries) {
         if (!incoming.has(id) && !isActive(summary)) summaries.delete(id);
       }
@@ -199,7 +206,8 @@ export function useExecutionWorkbench(options: UseExecutionWorkbenchOptions) {
 
     const successful = mostRecent(
       summaries.values(),
-      (summary) => summary.state === "succeeded" && Boolean(summary.responseHandle),
+      (summary) =>
+        summary.state === "succeeded" && Boolean(summary.responseHandle),
     );
     if (successful) await loadResponse(successful);
     const active = mostRecent(summaries.values(), isActive);

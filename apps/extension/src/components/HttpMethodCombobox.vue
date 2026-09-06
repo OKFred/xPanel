@@ -20,7 +20,9 @@ const errorId = `${listboxId}-error`;
 
 const normalizedValue = computed(() => props.modelValue.toUpperCase());
 const valid = computed(
-  () => normalizedValue.value.length > 0 && tokenPattern.test(normalizedValue.value),
+  () =>
+    normalizedValue.value.length > 0 &&
+    tokenPattern.test(normalizedValue.value),
 );
 
 function update(value: string): void {
@@ -71,7 +73,10 @@ function handleKeydown(event: KeyboardEvent): void {
 
 function handleFocusOut(event: FocusEvent): void {
   const next = event.relatedTarget;
-  if (!(next instanceof Node) || !(event.currentTarget as HTMLElement).contains(next)) {
+  if (
+    !(next instanceof Node) ||
+    !(event.currentTarget as HTMLElement).contains(next)
+  ) {
     open.value = false;
   }
 }
@@ -85,6 +90,7 @@ function handleFocusOut(event: FocusEvent): void {
       class="method-select"
       role="combobox"
       autocomplete="off"
+      aria-autocomplete="list"
       spellcheck="false"
       :aria-label="label"
       :aria-controls="listboxId"

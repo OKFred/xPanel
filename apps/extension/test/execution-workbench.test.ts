@@ -123,6 +123,27 @@ beforeEach(() => {
 });
 
 describe("execution workbench", () => {
+  it("rejects a missing persisted body handle", async () => {
+    client.listExecutionSummaries.mockResolvedValue([
+      summary({
+        executionId: "execution-missing",
+        requestId: "request-missing",
+        state: "succeeded",
+        revision: 2,
+        responseHandle: "response-missing",
+      }),
+    ]);
+    client.loadExecutionResponseMetadata.mockResolvedValue(undefined);
+    client.loadExecutionResponseBody.mockResolvedValue(undefined);
+    const harness = createHarness();
+
+    await harness.workbench.initialize();
+
+    expect(harness.errorMessage.value).toContain("handle is unavailable");
+    expect(harness.workbench.response.value).toBeNull();
+    harness.workbench.dispose();
+  });
+
   it("restores the latest response and an active execution", async () => {
     const succeeded = summary({
       executionId: "execution-complete",
@@ -247,6 +268,7 @@ describe("execution workbench", () => {
 
     expect(harness.workbench.response.value?.handle).toBe("response-old");
     expect(harness.errorMessage.value).toBe("Network unavailable");
+    expect(harness.workbench.executionProgress.value).toBeNull();
     harness.workbench.dispose();
   });
 
