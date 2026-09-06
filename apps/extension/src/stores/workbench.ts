@@ -71,12 +71,6 @@ function cloneRequest(request: RequestSpecV1): RequestSpecV1 {
   return requestSpecV1Schema.parse(request);
 }
 
-function cloneResponse(
-  response: ResponseRecordV1 | undefined,
-): ResponseRecordV1 | null {
-  return response ? responseRecordV1Schema.parse(response) : null;
-}
-
 function resetImportedFiles(request: RequestSpecV1): RequestSpecV1 {
   const reset = cloneRequest(request);
   if (reset.body.kind === "file") {
@@ -154,8 +148,6 @@ function remapImportedWorkspace(
 export const useWorkbenchStore = defineStore("workbench", {
   state: () => ({
     current: createDefaultRequest(),
-    response: null as ResponseRecordV1 | null,
-    responses: [] as ResponseRecordV1[],
     requests: [] as RequestSpecV1[],
     collections: [] as CollectionRecord[],
     busy: false,
@@ -188,16 +180,12 @@ export const useWorkbenchStore = defineStore("workbench", {
     },
     newRequest(): void {
       this.current = createDefaultRequest();
-      this.response = null;
     },
     loadRequest(id: string, collectionId?: string): void {
       const request = this.requests.find((candidate) => candidate.id === id);
       if (request) {
         if (collectionId) this.selectedCollectionId = collectionId;
         this.current = cloneRequest(request);
-        this.response = cloneResponse(
-          this.responses.find((response) => response.requestId === id),
-        );
       }
     },
     async createCollection(name: string): Promise<void> {
@@ -230,12 +218,8 @@ export const useWorkbenchStore = defineStore("workbench", {
 
       await deleteRequestFromWorkspace(id, nextCollections);
 
-      const nextResponses = this.responses.filter(
-        (response) => response.requestId !== id,
-      );
       this.requests = nextRequests;
       this.collections = nextCollections;
-      this.responses = nextResponses;
       if (this.current.id === id) {
         const fallback = fallbackRequest(
           nextRequests,
@@ -245,13 +229,6 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.current = fallback
           ? cloneRequest(fallback)
           : createDefaultRequest();
-        this.response = cloneResponse(
-          nextResponses.find(
-            (response) => response.requestId === this.current.id,
-          ),
-        );
-      } else if (this.response?.requestId === id) {
-        this.response = null;
       }
       this.notice = "Deleted saved request.";
     },
@@ -330,14 +307,8 @@ export const useWorkbenchStore = defineStore("workbench", {
       const nextRequests = cascadeRequests
         ? this.requests.filter((request) => !deletedRequestIds.has(request.id))
         : this.requests;
-      const nextResponses = cascadeRequests
-        ? this.responses.filter(
-            (response) => !deletedRequestIds.has(response.requestId),
-          )
-        : this.responses;
       this.collections = nextCollections;
       this.requests = nextRequests;
-      this.responses = nextResponses;
       if (
         !nextCollections.some(
           (collection) => collection.id === this.selectedCollectionId,
@@ -365,16 +336,6 @@ export const useWorkbenchStore = defineStore("workbench", {
         this.current = fallback
           ? cloneRequest(fallback)
           : createDefaultRequest();
-        this.response = cloneResponse(
-          nextResponses.find(
-            (response) => response.requestId === this.current.id,
-          ),
-        );
-      } else if (
-        this.response &&
-        deletedRequestIds.has(this.response.requestId)
-      ) {
-        this.response = null;
       }
       this.notice = cascadeRequests
         ? `Deleted collection and ${requestIdsToDelete.length} exclusive request${requestIdsToDelete.length === 1 ? "" : "s"}; shared requests were kept.`
@@ -385,15 +346,6 @@ export const useWorkbenchStore = defineStore("workbench", {
               )
             ? "Deleted collection; shared requests were kept."
             : "Deleted collection.";
-    },
-    setResponse(response: ResponseRecordV1): void {
-      const storedResponse = responseRecordV1Schema.parse(response);
-      const index = this.responses.findIndex(
-        (candidate) => candidate.requestId === storedResponse.requestId,
-      );
-      if (index >= 0) this.responses.splice(index, 1, storedResponse);
-      else this.responses.push(storedResponse);
-      this.response = storedResponse;
     },
     async saveCurrent(): Promise<void> {
       const request = this.persistSensitive
@@ -432,7 +384,7 @@ export const useWorkbenchStore = defineStore("workbench", {
       requests: RequestSpecV1[],
       collections: CollectionRecord[],
       responses: ResponseRecordV1[] = [],
-    ): Promise<void> {
+    ): Promise<ResponseRecordV1[]> {
       const imported = remapImportedWorkspace(requests, collections);
       const storedRequests = this.persistSensitive
         ? imported.requests.map(cloneRequest)
@@ -448,17 +400,12 @@ export const useWorkbenchStore = defineStore("workbench", {
           ? [{ ...responseRecordV1Schema.parse(response), requestId }]
           : [];
       });
-      this.responses.push(...importedResponses);
       await saveWorkspace(this.collections, this.requests);
       if (imported.requests[0]) {
         this.current = cloneRequest(imported.requests[0]);
-        this.response = cloneResponse(
-          importedResponses.find(
-            (response) => response.requestId === imported.requests[0]?.id,
-          ),
-        );
       }
       this.notice = `Imported ${requests.length} request${requests.length === 1 ? "" : "s"}.`;
+      return importedResponses;
     },
   },
 });

@@ -17,15 +17,34 @@ import {
 import {
   collectionRecordSchema,
   requestSpecV1Schema,
+  responseRecordV1Schema,
+  type ResponseRecordV1,
 } from "@xpanel/contracts";
 
 import { useWorkbenchStore } from "../stores/workbench";
 
 const MAX_REMOTE_REFERENCE_BYTES = 5 * 1024 * 1024;
 
-export function useRequestTransfer(errorMessage: { value: string }) {
+export interface RequestTransferResponseBridge {
+  persistImportedResponses(responses: ResponseRecordV1[]): Promise<void>;
+  loadResponses(requestIds: ReadonlySet<string>): Promise<ResponseRecordV1[]>;
+}
+
+const defaultResponseBridge: RequestTransferResponseBridge = {
+  persistImportedResponses: () => Promise.resolve(),
+  loadResponses: () => Promise.resolve([]),
+};
+
+function formatIncludesResponses(format: ExportFormat): boolean {
+  return format === "har" || format === "openapi" || format === "swagger";
+}
+
+export function useRequestTransfer(
+  errorMessage: { value: string },
+  responseBridge: RequestTransferResponseBridge = defaultResponseBridge,
+) {
   const store = useWorkbenchStore();
-  const { collections, current, notice, requests, responses } = storeToRefs(store);
+  const { collections, current, notice, requests } = storeToRefs(store);
   const { t } = useI18n();
   const importOpen = ref(false);
   const exportOpen = ref(false);
@@ -42,7 +61,9 @@ export function useRequestTransfer(errorMessage: { value: string }) {
   const exportText = ref("");
   const exportWarnings = ref<string[]>([]);
   const includeSensitiveExport = ref(false);
-  const exportDocuments = ref<Record<string, Record<string, unknown>> | null>(null);
+  const exportDocuments = ref<Record<string, Record<string, unknown>> | null>(
+    null,
+  );
   const exportExtension = ref("txt");
   const exportMediaType = ref("text/plain");
   const detectedFormat = computed(() =>
@@ -64,13 +85,21 @@ export function useRequestTransfer(errorMessage: { value: string }) {
           "No static request could be imported. Review the unresolved input warnings.",
         );
       }
-      await store.addImported(result.requests, result.collections, result.responses);
+      const importedResponses = await store.addImported(
+        result.requests,
+        result.collections,
+        result.responses,
+      );
+      await responseBridge.persistImportedResponses(importedResponses);
       importOpen.value = false;
       if (importWarnings.value.length > 0) {
-        notice.value = t("importedWithWarnings", { count: importWarnings.value.length });
+        notice.value = t("importedWithWarnings", {
+          count: importWarnings.value.length,
+        });
       }
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : String(error);
+      errorMessage.value =
+        error instanceof Error ? error.message : String(error);
     }
   }
 
@@ -106,7 +135,9 @@ export function useRequestTransfer(errorMessage: { value: string }) {
       throw new Error(`External $ref protocol is not allowed: ${url.protocol}`);
     }
     if (url.username || url.password) {
-      throw new Error("Credentials embedded in an external $ref URL are not allowed.");
+      throw new Error(
+        "Credentials embedded in an external $ref URL are not allowed.",
+      );
     }
     if (!approvedReferenceOrigins.has(url.origin)) {
       if (
@@ -114,7 +145,9 @@ export function useRequestTransfer(errorMessage: { value: string }) {
           `Allow this import to resolve external OpenAPI references from ${url.origin}?`,
         )
       ) {
-        throw new Error(`External references from ${url.origin} were not approved.`);
+        throw new Error(
+          `External references from ${url.origin} were not approved.`,
+        );
       }
       const originPermission = { origins: [`${url.origin}/*`] };
       const granted = await chrome.permissions.request(originPermission);
@@ -132,7 +165,10 @@ export function useRequestTransfer(errorMessage: { value: string }) {
       throw new Error(`External reference returned HTTP ${response.status}.`);
     }
     const declaredLength = Number(response.headers.get("content-length"));
-    if (Number.isFinite(declaredLength) && declaredLength > MAX_REMOTE_REFERENCE_BYTES) {
+    if (
+      Number.isFinite(declaredLength) &&
+      declaredLength > MAX_REMOTE_REFERENCE_BYTES
+    ) {
       throw new Error(t("externalRefTooLarge"));
     }
     const bytes = new Uint8Array(await response.arrayBuffer());
@@ -158,14 +194,16 @@ export function useRequestTransfer(errorMessage: { value: string }) {
     }
   }
 
-  function prepareExport(): void {
+  async function prepareExport(): Promise<void> {
     errorMessage.value = "";
     exportWarnings.value = [];
     exportDocuments.value = null;
     try {
       if (exportFormat.value === "xpanel-collection") {
         const result = exportCollectionFileWithWarnings(
-          collections.value.map((collection) => collectionRecordSchema.parse(collection)),
+          collections.value.map((collection) =>
+            collectionRecordSchema.parse(collection),
+          ),
           requests.value.map((request) => requestSpecV1Schema.parse(request)),
           { includeSensitive: includeSensitiveExport.value },
         );
@@ -181,19 +219,27 @@ export function useRequestTransfer(errorMessage: { value: string }) {
           : [requestSpecV1Schema.parse(current.value)];
       if (sourceRequests.length === 0) throw new Error(t("noSavedRequests"));
       const sourceIds = new Set(sourceRequests.map((request) => request.id));
-      const sourceResponses = responses.value.filter((item) =>
-        sourceIds.has(item.requestId),
-      );
+      const sourceResponses = formatIncludesResponses(exportFormat.value)
+        ? (await responseBridge.loadResponses(sourceIds))
+            .map((response) => responseRecordV1Schema.parse(response))
+            .filter((response) => sourceIds.has(response.requestId))
+        : [];
       const options = {
         includeSensitive: includeSensitiveExport.value,
         pretty: true,
         responses: sourceResponses,
       };
 
-      if (exportFormat.value === "openapi" || exportFormat.value === "swagger") {
+      if (
+        exportFormat.value === "openapi" ||
+        exportFormat.value === "swagger"
+      ) {
         const result =
           exportFormat.value === "openapi"
-            ? exportOpenApi(sourceRequests, { ...options, version: openApiVersion.value })
+            ? exportOpenApi(sourceRequests, {
+                ...options,
+                version: openApiVersion.value,
+              })
             : exportSwagger(sourceRequests, options);
         exportDocuments.value = result.documents;
         const documents = Object.values(result.documents);
@@ -203,10 +249,14 @@ export function useRequestTransfer(errorMessage: { value: string }) {
             : apiDocumentEncoding.value === "json"
               ? JSON.stringify(result.documents, null, 2)
               : Object.entries(result.documents)
-                  .map(([name, document]) => `# ${name}\n${serializeApiDocument(document)}`)
+                  .map(
+                    ([name, document]) =>
+                      `# ${name}\n${serializeApiDocument(document)}`,
+                  )
                   .join("\n---\n");
         exportWarnings.value = result.warnings.map((item) => item.message);
-        exportExtension.value = documents.length > 1 ? "zip" : apiDocumentEncoding.value;
+        exportExtension.value =
+          documents.length > 1 ? "zip" : apiDocumentEncoding.value;
         exportMediaType.value =
           documents.length > 1
             ? "application/zip"
@@ -244,7 +294,8 @@ export function useRequestTransfer(errorMessage: { value: string }) {
         result.warnings.map((item) => item.message),
       );
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : String(error);
+      errorMessage.value =
+        error instanceof Error ? error.message : String(error);
     }
   }
 
@@ -254,7 +305,7 @@ export function useRequestTransfer(errorMessage: { value: string }) {
       : stringifyYaml(document);
   }
 
-  function changeSensitiveExport(event: Event): void {
+  async function changeSensitiveExport(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
     if (
       input.checked &&
@@ -265,13 +316,13 @@ export function useRequestTransfer(errorMessage: { value: string }) {
       input.checked = false;
     }
     includeSensitiveExport.value = input.checked;
-    prepareExport();
+    await prepareExport();
   }
 
-  function openExport(): void {
+  async function openExport(): Promise<void> {
     includeSensitiveExport.value = false;
     exportOpen.value = true;
-    prepareExport();
+    await prepareExport();
   }
 
   function downloadExport(): void {
