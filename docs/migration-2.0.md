@@ -15,13 +15,15 @@ to Browser when Chrome closes.
 The old global localhost CORS response-header modification has been removed.
 Manifest V3 no longer permits the previous `webRequestBlocking` implementation
 for ordinary store extensions. Requests sent from xPanel use Browser Fetch with
-exact optional host access.
+optional host access.
 
 ## Upgrade behavior
 
 - Existing users retain the xPanel DevTools entry point.
-- HTTP and HTTPS host access is optional and requested for the selected request
-  origin only when sending.
+- HTTP and HTTPS host access remains optional. The default requests only the
+  selected origin when sending; users who regularly switch API domains can
+  explicitly grant all HTTP/HTTPS sites once from Request Options and revoke
+  that access at any time.
 - The old version did not persist request collections, so no legacy collection
   migration is required.
 - Proxy selection, custom TLS verification, client certificates, and restricted

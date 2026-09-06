@@ -30,9 +30,11 @@ imports, exports, and optional self-hosted relays.
 
 xPanel adds a focused API request and response workbench to Chrome DevTools.
 Browser mode sends requests directly from the extension after you approve the
-exact target origin. An optional Remote Relay profile can replay requests that
-Browser Fetch cannot faithfully express, but xPanel never selects a relay or
-sends data remotely without your explicit choice and confirmation.
+target origin. Exact-origin approval is the default; Request Options also offers
+an explicit one-time all-HTTP/HTTPS grant for users who regularly switch API
+domains. An optional Remote Relay profile can replay requests that Browser Fetch
+cannot faithfully express, but xPanel never selects a relay or sends data
+remotely without your explicit choice and confirmation.
 
 Key features:
 
@@ -54,7 +56,7 @@ Sensitive values are session-only by default, and exports are sanitized unless
 you explicitly include sensitive data.
 
 Version 2.0 replaces the former Manifest V2 localhost CORS modification with a
-Manifest V3 implementation and exact optional host access.
+Manifest V3 implementation and user-controlled optional host access.
 
 ## Chinese (Simplified) listing
 
@@ -64,7 +66,7 @@ xPanel 是 Chrome DevTools 内的本地优先 API 客户端，支持集合、多
 
 ### Detailed description
 
-xPanel 在 Chrome DevTools 中提供专注的 API 请求与响应工作台。Browser 模式会在你批准精确目标站点后直接从扩展发起请求。对于 Browser Fetch 无法准确表达的请求，可以显式选择自己部署并信任的 Remote Relay；xPanel 不会自动切换执行器，也不会在未经确认时把数据发送给 Relay。
+xPanel 在 Chrome DevTools 中提供专注的 API 请求与响应工作台。Browser 模式会在你批准目标站点后直接从扩展发起请求；默认逐域批准，也可以在请求选项中主动一次授权全部 HTTP/HTTPS 站点，并随时清除授权恢复逐域询问。对于 Browser Fetch 无法准确表达的请求，可以显式选择自己部署并信任的 Remote Relay；xPanel 不会自动切换执行器，也不会在未经确认时把数据发送给 Relay。
 
 主要功能：
 
@@ -77,7 +79,7 @@ xPanel 在 Chrome DevTools 中提供专注的 API 请求与响应工作台。Bro
 
 xPanel 不包含统计分析、广告、账号系统或遥测。敏感值默认仅保留在会话中，导出默认脱敏，只有用户明确选择时才包含敏感数据。
 
-2.0 版以 Manifest V3 和精确的可选站点授权，替代旧版 Manifest V2 的 localhost CORS 修改功能。
+2.0 版以 Manifest V3 和由用户控制的可选站点授权，替代旧版 Manifest V2 的 localhost CORS 修改功能。
 
 ## Privacy practices
 
@@ -87,10 +89,10 @@ Provide an API request and response workbench inside Chrome DevTools.
 
 ### Permission justifications
 
-| Dashboard field                                  | Text to enter                                                                                                                                                                                                                                                                                   |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `storage`                                        | Stores user-created request drafts, collections, favorites, preferences, optional response examples, and Relay profile metadata locally. Session-only Relay secrets use `chrome.storage.session`; persistent storage requires a separate user confirmation.                                     |
-| `http://*/*`, `https://*/*` optional host access | At send time, xPanel asks only for the exact origin entered by the user so Browser mode can perform that request, resolve an external OpenAPI reference the user approved, or contact a Relay endpoint the user configured. These origins are optional and are not granted globally by default. |
+| Dashboard field                                  | Text to enter                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `storage`                                        | Stores user-created request drafts, collections, favorites, preferences, optional response examples, and Relay profile metadata locally. Session-only Relay secrets use `chrome.storage.session`; persistent storage requires a separate user confirmation.                                                                                                                                                                        |
+| `http://*/*`, `https://*/*` optional host access | By default, xPanel asks only for the exact origin entered by the user so Browser mode can perform that request, resolve an approved external OpenAPI reference, or contact a configured Relay. In Request Options, the user may explicitly grant both optional wildcard ranges once to avoid prompts when switching domains, and can clear those grants to restore per-domain prompts. No host access is required at install time. |
 
 ### Remote code
 
@@ -128,6 +130,9 @@ to the xPanel developer.
 3. In the default **Browser** executor, enter a public test API URL and click
    **Send**. Approve the exact origin when Chrome asks. No account or test
    credential is required.
+   Optionally open Request Options and verify that **Allow all sites once** asks
+   once for both HTTP/HTTPS wildcard ranges, while **Clear access and ask per
+   domain** restores exact-origin prompts.
 4. Verify the response Pretty/Raw/Headers/Timing tabs, copy actions, 60-second
    default timeout under Options, progress bar, and Stop button.
 5. Open Import and use a static cURL request, or choose Current Network HAR.

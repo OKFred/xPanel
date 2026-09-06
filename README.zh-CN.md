@@ -7,7 +7,7 @@ Vue 3、shadcn-vue/Tailwind 完成 Manifest V3 重写，并提供请求集合、
 ## 主要能力
 
 - 继续使用 DevTools 的 **xPanel** 页签，无 xPanel 账号，也没有 xPanel 运营的后端。
-- 使用 Browser Fetch 执行，并在发送时按目标站点精确申请权限。
+- 使用 Browser Fetch 执行；默认按目标站点精确申请权限，也可由用户主动一次授权全部 HTTP/HTTPS 站点，随时恢复逐域询问。
 - 可显式选择多个命名 Remote Relay，用于浏览器无法原样表达的请求；xPanel 绝不静默切换或远程发送。
 - 每个请求都可单独设置超时时间，默认 60 秒。
 - Browser 与 Remote 共用真实阶段进度和停止按钮；响应正文使用流式下载进度。

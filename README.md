@@ -8,7 +8,9 @@ inspection, Browser Fetch execution, and an optional self-hosted Remote Relay.
 
 - Runs in the **xPanel** DevTools tab; no xPanel account or xPanel-operated
   backend.
-- Browser Fetch execution with exact-origin permission prompts.
+- Browser Fetch execution with exact-origin permission prompts by default, plus
+  an explicit one-time all-HTTP/HTTPS grant for users who regularly switch API
+  domains.
 - Explicitly selected, named Remote Relay profiles for requests that browser
   Fetch cannot faithfully express. xPanel never switches to a relay silently.
 - Per-request timeout control with a 60-second default.
