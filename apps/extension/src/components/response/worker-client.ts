@@ -40,7 +40,7 @@ export class ResponseDocumentWorkerClient {
   constructor(worker?: Worker) {
     this.#worker =
       worker ??
-      new Worker(new URL("./response-document.worker.ts", import.meta.url), {
+      new Worker(chrome.runtime.getURL("response-document.js"), {
         type: "module",
       });
     this.#worker.addEventListener(
