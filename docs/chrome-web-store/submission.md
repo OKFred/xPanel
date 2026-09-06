@@ -61,7 +61,9 @@ Key features:
   and cancel active requests.
 - Continue a request the user started if the standalone page or DevTools panel
   closes, then make its temporary local result available when a workbench
-  reopens. Results expire after ten minutes by default and are cleaned locally.
+  reopens. Results expire after ten minutes by default; users may instead
+  choose one hour, the current Chrome session, or retention until manual
+  cleanup. Manual retention requires an additional sensitive-data warning.
 - Use a 60-second default timeout with visible request phases and real download
   progress when the response size is known.
 - Optionally connect to a relay that you deploy and trust. xPanel provides no
@@ -92,7 +94,7 @@ xPanel 既提供独立扩展页面，也保留 Chrome DevTools 内的 API 请求
 - 查看美化或原始响应、响应头、耗时、重定向以及返回的 Set-Cookie。
 - 导入和导出 cURL（Bash）、PowerShell、Node fetch、HAR 1.2、OpenAPI 3、Swagger 2 和版本化 xPanel 集合。
 - 在本地保存集合和收藏，快速美化 JSON、复制结果并中止请求。
-- 独立页面或 DevTools 面板关闭后，仍可继续完成用户主动发起的请求；重新打开工作台即可读取临时本地结果，到期结果会在本地清理。
+- 独立页面或 DevTools 面板关闭后，仍可继续完成用户主动发起的请求；重新打开工作台即可读取临时本地结果。默认保留 10 分钟，也可选择 1 小时、当前 Chrome 会话或手动清理；手动保留会再次提示敏感数据风险。
 - 默认超时 60 秒，显示真实请求阶段；响应大小已知时显示下载百分比。
 - 可选连接由用户自行部署并信任的 Relay；xPanel 不提供公共代理，也不运营后端。
 
@@ -130,12 +132,12 @@ data and is never executed.
 Disclose the following categories because Chrome Web Store disclosure applies
 even when data remains on the device:
 
-| Category                        | Why xPanel handles it                                                                                                                                                                                                                | Use                     |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------- |
-| Authentication information      | User-entered Authorization, Cookie, API-key, and Relay-token values may be part of a request.                                                                                                                                        | App functionality only. |
-| Web history / browsing activity | Request URLs and DevTools Network HAR entries identify resources the user chooses to inspect or replay.                                                                                                                              | App functionality only. |
-| Website content                 | Request and response bodies, headers, OpenAPI documents, and HAR content are displayed or transformed at the user's direction. Temporary execution results expire after ten minutes by default; explicit saves remain until deleted. | App functionality only. |
-| User-generated content          | Request drafts, bodies, collections, names, and imported documents are created or selected by the user.                                                                                                                              | App functionality only. |
+| Category                        | Why xPanel handles it                                                                                                                                                                                                                                                                                     | Use                     |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| Authentication information      | User-entered Authorization, Cookie, API-key, and Relay-token values may be part of a request.                                                                                                                                                                                                             | App functionality only. |
+| Web history / browsing activity | Request URLs and DevTools Network HAR entries identify resources the user chooses to inspect or replay.                                                                                                                                                                                                   | App functionality only. |
+| Website content                 | Request and response bodies, headers, OpenAPI documents, and HAR content are displayed or transformed at the user's direction. Execution results expire after ten minutes by default; the user may choose one hour, the current Chrome session, or manual retention. Explicit saves remain until deleted. | App functionality only. |
+| User-generated content          | Request drafts, bodies, collections, names, and imported documents are created or selected by the user.                                                                                                                                                                                                   | App functionality only. |
 
 Certify that data is not sold, is not used for advertising, creditworthiness,
 or unrelated purposes, and is not transferred except as required to perform the

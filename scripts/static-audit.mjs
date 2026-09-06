@@ -66,6 +66,27 @@ for (const sourceRoot of sourceRoots) {
   }
 }
 
+for (const [locale, standaloneMarker] of [
+  ["en", "standalone"],
+  ["zh_CN", "独立"],
+]) {
+  const messagesPath = join(
+    root,
+    "apps/extension/public/_locales",
+    locale,
+    "messages.json",
+  );
+  const messages = JSON.parse(readFileSync(messagesPath, "utf8"));
+  const description = messages.extensionDescription?.message;
+  if (
+    typeof description !== "string" ||
+    !description.includes(standaloneMarker) ||
+    !description.includes("DevTools")
+  ) {
+    failures.push(`${locale} extension description omits a workbench surface`);
+  }
+}
+
 const relaySourceRoot = join(root, "apps/relay-cloudflare/src");
 for (const file of walk(relaySourceRoot)) {
   const source = readFileSync(file, "utf8");

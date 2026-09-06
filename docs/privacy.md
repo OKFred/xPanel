@@ -16,8 +16,11 @@ account system, xPanel-operated backend, or telemetry.
   request and any selected files in extension-local IndexedDB so execution can
   continue if the visible workbench closes. The staged payload and files are
   removed when execution completes, fails, is cancelled, or is marked
-  interrupted. Result metadata and bodies expire after ten minutes by default
-  or when the user clears them sooner.
+  interrupted. Result metadata and bodies expire after ten minutes by default.
+  The user may instead select one hour, the current Chrome session, or manual
+  retention; choosing manual retention requires an additional sensitive-data
+  warning and the result remains local until the user clears it or removes the
+  extension.
 - Credentials and sensitive values in headers, query parameters, URL userinfo,
   auth fields, proxy settings, and file metadata are handled only for the
   request the user starts. They are otherwise persisted only when the user
@@ -65,9 +68,10 @@ written to Chrome's cookie jar.
 - Request data saved in local extension storage remains until the user deletes
   it or removes the extension.
 - Temporary execution inputs are removed at the end of the run. Temporary
-  results expire after ten minutes by default and can be cleared by the user
-  sooner; an extension alarm performs expiry cleanup even when no workbench is
-  open.
+  results expire after ten minutes by default. The selectable alternatives are
+  one hour, the current Chrome session, and retention until manual cleanup. The
+  user can clear any retained result sooner; extension alarms perform timed
+  expiry cleanup even when no workbench is open.
 - Session-only Relay tokens and trust decisions are cleared when the Chrome
   session ends. Locally persisted Relay tokens remain until the user deletes
   the profile or removes the extension.
