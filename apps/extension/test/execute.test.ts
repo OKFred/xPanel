@@ -15,6 +15,7 @@ import {
   executeBrowser,
   executeRemote,
   executeRequest,
+  executeRequestStream,
   isRequestCancelling,
   remoteUnsupportedReasons,
   sanitizeBrowserRequestHeaders,
@@ -300,6 +301,30 @@ describe("Browser execution", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("only verifies Browser permission when access was preflighted", async () => {
+    const contains = vi.fn(async () => true);
+    const requestPermission = vi.fn(async () => true);
+    vi.stubGlobal(
+      "chrome",
+      chromeMock({ contains, request: requestPermission }),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("ok", { status: 200 })),
+    );
+
+    await executeBrowser(
+      createDefaultRequest({ url: "https://example.com/preflighted" }),
+      { browserPermissionAlreadyGranted: true },
+    );
+
+    expect(contains).toHaveBeenCalledOnce();
+    expect(contains).toHaveBeenCalledWith({
+      origins: ["https://example.com/*"],
+    });
+    expect(requestPermission).not.toHaveBeenCalled();
+  });
+
   it("encodes non-Latin Basic credentials as UTF-8", async () => {
     let authorization = "";
     vi.stubGlobal(
@@ -344,6 +369,114 @@ describe("Browser execution", () => {
       content: Buffer.from(bytes).toString("base64"),
       sizeBytes: bytes.byteLength,
     });
+  });
+
+  it("aborts and errors a Browser response stream at the configured cap", async () => {
+    const maximumResponseBytes = 1024 * 1024;
+    const cancel = vi.fn();
+    let fetchSignal: AbortSignal | null | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: URL, init: RequestInit) => {
+        fetchSignal = init.signal;
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new Uint8Array(maximumResponseBytes));
+              controller.enqueue(new Uint8Array(1));
+            },
+            cancel,
+          }),
+          { status: 200 },
+        );
+      }),
+    );
+
+    await expect(
+      executeRequest(
+        createDefaultRequest({
+          id: "browser-response-cap",
+          url: "https://example.com/capped",
+        }),
+        { maximumResponseBytes },
+      ),
+    ).rejects.toThrow("configured Browser limit");
+
+    expect(fetchSignal?.aborted).toBe(true);
+    expect(cancel).toHaveBeenCalledWith("response-too-large");
+  });
+
+  it("accepts the 20 MiB Browser default boundary and rejects one byte more", async () => {
+    const accepted = new Response("ok", {
+      status: 200,
+      headers: { "Content-Length": String(REMOTE_MAX_RESPONSE_BODY_BYTES) },
+    });
+    const oversized = new Response("not-read", {
+      status: 200,
+      headers: {
+        "Content-Length": String(REMOTE_MAX_RESPONSE_BODY_BYTES + 1),
+      },
+    });
+    if (!oversized.body) throw new Error("Expected a response stream.");
+    const getReader = vi.spyOn(oversized.body, "getReader");
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<() => Promise<Response>>()
+        .mockResolvedValueOnce(accepted)
+        .mockResolvedValueOnce(oversized),
+    );
+
+    await expect(
+      executeBrowser(
+        createDefaultRequest({
+          id: "browser-default-cap-boundary",
+          url: "https://example.com/boundary",
+        }),
+      ),
+    ).resolves.toMatchObject({ status: 200 });
+    await expect(
+      executeBrowser(
+        createDefaultRequest({
+          id: "browser-default-cap-overflow",
+          url: "https://example.com/overflow",
+        }),
+      ),
+    ).rejects.toThrow("configured Browser limit");
+    expect(getReader).not.toHaveBeenCalled();
+  });
+
+  it("exposes validated Browser metadata and bytes without materializing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("streamed", {
+            status: 201,
+            statusText: "Created",
+            headers: {
+              "Content-Type": "text/plain",
+              "Content-Length": "8",
+            },
+          }),
+      ),
+    );
+    const response = await executeRequestStream(
+      createDefaultRequest({
+        id: "browser-stream-api",
+        url: "https://example.com/stream",
+      }),
+    );
+
+    expect(response).toMatchObject({
+      requestId: "browser-stream-api",
+      executor: "browser",
+      status: 201,
+      statusText: "Created",
+      declaredLength: 8,
+    });
+    expect(response.maximumResponseBytes).toBe(REMOTE_MAX_RESPONSE_BODY_BYTES);
+    expect(await new Response(response.stream).text()).toBe("streamed");
   });
 
   it("binds request files without buffering their contents", async () => {
@@ -644,6 +777,40 @@ describe("Remote execution", () => {
     });
   });
 
+  it("exposes validated Remote metadata and bytes without materializing", async () => {
+    const request = createDefaultRequest({
+      id: "remote-stream-api",
+      url: "https://api.example/items",
+    });
+    vi.stubGlobal(
+      "fetch",
+      relayFetch(async () =>
+        relaySuccess(request.id, "streamed", {
+          status: 202,
+          statusText: "Accepted",
+        }),
+      ),
+    );
+
+    const response = await executeRequestStream(request, {
+      target: {
+        kind: "remote",
+        profile: relayProfile("remote-stream-api"),
+        token: "secret",
+      },
+    });
+
+    expect(response).toMatchObject({
+      requestId: request.id,
+      executor: "remote",
+      status: 202,
+      statusText: "Accepted",
+      declaredLength: 8,
+      maximumResponseBytes: REMOTE_MAX_RESPONSE_BODY_BYTES,
+    });
+    expect(await new Response(response.stream).text()).toBe("streamed");
+  });
+
   it("sends Browser-controlled application headers through the versioned wire protocol", async () => {
     const request = createDefaultRequest({
       method: "POST",
@@ -935,6 +1102,38 @@ describe("Remote execution", () => {
         (url as URL).pathname.endsWith("/v1/execute"),
       ),
     ).toHaveLength(0);
+  });
+
+  it("applies a caller response cap below the Remote protocol limit", async () => {
+    const maximumResponseBytes = 1024 * 1024;
+    const request = createDefaultRequest({
+      id: "caller-response-limit",
+      url: "https://api.example",
+    });
+    let executeSignal: AbortSignal | null | undefined;
+    vi.stubGlobal(
+      "fetch",
+      relayFetch(async (_url, init) => {
+        executeSignal = init.signal;
+        return relaySuccess(request.id, "tiny", {
+          declaredBodySizeBytes: maximumResponseBytes + 1,
+        });
+      }),
+    );
+
+    await expect(
+      executeRemote(
+        request,
+        {
+          kind: "remote",
+          profile: relayProfile("caller-response-limit"),
+          token: "secret",
+        },
+        { maximumResponseBytes },
+      ),
+    ).rejects.toThrow("Response body exceeds the 20 MiB Remote limit");
+
+    expect(executeSignal?.aborted).toBe(true);
   });
 
   it("rejects an oversized outer Content-Length before reading the body", async () => {
