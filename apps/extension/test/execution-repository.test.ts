@@ -5,6 +5,7 @@ import { createDefaultRequest } from "@xpanel/contracts";
 import { deleteDB } from "idb";
 import { beforeAll, describe, expect, it } from "vitest";
 
+import { database } from "../src/lib/database";
 import {
   clearExecutionResults,
   completeExecution,
@@ -24,9 +25,11 @@ import {
   markStaleQueuedExecutionsOrphaned,
 } from "../src/lib/execution-recovery";
 import {
+  loadExecutionPrettyBody,
   loadExecutionResponse,
   loadExecutionResponseBody,
   loadExecutionResponseMetadata,
+  validateStoredResponseRecords,
 } from "../src/lib/execution-response-store";
 import { storeDetachedExecutionResponse } from "../src/lib/execution-detached-response";
 import {
@@ -36,6 +39,7 @@ import {
 
 let stagedExecutionId = "";
 let stagedPayloadHandle = "";
+let completedResponseHandle = "";
 
 describe("background execution repository", () => {
   beforeAll(async () => {
@@ -118,6 +122,7 @@ describe("background execution repository", () => {
 
     expect(completed.state).toBe("succeeded");
     expect(completed.responseHandle).toBeTruthy();
+    completedResponseHandle = completed.responseHandle!;
     expect(
       Date.parse(completed.expiresAt!) - Date.parse(completed.updatedAt),
     ).toBe(10 * 60_000);
@@ -139,6 +144,61 @@ describe("background execution repository", () => {
       (await loadExecutionResponse(completed.responseHandle!))?.body.content,
     ).toBe('{"ok":true}');
     expect(await countActiveExecutions()).toBe(0);
+  });
+
+  it("rejects mismatched or malformed stored response body records", async () => {
+    const db = await database();
+    const metadata = await db.get(
+      "execution-responses",
+      completedResponseHandle,
+    );
+    const body = await db.get("execution-bodies", completedResponseHandle);
+    expect(metadata).toBeDefined();
+    expect(body).toBeDefined();
+
+    expect(() =>
+      validateStoredResponseRecords(
+        completedResponseHandle,
+        { ...metadata!, handle: "another-handle" },
+        body,
+      ),
+    ).toThrow("mismatched handle");
+    expect(() =>
+      validateStoredResponseRecords(completedResponseHandle, metadata, {
+        ...body!,
+        handle: "another-handle",
+      }),
+    ).toThrow("mismatched handle");
+
+    const invalidBodies = [
+      { ...body!, executionId: "another-execution" },
+      { ...body!, blob: new Blob(["wrong-size"]) },
+      { ...body!, prettyBlob: "not-a-blob" },
+      { ...body!, unexpected: true },
+    ];
+    const readers = [
+      loadExecutionResponseMetadata,
+      loadExecutionResponseBody,
+      loadExecutionPrettyBody,
+      loadExecutionResponse,
+    ];
+
+    try {
+      for (const invalidBody of invalidBodies) {
+        await db.put("execution-bodies", invalidBody as never);
+        for (const read of readers) {
+          await expect(read(completedResponseHandle)).rejects.toThrow();
+        }
+      }
+      await db.delete("execution-bodies", completedResponseHandle);
+      for (const read of readers) {
+        await expect(read(completedResponseHandle)).rejects.toThrow(
+          "incomplete",
+        );
+      }
+    } finally {
+      await db.put("execution-bodies", body!);
+    }
   });
 
   it("validates response limits and cleans previous-session results", async () => {
@@ -292,6 +352,7 @@ describe("background execution repository", () => {
     // work as orphaned. The resulting failure therefore remains observable.
     await cleanupPreviousSessions("replacement-session");
     await markPreviousSessionExecutionsOrphaned("replacement-session");
+    await cleanupPreviousSessions("replacement-session");
 
     expect(await listExecutionSummaries()).toEqual(
       expect.arrayContaining([
@@ -302,6 +363,46 @@ describe("background execution repository", () => {
         }),
       ]),
     );
+  });
+
+  it("never deletes another execution payload through a mismatched handle", async () => {
+    const first = await stageExecution(
+      {
+        request: createDefaultRequest({ id: "request-owned-payload" }),
+        target: { kind: "browser" },
+      },
+      "payload-session",
+    );
+    const second = await stageExecution(
+      {
+        request: createDefaultRequest({ id: "request-other-payload" }),
+        target: { kind: "browser" },
+      },
+      "payload-session",
+      [
+        {
+          referenceId: "other-file",
+          file: new File(["keep"], "keep.txt", { type: "text/plain" }),
+        },
+      ],
+    );
+
+    await failExecution(
+      first.summary.executionId,
+      second.payloadHandle,
+      "failed",
+      { code: "invalid_payload", message: "Fixture mismatch." },
+    );
+
+    await expect(
+      loadExecutionPayload(first.payloadHandle),
+    ).resolves.toBeUndefined();
+    await expect(
+      loadExecutionPayload(second.payloadHandle),
+    ).resolves.toBeDefined();
+    await expect(
+      loadExecutionFiles(second.payloadHandle),
+    ).resolves.toHaveLength(1);
   });
 
   it("orphans a queued payload after its dispatch lease expires", async () => {

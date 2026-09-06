@@ -33,15 +33,22 @@ export async function cleanupPreviousSessions(
 
 async function orphan(
   summaries: readonly ExecutionSummaryV1[],
+  replacementSessionId?: string,
 ): Promise<ExecutionSummaryV1[]> {
   const results: ExecutionSummaryV1[] = [];
   for (const summary of summaries) {
     const payload = await findExecutionPayload(summary.executionId);
     results.push(
-      await failExecution(summary.executionId, payload?.handle, "orphaned", {
-        code: "orphaned",
-        message: "The execution context ended before the request completed.",
-      }),
+      await failExecution(
+        summary.executionId,
+        payload?.handle,
+        "orphaned",
+        {
+          code: "orphaned",
+          message: "The execution context ended before the request completed.",
+        },
+        replacementSessionId,
+      ),
     );
   }
   return results;
@@ -59,7 +66,7 @@ export async function markPreviousSessionExecutionsOrphaned(
       ? [record.summary]
       : [];
   });
-  return orphan(activeFromPreviousSessions);
+  return orphan(activeFromPreviousSessions, sessionId);
 }
 
 export async function markRunningExecutionsOrphaned(): Promise<

@@ -297,6 +297,7 @@ export async function failExecution(
   payloadHandle: string | undefined,
   state: Extract<ExecutionStateV1, "failed" | "cancelled" | "orphaned">,
   error: ExecutionErrorV1,
+  replacementSessionId?: string,
 ): Promise<ExecutionSummaryV1> {
   const db = await database();
   const transaction = db.transaction(
@@ -321,14 +322,27 @@ export async function failExecution(
     updatedAt: timestamp(completedAt),
     ...(expiration ? { expiresAt: expiration } : {}),
   });
-  await executionStore.put({ ...current, summary });
-  if (payloadHandle) {
+  await executionStore.put({
+    ...current,
+    ...(replacementSessionId ? { sessionId: replacementSessionId } : {}),
+    summary,
+  });
+  const payloadStore = transaction.objectStore("execution-payloads");
+  const requestedPayload = payloadHandle
+    ? await payloadStore.get(payloadHandle)
+    : undefined;
+  const ownedPayload =
+    requestedPayload?.executionId === executionId
+      ? executionPayloadRecordSchema.parse(requestedPayload)
+      : await payloadStore.index("by-execution").get(executionId);
+  if (ownedPayload) {
+    const validatedPayload = executionPayloadRecordSchema.parse(ownedPayload);
     const fileStore = transaction.objectStore("execution-files");
     const fileKeys = await fileStore
       .index("by-payload")
-      .getAllKeys(payloadHandle);
+      .getAllKeys(validatedPayload.handle);
     await Promise.all([
-      transaction.objectStore("execution-payloads").delete(payloadHandle),
+      payloadStore.delete(validatedPayload.handle),
       ...fileKeys.map((key) => fileStore.delete(key)),
     ]);
   }
