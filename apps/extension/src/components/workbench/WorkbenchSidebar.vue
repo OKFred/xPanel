@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { Folder, Heart, Languages, PanelLeft, Plus, Trash2 } from "lucide-vue-next";
+import {
+  Folder,
+  Heart,
+  Languages,
+  PanelLeft,
+  Plus,
+  Trash2,
+} from "lucide-vue-next";
 
 import type { CollectionRecord, RequestSpecV1 } from "@xpanel/contracts";
 
@@ -30,9 +37,16 @@ const emit = defineEmits<{
   <aside class="sidebar">
     <div class="brand-row">
       <div class="brand-mark">x</div>
-      <div><strong>xPanel</strong><span>{{ $t("localFirst") }}</span></div>
+      <div>
+        <strong>xPanel</strong><span>{{ $t("localFirst") }}</span>
+      </div>
     </div>
-    <Button class="w-full" type="button" :disabled="busy" @click="emit('createRequest')">
+    <Button
+      class="w-full"
+      type="button"
+      :disabled="busy"
+      @click="emit('createRequest')"
+    >
       <Plus :size="16" /> {{ $t("newRequest") }}
     </Button>
     <section class="sidebar-section">
@@ -48,21 +62,33 @@ const emit = defineEmits<{
           <Plus :size="14" />
         </button>
       </h2>
-      <div v-for="collection in collections" :key="collection.id" class="collection-group">
+      <div
+        v-for="collection in collections"
+        :key="collection.id"
+        class="collection-group"
+      >
         <div class="collection-heading">
-          <div class="collection-name">{{ displayCollectionName(collection) }}</div>
+          <div class="collection-name">
+            {{ displayCollectionName(collection) }}
+          </div>
           <button
             class="icon-button delete-icon"
             type="button"
             :disabled="busy || deleteBusy"
-            :aria-label="$t('deleteCollectionLabel', { name: displayCollectionName(collection) })"
+            :aria-label="
+              $t('deleteCollectionLabel', {
+                name: displayCollectionName(collection),
+              })
+            "
             @click.stop="emit('deleteCollection', collection)"
           >
             <Trash2 :size="13" />
           </button>
         </div>
         <div
-          v-for="request in requests.filter((item) => collection.requestIds.includes(item.id))"
+          v-for="request in requests.filter((item) =>
+            collection.requestIds.includes(item.id),
+          )"
           :key="request.id"
           class="request-link-row"
           :data-active="request.id === currentId"
@@ -73,7 +99,8 @@ const emit = defineEmits<{
             :disabled="busy || deleteBusy"
             @click="emit('load', request, collection.id)"
           >
-            <span class="method-mini">{{ request.method }}</span><span>{{ request.name }}</span>
+            <span class="method-mini">{{ request.method }}</span
+            ><span>{{ request.name }}</span>
           </button>
           <button
             class="icon-button delete-icon"
@@ -89,14 +116,19 @@ const emit = defineEmits<{
     </section>
     <section class="sidebar-section favorites">
       <h2><Heart :size="15" /> {{ $t("favorites") }}</h2>
-      <div v-for="request in favorites" :key="request.id" class="request-link-row">
+      <div
+        v-for="request in favorites"
+        :key="request.id"
+        class="request-link-row"
+      >
         <button
           class="request-link"
           type="button"
           :disabled="busy || deleteBusy"
           @click="emit('load', request)"
         >
-          <span class="method-mini">{{ request.method }}</span><span>{{ request.name }}</span>
+          <span class="method-mini">{{ request.method }}</span
+          ><span>{{ request.name }}</span>
         </button>
         <button
           class="icon-button delete-icon"
@@ -108,10 +140,17 @@ const emit = defineEmits<{
           <Trash2 :size="13" />
         </button>
       </div>
-      <p v-if="favorites.length === 0" class="empty-note">{{ $t("noFavorites") }}</p>
+      <p v-if="favorites.length === 0" class="empty-note">
+        {{ $t("noFavorites") }}
+      </p>
     </section>
     <div class="sidebar-footer">
-      <span><PanelLeft :size="14" /> {{ $t(surface === "devtools" ? "devtoolsPanel" : "standaloneWorkbench") }}</span>
+      <span
+        ><PanelLeft :size="14" />
+        {{
+          $t(surface === "devtools" ? "devtoolsPanel" : "standaloneWorkbench")
+        }}</span
+      >
       <button
         class="icon-button"
         type="button"

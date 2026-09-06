@@ -26,7 +26,10 @@ export function useRequestEditor(errorMessage: { value: string }) {
         ? current.value.body.text
         : "",
     set: (text: string) => {
-      if (current.value.body.kind === "json" || current.value.body.kind === "text") {
+      if (
+        current.value.body.kind === "json" ||
+        current.value.body.kind === "text"
+      ) {
         current.value.body.text = text;
       }
     },
@@ -78,13 +81,16 @@ export function useRequestEditor(errorMessage: { value: string }) {
     timeoutEditing.value = false;
     const timeoutMs = parseTimeoutSeconds(timeoutSecondsInput.value);
     if (timeoutMs === undefined) {
-      timeoutSecondsInput.value = formatTimeoutSeconds(current.value.options.timeoutMs);
+      timeoutSecondsInput.value = formatTimeoutSeconds(
+        current.value.options.timeoutMs,
+      );
       errorMessage.value = timeoutRangeMessage.value;
       return;
     }
     current.value.options.timeoutMs = timeoutMs;
     timeoutSecondsInput.value = formatTimeoutSeconds(timeoutMs);
-    if (errorMessage.value === timeoutRangeMessage.value) errorMessage.value = "";
+    if (errorMessage.value === timeoutRangeMessage.value)
+      errorMessage.value = "";
   }
 
   function filePlaceholder(name: string): FileReferenceV1 {
@@ -93,7 +99,12 @@ export function useRequestEditor(errorMessage: { value: string }) {
 
   function addMultipartText(): void {
     if (current.value.body.kind !== "multipart") return;
-    current.value.body.parts.push({ kind: "text", name: "", value: "", enabled: true });
+    current.value.body.parts.push({
+      kind: "text",
+      name: "",
+      value: "",
+      enabled: true,
+    });
   }
 
   function addMultipartFile(): void {
@@ -144,7 +155,8 @@ export function useRequestEditor(errorMessage: { value: string }) {
   }
 
   function setBodyKind(kind: BodySpec["kind"]): void {
-    if (current.value.body.kind === "file") unbindFile(current.value.body.file.id);
+    if (current.value.body.kind === "file")
+      unbindFile(current.value.body.file.id);
     if (current.value.body.kind === "multipart") {
       for (const part of current.value.body.parts) {
         if (part.kind === "file") unbindFile(part.file.id);
@@ -166,19 +178,26 @@ export function useRequestEditor(errorMessage: { value: string }) {
       none: { kind: "none" },
       basic: { kind: "basic", username: "", password: "" },
       bearer: { kind: "bearer", token: "" },
-      "api-key": { kind: "api-key", location: "header", name: "X-API-Key", value: "" },
+      "api-key": {
+        kind: "api-key",
+        location: "header",
+        name: "X-API-Key",
+        value: "",
+      },
       oauth2: { kind: "oauth2", accessToken: "", tokenType: "Bearer" },
     };
     current.value.auth = auth[kind];
   }
 
   watch(timeoutRangeMessage, (nextMessage, previousMessage) => {
-    if (errorMessage.value === previousMessage) errorMessage.value = nextMessage;
+    if (errorMessage.value === previousMessage)
+      errorMessage.value = nextMessage;
   });
   watch(
     () => [current.value.id, current.value.options.timeoutMs] as const,
     ([, timeoutMs]) => {
-      if (!timeoutEditing.value) timeoutSecondsInput.value = formatTimeoutSeconds(timeoutMs);
+      if (!timeoutEditing.value)
+        timeoutSecondsInput.value = formatTimeoutSeconds(timeoutMs);
     },
     { immediate: true },
   );

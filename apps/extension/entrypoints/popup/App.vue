@@ -27,8 +27,11 @@ const runningCount = computed(
         execution.state === "queued" || execution.state === "running",
     ).length,
 );
-const latestExecution = computed(() =>
-  [...executions.value].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0],
+const latestExecution = computed(
+  () =>
+    [...executions.value].sort((a, b) =>
+      b.updatedAt.localeCompare(a.updatedAt),
+    )[0],
 );
 
 function stateLabel(state: ExecutionStateV1): string {

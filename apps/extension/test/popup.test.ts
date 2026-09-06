@@ -2,19 +2,18 @@ import { flushPromises, mount } from "@vue/test-utils";
 import type { Component, Plugin } from "vue";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  ExecutionEventV1,
-  ExecutionSummaryV1,
-} from "@xpanel/contracts";
+import type { ExecutionEventV1, ExecutionSummaryV1 } from "@xpanel/contracts";
 
 const executionClient = vi.hoisted(() => ({
   listExecutionSummaries: vi.fn<() => Promise<ExecutionSummaryV1[]>>(),
   listener: undefined as ((event: ExecutionEventV1) => void) | undefined,
   unsubscribe: vi.fn(),
-  subscribeExecutionEvents: vi.fn((listener: (event: ExecutionEventV1) => void) => {
-    executionClient.listener = listener;
-    return executionClient.unsubscribe;
-  }),
+  subscribeExecutionEvents: vi.fn(
+    (listener: (event: ExecutionEventV1) => void) => {
+      executionClient.listener = listener;
+      return executionClient.unsubscribe;
+    },
+  ),
 }));
 
 vi.mock("../src/lib/execution-client", () => executionClient);
@@ -58,7 +57,9 @@ beforeAll(async () => {
     i18n: { getUILanguage: vi.fn(() => "en-US") },
     runtime: {
       getManifest: vi.fn(() => ({ version: "2.1.0" })),
-      getURL: vi.fn((path: string) => `chrome-extension://extension-id/${path}`),
+      getURL: vi.fn(
+        (path: string) => `chrome-extension://extension-id/${path}`,
+      ),
       getContexts,
     },
     tabs: { create: tabsCreate, update: tabsUpdate },
@@ -71,7 +72,9 @@ beforeAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   executionClient.listener = undefined;
-  executionClient.listExecutionSummaries.mockResolvedValue([execution("running")]);
+  executionClient.listExecutionSummaries.mockResolvedValue([
+    execution("running"),
+  ]);
   vi.spyOn(window, "close").mockImplementation(() => undefined);
 });
 
@@ -93,7 +96,10 @@ describe("extension popup", () => {
     executionClient.listExecutionSummaries.mockResolvedValue([]);
     const wrapper = mount(App, { global: { plugins: [i18n] } });
     await flushPromises();
-    const completed = { ...execution("succeeded"), state: "succeeded" as const };
+    const completed = {
+      ...execution("succeeded"),
+      state: "succeeded" as const,
+    };
     executionClient.listener?.({
       protocolVersion: 1,
       eventId: crypto.randomUUID(),

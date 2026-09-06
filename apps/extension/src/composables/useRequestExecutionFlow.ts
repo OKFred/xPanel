@@ -82,10 +82,7 @@ export function useRequestExecutionFlow(options: ExecutionFlowOptions) {
     }
     return sanitizeBrowserRequestHeaders(
       pendingBrowserRequest.value,
-    ).removedHeaders.reduce(
-      (total, header) => total + header.occurrences,
-      0,
-    );
+    ).removedHeaders.reduce((total, header) => total + header.occurrences, 0);
   });
 
   function filterBrowserExecutionCopy(

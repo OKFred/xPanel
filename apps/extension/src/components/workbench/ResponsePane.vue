@@ -58,18 +58,31 @@ const documentMode = computed<"pretty" | "raw">(() =>
     <div class="response-heading">
       <div>
         <span class="eyebrow">{{ $t("response") }}</span>
-        <strong v-if="response" :data-ok="response.status >= 200 && response.status < 400">
+        <strong
+          v-if="response"
+          :data-ok="response.status >= 200 && response.status < 400"
+        >
           {{ response.status }} {{ response.statusText }}
         </strong>
         <span v-else>{{ $t("noResponse") }}</span>
       </div>
       <div v-if="response" class="response-meta">
-        {{ $t(response.executor === "remote" ? "remoteRelayShort" : "browserExecutor") }}
-        · {{ Math.round(response.timings.durationMs) }} ms · {{ response.body.sizeBytes }} B
+        {{
+          $t(
+            response.executor === "remote"
+              ? "remoteRelayShort"
+              : "browserExecutor",
+          )
+        }}
+        · {{ Math.round(response.timings.durationMs) }} ms ·
+        {{ response.body.sizeBytes }} B
       </div>
     </div>
     <ul v-if="response?.warnings.length" class="response-warning-list">
-      <li v-for="warning in response.warnings" :key="`${warning.code}-${warning.path ?? ''}`">
+      <li
+        v-for="warning in response.warnings"
+        :key="`${warning.code}-${warning.path ?? ''}`"
+      >
         {{ warning.message }}
       </li>
     </ul>
@@ -83,7 +96,12 @@ const documentMode = computed<"pretty" | "raw">(() =>
       >
         {{ $t(item === "headers" ? "responseHeaders" : item) }}
       </button>
-      <button class="copy-action" type="button" :disabled="!response" @click="emit('copyBody')">
+      <button
+        class="copy-action"
+        type="button"
+        :disabled="!response"
+        @click="emit('copyBody')"
+      >
         <Check v-if="copied === 'body'" :size="14" />
         <Clipboard v-else :size="14" /> {{ $t("copyBody") }}
       </button>
@@ -95,7 +113,11 @@ const documentMode = computed<"pretty" | "raw">(() =>
         <Check v-if="copied === 'full-response'" :size="14" />
         <Clipboard v-else :size="14" /> {{ $t("copyFull") }}
       </button>
-      <button type="button" :disabled="!documentSource" @click="emit('downloadBody')">
+      <button
+        type="button"
+        :disabled="!documentSource"
+        @click="emit('downloadBody')"
+      >
         <Download :size="14" /> {{ $t("download") }}
       </button>
     </nav>
@@ -104,13 +126,17 @@ const documentMode = computed<"pretty" | "raw">(() =>
         <LoaderCircle class="spin" :size="28" /> {{ $t("sending") }}
       </div>
       <ResponseDocumentViewer
-        v-else-if="response && documentSource && (tab === 'pretty' || tab === 'raw')"
+        v-else-if="
+          response && documentSource && (tab === 'pretty' || tab === 'raw')
+        "
         :key="`${response.requestId}-${tab}-${response.body.sizeBytes}`"
         :source="documentSource"
         :size-bytes="response.body.sizeBytes"
         :mode="documentMode"
         :encoding="response.body.encoding"
-        :aria-label="$t(tab === 'pretty' ? 'prettyResponseBody' : 'rawResponseBody')"
+        :aria-label="
+          $t(tab === 'pretty' ? 'prettyResponseBody' : 'rawResponseBody')
+        "
         :loading-label="$t('preparingResponseView')"
         @error="emit('viewerError', $event)"
       />

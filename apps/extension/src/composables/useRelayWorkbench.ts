@@ -67,14 +67,18 @@ export function useRelayWorkbench() {
   const selectedRelayProfile = computed(() =>
     executorSelection.value === "browser"
       ? undefined
-      : relayProfiles.value.find((profile) => profile.id === executorSelection.value),
+      : relayProfiles.value.find(
+          (profile) => profile.id === executorSelection.value,
+        ),
   );
 
   async function refreshRelayProfiles(): Promise<void> {
     relayProfiles.value = await loadRelayProfiles();
     if (
       executorSelection.value !== "browser" &&
-      !relayProfiles.value.some((profile) => profile.id === executorSelection.value)
+      !relayProfiles.value.some(
+        (profile) => profile.id === executorSelection.value,
+      )
     ) {
       executorSelection.value = "browser";
     }
@@ -151,7 +155,8 @@ export function useRelayWorkbench() {
     if (
       enforcePersistenceConfirmation &&
       relayDraft.value.tokenStorage === "local" &&
-      (relayDraftOriginalStorage.value !== "local" || relayTokenInput.value.trim() !== "") &&
+      (relayDraftOriginalStorage.value !== "local" ||
+        relayTokenInput.value.trim() !== "") &&
       !relayPersistConfirmed.value
     ) {
       relayManagerError.value = t("relayPersistConfirm");
@@ -174,7 +179,8 @@ export function useRelayWorkbench() {
       if (saved) editRelayProfile(saved);
       relayManagerNotice.value = t("relaySaved", { name: profile.name });
     } catch (error) {
-      relayManagerError.value = error instanceof Error ? error.message : String(error);
+      relayManagerError.value =
+        error instanceof Error ? error.message : String(error);
     } finally {
       relayManagerBusy.value = false;
     }
@@ -199,13 +205,16 @@ export function useRelayWorkbench() {
         limit: formatBytes(relayCapabilities.value.maxRequestBodyBytes),
       });
     } catch (error) {
-      relayManagerError.value = error instanceof Error ? error.message : String(error);
+      relayManagerError.value =
+        error instanceof Error ? error.message : String(error);
     } finally {
       relayManagerBusy.value = false;
     }
   }
 
-  async function removeRelayProfile(profile: RemoteRelayProfileV1): Promise<void> {
+  async function removeRelayProfile(
+    profile: RemoteRelayProfileV1,
+  ): Promise<void> {
     if (
       relayManagerBusy.value ||
       !window.confirm(`${t("deleteRelayProfile")}: ${profile.name}?`)
@@ -216,12 +225,14 @@ export function useRelayWorkbench() {
     try {
       await deleteRelayProfile(profile.id);
       await revokeRelayTrust(profile.id);
-      if (executorSelection.value === profile.id) executorSelection.value = "browser";
+      if (executorSelection.value === profile.id)
+        executorSelection.value = "browser";
       await refreshRelayProfiles();
       startNewRelayProfile();
       relayManagerNotice.value = t("relayDeleted", { name: profile.name });
     } catch (error) {
-      relayManagerError.value = error instanceof Error ? error.message : String(error);
+      relayManagerError.value =
+        error instanceof Error ? error.message : String(error);
     } finally {
       relayManagerBusy.value = false;
     }
