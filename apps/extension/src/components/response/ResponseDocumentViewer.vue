@@ -20,9 +20,15 @@ const props = withDefaults(
     source: Blob | string;
     sizeBytes: number;
     mode: ResponseDocumentMode;
+    encoding?: "utf8" | "base64";
     ariaLabel?: string;
+    loadingLabel?: string;
   }>(),
-  { ariaLabel: "Response body" },
+  {
+    encoding: "utf8",
+    ariaLabel: "Response body",
+    loadingLabel: "Loading…",
+  },
 );
 
 const emit = defineEmits<{
@@ -73,6 +79,8 @@ async function prepare(): Promise<void> {
       source,
       props.mode,
       props.sizeBytes,
+      props.encoding,
+      typeof props.source === "string",
     );
     if (revision !== renderRevision) return;
     rowCount.value = metadata.rowCount;
@@ -116,9 +124,10 @@ async function getFullText(): Promise<string> {
 }
 
 async function download(fileName = "xpanel-response.txt"): Promise<void> {
-  const blob = new Blob([await getFullText()], {
-    type: "text/plain;charset=utf-8",
-  });
+  const blob =
+    props.source instanceof Blob
+      ? props.source
+      : new Blob([await getFullText()], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -129,7 +138,10 @@ async function download(fileName = "xpanel-response.txt"): Promise<void> {
 
 defineExpose({ getFullText, download });
 
-watch(() => [props.source, props.mode, props.sizeBytes], prepare);
+watch(
+  () => [props.source, props.mode, props.sizeBytes, props.encoding],
+  prepare,
+);
 onMounted(() => {
   resizeObserver = new ResizeObserver(() => void refreshRows());
   if (viewport.value) resizeObserver.observe(viewport.value);
@@ -150,7 +162,9 @@ onBeforeUnmount(() => {
     :aria-label="ariaLabel"
     @scroll="handleScroll"
   >
-    <div v-if="loading" class="viewer-status" role="status">Loading…</div>
+    <div v-if="loading" class="viewer-status" role="status">
+      {{ loadingLabel }}
+    </div>
     <div
       v-else-if="errorMessage"
       class="viewer-status viewer-error"

@@ -1,14 +1,24 @@
 <script setup lang="ts">
-import { Check, Clipboard, Globe2, LoaderCircle } from "lucide-vue-next";
+import {
+  Check,
+  Clipboard,
+  Download,
+  Globe2,
+  LoaderCircle,
+} from "lucide-vue-next";
+import { computed } from "vue";
 
 import type { ResponseRecordV1 } from "@xpanel/contracts";
 
 import ResponseDocumentViewer from "../response/ResponseDocumentViewer.vue";
+import type { StoredResponseMetadata } from "../../lib/execution-client";
 
 type ResponseTab = "pretty" | "raw" | "headers" | "timing";
 
-defineProps<{
-  response: ResponseRecordV1 | null;
+const props = defineProps<{
+  response: ResponseRecordV1 | StoredResponseMetadata | null;
+  bodySource?: Blob | string | null;
+  prettySource?: Blob | null;
   busy: boolean;
   tab: ResponseTab;
   headersText: string;
@@ -21,8 +31,26 @@ const emit = defineEmits<{
   copyBody: [];
   copyHeaders: [];
   copyFull: [];
+  downloadBody: [];
   viewerError: [message: string];
 }>();
+
+const inlineBody = computed(() =>
+  props.response?.body.kind === "inline" ? props.response.body.content : null,
+);
+const documentSource = computed(
+  () =>
+    (props.tab === "pretty" ? props.prettySource : undefined) ??
+    props.bodySource ??
+    inlineBody.value,
+);
+const documentMode = computed<"pretty" | "raw">(() =>
+  props.tab === "pretty" && props.prettySource
+    ? "raw"
+    : props.tab === "pretty"
+      ? "pretty"
+      : "raw",
+);
 </script>
 
 <template>
@@ -67,18 +95,23 @@ const emit = defineEmits<{
         <Check v-if="copied === 'full-response'" :size="14" />
         <Clipboard v-else :size="14" /> {{ $t("copyFull") }}
       </button>
+      <button type="button" :disabled="!documentSource" @click="emit('downloadBody')">
+        <Download :size="14" /> {{ $t("download") }}
+      </button>
     </nav>
     <div class="response-content">
-      <div v-if="busy" class="response-empty">
+      <div v-if="busy && !response" class="response-empty">
         <LoaderCircle class="spin" :size="28" /> {{ $t("sending") }}
       </div>
       <ResponseDocumentViewer
-        v-else-if="response && (tab === 'pretty' || tab === 'raw')"
+        v-else-if="response && documentSource && (tab === 'pretty' || tab === 'raw')"
         :key="`${response.requestId}-${tab}-${response.body.sizeBytes}`"
-        :source="response.body.content"
+        :source="documentSource"
         :size-bytes="response.body.sizeBytes"
-        :mode="tab"
+        :mode="documentMode"
+        :encoding="response.body.encoding"
         :aria-label="$t(tab === 'pretty' ? 'prettyResponseBody' : 'rawResponseBody')"
+        :loading-label="$t('preparingResponseView')"
         @error="emit('viewerError', $event)"
       />
       <pre v-else-if="response && tab === 'headers'">{{ headersText }}</pre>

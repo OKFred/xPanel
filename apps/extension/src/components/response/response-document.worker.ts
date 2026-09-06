@@ -8,6 +8,14 @@ import type {
 
 const documents = new Map<string, ReturnType<typeof prepareResponseDocument>>();
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return btoa(binary);
+}
+
 function post(message: ResponseDocumentWorkerResponse): void {
   self.postMessage(message);
 }
@@ -22,8 +30,12 @@ self.addEventListener(
 async function handle(message: ResponseDocumentWorkerRequest): Promise<void> {
   try {
     if (message.type === "prepare") {
+      const text =
+        message.encoding === "base64" && !message.sourceContainsEncodedText
+          ? bytesToBase64(new Uint8Array(await message.source.arrayBuffer()))
+          : await message.source.text();
       const document = prepareResponseDocument(
-        await message.source.text(),
+        text,
         message.mode,
         message.sizeBytes,
       );

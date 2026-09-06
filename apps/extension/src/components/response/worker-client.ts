@@ -68,6 +68,8 @@ export class ResponseDocumentWorkerClient {
     source: Blob,
     mode: ResponseDocumentMode,
     sizeBytes: number,
+    encoding: "utf8" | "base64",
+    sourceContainsEncodedText: boolean,
   ): Promise<PreparedDocumentMetadata> {
     return this.#request({
       type: "prepare",
@@ -76,6 +78,8 @@ export class ResponseDocumentWorkerClient {
       source,
       mode,
       sizeBytes,
+      encoding,
+      sourceContainsEncodedText,
     });
   }
 

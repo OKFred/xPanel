@@ -8,6 +8,8 @@ export type ResponseDocumentWorkerRequest =
       source: Blob;
       mode: ResponseDocumentMode;
       sizeBytes: number;
+      encoding: "utf8" | "base64";
+      sourceContainsEncodedText: boolean;
     }
   | {
       type: "slice";
