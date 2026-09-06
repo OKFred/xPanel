@@ -1,5 +1,5 @@
 import { flushPromises, mount } from "@vue/test-utils";
-import type { Component, Plugin } from "vue";
+import { nextTick, type Component, type Plugin } from "vue";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ExecutionEventV1, ExecutionSummaryV1 } from "@xpanel/contracts";
@@ -65,8 +65,14 @@ beforeAll(async () => {
     tabs: { create: tabsCreate, update: tabsUpdate },
     windows: { update: windowsUpdate },
   });
-  App = (await import("../entrypoints/popup/App.vue")).default;
-  i18n = (await import("../src/i18n")).i18n;
+  const popupModule = (await import(
+    "../entrypoints/popup/App.vue"
+  )) as unknown as { default: Component };
+  const i18nModule = (await import("../src/i18n")) as unknown as {
+    i18n: Plugin;
+  };
+  App = popupModule.default;
+  i18n = i18nModule.i18n;
 });
 
 beforeEach(() => {
@@ -106,7 +112,7 @@ describe("extension popup", () => {
       type: "execution.completed",
       execution: { ...completed, responseHandle: "response-1" },
     });
-    await wrapper.vm.$nextTick();
+    await nextTick();
     expect(wrapper.text()).toContain("Latest: completed");
     wrapper.unmount();
     expect(executionClient.unsubscribe).toHaveBeenCalledOnce();
