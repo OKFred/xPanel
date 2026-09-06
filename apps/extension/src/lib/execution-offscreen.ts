@@ -341,8 +341,8 @@ export class OffscreenExecutionCoordinator {
       }
       const response = await executeRequestStream(request, {
         target,
-        browserPermissionAlreadyGranted: true,
-        relayPermissionAlreadyGranted: true,
+        browserPermissionPreflighted: true,
+        relayPermissionPreflighted: true,
         maximumResponseBytes: payload.responseLimitBytes,
         onProgress: (progress) =>
           this.reportProgress(executionId, job, progress),

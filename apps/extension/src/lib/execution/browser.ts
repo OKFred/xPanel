@@ -52,10 +52,12 @@ export async function openBrowserResponse(
 
   try {
     reportProgress(execution, "requesting-permission", 0);
-    await ensureOriginPermission(
-      url,
-      options.browserPermissionAlreadyGranted === true,
-    );
+    if (!options.browserPermissionPreflighted) {
+      await ensureOriginPermission(
+        url,
+        options.browserPermissionAlreadyGranted === true,
+      );
+    }
     if (controller.signal.aborted) {
       throw new DOMException("Request cancelled.", "AbortError");
     }

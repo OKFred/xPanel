@@ -17,6 +17,8 @@ export interface ExecuteOptionsV1 {
   onProgress?: (progress: ExecutionProgressV1) => void;
   relayPermissionAlreadyGranted?: boolean;
   browserPermissionAlreadyGranted?: boolean;
+  relayPermissionPreflighted?: boolean;
+  browserPermissionPreflighted?: boolean;
   maximumResponseBytes?: number;
 }
 

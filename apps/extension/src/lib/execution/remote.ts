@@ -74,6 +74,7 @@ export async function openRemoteResponse(
       target.token,
       {
         signal: controller.signal,
+        permissionPreflighted: options.relayPermissionPreflighted === true,
         permissionAlreadyGranted:
           options.relayPermissionAlreadyGranted === true,
       },
