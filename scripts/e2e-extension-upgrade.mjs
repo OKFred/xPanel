@@ -1,15 +1,17 @@
-import { spawn } from "node:child_process";
 import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { CdpClient, openPageTarget, targets } from "./e2e/cdp-client.mjs";
 import {
-  CdpClient,
-  jsonEndpoint,
-  openPageTarget,
-  targets,
-} from "./e2e/cdp-client.mjs";
-import { availablePort, findChromium } from "./e2e/chromium.mjs";
+  launchUpgradeChromium,
+  stopUpgradeChromium,
+} from "./e2e/upgrade-chromium.mjs";
+import {
+  isRecoveredRestartOrphan,
+  restartOrphanSnapshot,
+  seedRestartOrphanCandidate,
+} from "./e2e/upgrade-recovery.mjs";
 import {
   assertDisposablePath,
   buildSnapshot,
@@ -83,66 +85,6 @@ const seed = {
     updatedAt: "2026-09-06T00:00:00.000Z",
   },
 };
-
-async function launchChromium({ extensionRoot, profileRoot, startUrl }) {
-  const debugPort = await availablePort();
-  const executable = await findChromium();
-  let stderr = "";
-  const processHandle = spawn(
-    executable,
-    [
-      "--headless=new",
-      "--no-first-run",
-      "--no-default-browser-check",
-      "--disable-background-networking",
-      "--disable-component-update",
-      "--disable-default-apps",
-      "--disable-sync",
-      "--metrics-recording-only",
-      "--host-resolver-rules=MAP * ~NOTFOUND",
-      `--remote-debugging-port=${debugPort}`,
-      `--user-data-dir=${profileRoot}`,
-      `--disable-extensions-except=${extensionRoot}`,
-      `--load-extension=${extensionRoot}`,
-      "--auto-open-devtools-for-tabs",
-      startUrl,
-    ],
-    { stdio: ["ignore", "ignore", "pipe"], windowsHide: true },
-  );
-  processHandle.stderr.setEncoding("utf8");
-  processHandle.stderr.on("data", (chunk) => {
-    stderr = `${stderr}${chunk}`.slice(-4_096);
-  });
-  const version = await waitFor(
-    () => jsonEndpoint(debugPort, "/json/version"),
-    `Chromium debugging endpoint${stderr ? ` (${stderr})` : ""}`,
-    30_000,
-  );
-  const browser = await new CdpClient(version.webSocketDebuggerUrl).open();
-  return { browser, debugPort, processHandle };
-}
-
-async function stopChromium(session) {
-  if (!session) return;
-  const exited = new Promise((resolveExit) => {
-    if (session.processHandle.exitCode !== null) resolveExit(true);
-    else session.processHandle.once("exit", () => resolveExit(true));
-  });
-  try {
-    await session.browser.send("Browser.close");
-  } catch {
-    // Browser shutdown can close the socket before the acknowledgement.
-  }
-  session.browser.close();
-  const closed = await Promise.race([
-    exited,
-    new Promise((resolveWait) => setTimeout(() => resolveWait(false), 5_000)),
-  ]);
-  if (!closed && session.processHandle.exitCode === null) {
-    session.processHandle.kill();
-    await exited;
-  }
-}
 
 async function baselinePanel(session) {
   const initial = await waitFor(async () => {
@@ -429,7 +371,7 @@ async function main() {
     );
 
     await cp(baselineBuild.extensionRoot, installRoot, { recursive: true });
-    browserSession = await launchChromium({
+    browserSession = await launchUpgradeChromium({
       extensionRoot: installRoot,
       profileRoot,
       startUrl: "data:text/html,%3Ctitle%3ExPanel-Upgrade-E2E%3C%2Ftitle%3E",
@@ -467,13 +409,13 @@ async function main() {
     const extensionOrigin = `chrome-extension://${baselineRuntime.id}`;
     baselineUi.panel.close();
     baselineUi.devtools.close();
-    await stopChromium(browserSession);
+    await stopUpgradeChromium(browserSession);
     browserSession = undefined;
 
     assertDisposablePath(installRoot, temporaryRoot, "unpacked-xpanel");
     await rm(installRoot, { force: true, recursive: true });
     await cp(current.extensionRoot, installRoot, { recursive: true });
-    browserSession = await launchChromium({
+    browserSession = await launchUpgradeChromium({
       extensionRoot: installRoot,
       profileRoot,
       startUrl: "about:blank",
@@ -486,11 +428,43 @@ async function main() {
       upgradedRuntime.id === baselineRuntime.id,
       "The unpacked extension ID changed across the upgrade.",
     );
+
+    const restartSeedPage = await openPageTarget(
+      browserSession.browser,
+      browserSession.debugPort,
+      `${extensionOrigin}/workbench.html`,
+    );
+    try {
+      await seedRestartOrphanCandidate(restartSeedPage.client, seed.request);
+    } finally {
+      restartSeedPage.client.close();
+    }
+    await stopUpgradeChromium(browserSession);
+    browserSession = undefined;
+
+    browserSession = await launchUpgradeChromium({
+      extensionRoot: installRoot,
+      profileRoot,
+      startUrl: "about:blank",
+    });
+    const restartedPage = await openPageTarget(
+      browserSession.browser,
+      browserSession.debugPort,
+      `${extensionOrigin}/workbench.html`,
+    );
+    try {
+      await waitFor(async () => {
+        const snapshot = await restartOrphanSnapshot(restartedPage.client);
+        return isRecoveredRestartOrphan(snapshot) ? snapshot : undefined;
+      }, "Chrome restart orphan recovery");
+    } finally {
+      restartedPage.client.close();
+    }
     process.stdout.write(
-      `Chromium extension update checks passed: ${expectedBaselineVersion} [storage] -> ${expectedCurrentVersion} [storage, offscreen, alarms]; no new Chrome permission warning, stable ID, enabled runtime, selectable collection/request, and IndexedDB v1 -> v2 migration verified.\n`,
+      `Chromium extension update checks passed: ${expectedBaselineVersion} [storage] -> ${expectedCurrentVersion} [storage, offscreen, alarms]; no new Chrome permission warning, stable ID, enabled runtime, selectable collection/request, IndexedDB v1 -> v2 migration, and Chrome restart orphan recovery verified.\n`,
     );
   } finally {
-    await stopChromium(browserSession);
+    await stopUpgradeChromium(browserSession);
     await cleanupUpgradeRoot(temporaryRoot, worktrees);
   }
 }

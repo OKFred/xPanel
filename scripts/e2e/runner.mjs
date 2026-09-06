@@ -196,7 +196,7 @@ export async function runChromiumE2e(config = e2eConfig) {
     assertNoPageFailures(pageFailures);
 
     process.stdout.write(
-      `Chromium MV3 E2E passed: method combobox, 318 KiB virtual response, DevTools panel, standalone recovery/cancel${background.serviceWorkerTerminated ? ", service worker termination" : ""}, bilingual UI, Browser streaming/cancel, HAR import/select/persist${remoteChecked ? ", Remote Relay" : ""}${captureStoreAssets ? ", store assets" : ""}.\n`,
+      `Chromium MV3 E2E passed: method combobox, 318 KiB virtual response, DevTools panel, standalone recovery/cancel (${background.cancelLatencyMs.toFixed(1)} ms)${background.serviceWorkerTerminated ? ", service worker termination" : ""}, bilingual UI, Browser streaming/cancel, HAR import/select/persist${remoteChecked ? ", Remote Relay" : ""}${captureStoreAssets ? ", store assets" : ""}.\n`,
     );
   } finally {
     await new Promise((resolveClosed) => fixture.close(resolveClosed));

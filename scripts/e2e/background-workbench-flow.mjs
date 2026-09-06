@@ -125,15 +125,48 @@ async function cancelFromStandalone(standalone, fixtureOrigin) {
       ? snapshot
       : undefined;
   }, "active standalone Stop button");
-  await standalone.evaluate(clickTextScript("Stop"), { userGesture: true });
+  await standalone.evaluate(
+    `(() => {
+    const button = [...document.querySelectorAll("button")].find(
+      (entry) => entry.textContent.trim() === "Stop",
+    );
+    if (!button) throw new Error("Stop button was not found.");
+    window.__xpanelCancelLatencyMs = undefined;
+    const startedAt = performance.now();
+    const observer = new MutationObserver(() => {
+      if (!/cancelled/iu.test(document.body.innerText)) return;
+      window.__xpanelCancelLatencyMs = performance.now() - startedAt;
+      observer.disconnect();
+    });
+    observer.observe(document.body, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+    button.click();
+    return true;
+  })()`,
+    { userGesture: true },
+  );
   const cancelled = await waitFor(async () => {
-    const text = await standalone.evaluate("document.body.innerText");
-    return /cancelled/iu.test(text) ? text : undefined;
+    const snapshot = await standalone.evaluate(`(() => ({
+      latencyMs: window.__xpanelCancelLatencyMs,
+      text: document.body.innerText,
+    }))()`);
+    return /cancelled/iu.test(snapshot.text) &&
+      typeof snapshot.latencyMs === "number"
+      ? snapshot
+      : undefined;
   }, "standalone cancellation");
   invariant(
-    cancelled.includes("background-e2e-ok"),
+    cancelled.latencyMs <= 250,
+    `Stop took ${cancelled.latencyMs.toFixed(1)} ms to confirm cancellation.`,
+  );
+  invariant(
+    cancelled.text.includes("background-e2e-ok"),
     "Cancelling from standalone replaced the previous successful response.",
   );
+  return cancelled.latencyMs;
 }
 
 export async function runBackgroundWorkbenchFlow({
@@ -213,7 +246,7 @@ export async function runBackgroundWorkbenchFlow({
       { cause: error },
     );
   }
-  await cancelFromStandalone(standalone, fixtureOrigin);
+  const cancelLatencyMs = await cancelFromStandalone(standalone, fixtureOrigin);
   standalone.close();
-  return { serviceWorkerTerminated };
+  return { cancelLatencyMs, serviceWorkerTerminated };
 }
