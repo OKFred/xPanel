@@ -43,12 +43,30 @@ export async function runHarFlow(panel, inspectedPage) {
     typeof selectedUrl === "string" && selectedUrl.includes("127.0.0.1"),
     "An imported sidebar request could not be selected.",
   );
-  await panel.evaluate(`setTimeout(() => location.reload(), 0); true`);
+  const reloadToken = crypto.randomUUID();
+  await panel.evaluate(`(() => {
+    sessionStorage.setItem("xpanel-e2e-reload", ${JSON.stringify(reloadToken)});
+    setTimeout(() => location.reload(), 0);
+    return true;
+  })()`);
   await waitFor(
     () =>
-      panel.evaluate(
-        `document.querySelectorAll(".collection-group .request-link").length >= ${requestCount}`,
-      ),
+      panel
+        .evaluate(
+          `(() => ({
+        count: document.querySelectorAll(".collection-group .request-link").length,
+        ready: Boolean(document.querySelector(".url-input")),
+        reloaded: performance.getEntriesByType("navigation")[0]?.type === "reload",
+        token: sessionStorage.getItem("xpanel-e2e-reload"),
+      }))()`,
+        )
+        .then(
+          (state) =>
+            state.ready &&
+            state.reloaded &&
+            state.token === reloadToken &&
+            state.count >= requestCount,
+        ),
     "persisted HAR requests",
   );
 }

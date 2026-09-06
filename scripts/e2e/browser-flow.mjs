@@ -38,16 +38,29 @@ export async function runBrowserFlow(panel, fixtureOrigin) {
 
   await setInput(panel, '[aria-label="Request URL"]', `${fixtureOrigin}/slow`);
   await panel.evaluate(clickTextScript("Send"), { userGesture: true });
-  await waitFor(
-    () =>
-      panel.evaluate(`Boolean(document.querySelector("button.stop-button"))`),
-    "Stop button",
-  );
+  await waitFor(async () => {
+    const snapshot = await panel.evaluate(`(() => ({
+        phase: document.querySelector("[role=progressbar]")?.getAttribute("aria-label"),
+        stop: Boolean(document.querySelector("button.stop-button")),
+      }))()`);
+    return snapshot.stop &&
+      /upload|waiting|download/iu.test(snapshot.phase ?? "")
+      ? snapshot
+      : undefined;
+  }, "active Stop button");
   await panel.evaluate(clickTextScript("Stop"), { userGesture: true });
-  const cancelledText = await waitFor(async () => {
-    const text = await panel.evaluate("document.body.innerText");
-    return /cancelled/i.test(text) ? text : undefined;
-  }, "cancelled request");
+  let cancelledText;
+  try {
+    cancelledText = await waitFor(async () => {
+      const text = await panel.evaluate("document.body.innerText");
+      return /cancelled/iu.test(text) ? text : undefined;
+    }, "cancelled request");
+  } catch (error) {
+    const snapshot = await panel.evaluate(
+      "document.body.innerText.slice(-5000)",
+    );
+    throw new Error(`Cancel UI snapshot:\n${snapshot}`, { cause: error });
+  }
   invariant(
     cancelledText.includes("browser-e2e-ok"),
     "Cancelling replaced the previous successful response.",

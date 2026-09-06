@@ -1,7 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
+import { waitFor } from "./utils.mjs";
+
 export class CdpClient {
+  #listeners = new Map();
   #nextId = 0;
   #pending = new Map();
 
@@ -16,7 +19,13 @@ export class CdpClient {
     });
     this.socket.addEventListener("message", (event) => {
       const message = JSON.parse(String(event.data));
-      if (typeof message.id !== "number") return;
+      if (typeof message.id !== "number") {
+        if (typeof message.method !== "string") return;
+        for (const listener of this.#listeners.get(message.method) ?? []) {
+          listener(message.params ?? {});
+        }
+        return;
+      }
       const pending = this.#pending.get(message.id);
       if (!pending) return;
       this.#pending.delete(message.id);
@@ -33,6 +42,13 @@ export class CdpClient {
       this.#pending.clear();
     });
     return this;
+  }
+
+  on(method, listener) {
+    const listeners = this.#listeners.get(method) ?? new Set();
+    listeners.add(listener);
+    this.#listeners.set(method, listeners);
+    return () => listeners.delete(listener);
   }
 
   send(method, params = {}) {
@@ -73,6 +89,21 @@ export async function jsonEndpoint(port, path) {
 
 export function targets(port) {
   return jsonEndpoint(port, "/json/list");
+}
+
+export async function openPageTarget(browser, port, url) {
+  const { targetId } = await browser.send("Target.createTarget", { url });
+  const target = await waitFor(async () => {
+    const entries = await targets(port);
+    return entries.find((entry) => entry.id === targetId);
+  }, `page target ${url}`);
+  const client = await new CdpClient(target.webSocketDebuggerUrl).open();
+  await client.send("Runtime.enable");
+  await waitFor(
+    () => client.evaluate('document.readyState !== "loading"'),
+    `page load ${url}`,
+  );
+  return { client, target };
 }
 
 export async function capturePng(client, filePath, width, height) {

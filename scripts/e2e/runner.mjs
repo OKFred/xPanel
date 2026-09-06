@@ -5,11 +5,14 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 
 import { runBrowserFlow } from "./browser-flow.mjs";
+import { runBackgroundWorkbenchFlow } from "./background-workbench-flow.mjs";
 import { CdpClient, jsonEndpoint, targets } from "./cdp-client.mjs";
 import { availablePort, findChromium } from "./chromium.mjs";
 import { e2eConfig } from "./config.mjs";
+import { assertNoPageFailures, monitorPage } from "./diagnostics.mjs";
 import { fixtureServer, listen } from "./fixture-server.mjs";
 import { runHarFlow } from "./har-flow.mjs";
+import { runLargeResponseFlow } from "./large-response-flow.mjs";
 import { runLocalizationFlow } from "./localization-flow.mjs";
 import { runRemoteFlow } from "./remote-flow.mjs";
 import {
@@ -32,6 +35,7 @@ export async function runChromiumE2e(config = e2eConfig) {
   let inspectedClient;
   let chromeProcess;
   let profileRoot;
+  const pageFailures = [];
   const fixture = fixtureServer();
 
   try {
@@ -126,6 +130,7 @@ export async function runChromiumE2e(config = e2eConfig) {
       );
     }, "xPanel DevTools panel");
     panelClient = await new CdpClient(panelTarget.webSocketDebuggerUrl).open();
+    await monitorPage(panelClient, "devtools-panel", pageFailures);
     await waitFor(
       () =>
         panelClient.evaluate(
@@ -147,6 +152,7 @@ export async function runChromiumE2e(config = e2eConfig) {
       "fixture page navigation",
     );
 
+    await runLargeResponseFlow(panelClient, fixtureOrigin);
     await runBrowserFlow(panelClient, fixtureOrigin);
     await runHarFlow(panelClient, inspectedClient);
     const remoteChecked = await runRemoteFlow(panelClient, config);
@@ -160,8 +166,21 @@ export async function runChromiumE2e(config = e2eConfig) {
       await generatePromoTile({ workspaceRoot, storeAssetsRoot });
     }
 
+    const panelUrl = new URL(panelTarget.url);
+    const background = await runBackgroundWorkbenchFlow({
+      browser: browserClient,
+      debugPort,
+      devtoolsTarget: initialTargets.devtools,
+      extensionOrigin: `${panelUrl.protocol}//${panelUrl.host}`,
+      failures: pageFailures,
+      fixtureOrigin,
+      panel: panelClient,
+    });
+    await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+    assertNoPageFailures(pageFailures);
+
     process.stdout.write(
-      `Chromium MV3 E2E passed: DevTools panel, bilingual UI, Browser streaming/cancel, HAR import/select/persist${remoteChecked ? ", Remote Relay" : ""}${captureStoreAssets ? ", store assets" : ""}.\n`,
+      `Chromium MV3 E2E passed: method combobox, 318 KiB virtual response, DevTools panel, standalone recovery/cancel${background.serviceWorkerTerminated ? ", service worker termination" : ""}, bilingual UI, Browser streaming/cancel, HAR import/select/persist${remoteChecked ? ", Remote Relay" : ""}${captureStoreAssets ? ", store assets" : ""}.\n`,
     );
   } finally {
     await new Promise((resolveClosed) => fixture.close(resolveClosed));
