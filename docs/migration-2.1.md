@@ -1,4 +1,4 @@
-# Migrating from xPanel 2.0.0 to 2.1.0
+# Migrating from xPanel 2.0.x to 2.1.0
 
 xPanel 2.1.0 keeps the Manifest V3 request, collection, import/export, Browser
 Fetch, and optional self-hosted Relay behavior from 2.0. It adds a standalone
@@ -44,3 +44,15 @@ The update does not add `webRequest`, `webRequestBlocking`,
 `declarativeNetRequest`, `nativeMessaging`, `cookies`, `tabs`, or broad required
 host access. Existing requests and collections remain in extension-local
 storage while the new execution stores are added.
+
+The release check builds the production Manifest and compares it with the
+frozen 2.0.x permission baseline. It rejects any required-permission addition
+other than `offscreen` and `alarms`, any new required host access or declarative
+content script, and any change to the existing optional HTTP/HTTPS ranges. The
+[Chrome permission list](https://developer.chrome.com/docs/extensions/reference/permissions-list)
+lists `storage`, `offscreen`, and `alarms` without permission-warning text;
+Chrome's
+[update guidance](https://developer.chrome.com/docs/extensions/develop/concepts/permission-warnings#update_permissions)
+states that adding a permission which triggers a warning is what can disable an
+extension until the user accepts it. This makes the reviewed 2.0.x to 2.1.0
+delta warningless; the packaged update is still exercised before store upload.

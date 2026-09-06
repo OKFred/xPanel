@@ -11,7 +11,7 @@ export default defineConfig({
     name: "__MSG_extensionName__",
     description: "__MSG_extensionDescription__",
     default_locale: "zh_CN",
-    version: "2.0.1",
+    version: "2.1.0",
     homepage_url: "https://github.com/okfred",
     minimum_chrome_version: "120",
     permissions: ["storage", "offscreen", "alarms"],

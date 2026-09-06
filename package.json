@@ -1,8 +1,8 @@
 {
   "name": "xpanel",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "private": true,
-  "description": "A local-first Manifest V3 API client inside Chrome DevTools.",
+  "description": "A local-first Manifest V3 API workbench for standalone and Chrome DevTools use.",
   "license": "MIT",
   "packageManager": "pnpm@11.5.0",
   "engines": {
@@ -18,7 +18,8 @@
     "assets:verify": "node scripts/verify-store-assets.mjs",
     "e2e:chromium": "pnpm build:extension && node scripts/e2e-chromium.mjs",
     "audit:static": "node scripts/static-audit.mjs",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm --filter @xpanel/relay-cloudflare types:check && pnpm build && pnpm audit:static && pnpm assets:verify",
+    "audit:upgrade": "node scripts/verify-extension-upgrade.mjs && node --test scripts/verify-extension-upgrade.test.mjs",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm --filter @xpanel/relay-cloudflare types:check && pnpm build && pnpm audit:upgrade && pnpm audit:static && pnpm assets:verify",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "pnpm build:packages && eslint .",
