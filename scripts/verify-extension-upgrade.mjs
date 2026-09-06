@@ -67,6 +67,11 @@ const packages = await Promise.all(
 );
 
 invariant(baseline.schemaVersion === 1, "Unknown update baseline schema.");
+invariant(
+  typeof baseline.chromiumBaselineVersion === "string" &&
+    /^[\da-f]{40}$/u.test(baseline.chromiumBaselineCommit),
+  "The audited Chromium update baseline is missing its immutable commit/version.",
+);
 for (const entry of packages) {
   invariant(
     entry.value.version === targetVersion,

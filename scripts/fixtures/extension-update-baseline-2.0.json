@@ -1,6 +1,8 @@
 {
   "schemaVersion": 1,
   "releaseLine": "2.0.x",
+  "chromiumBaselineCommit": "41f6e00802eca85dfd8b6dfc3c01c014dbe8e0e1",
+  "chromiumBaselineVersion": "2.0.1",
   "targetVersion": "2.1.0",
   "requiredPermissions": ["storage"],
   "optionalPermissions": [],
