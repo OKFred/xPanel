@@ -157,21 +157,27 @@ export async function buildSnapshot(ref, worktreeRoot, label) {
 }
 
 export async function cleanupUpgradeRoot(temporaryRoot, worktrees) {
+  const failures = [];
   for (const worktree of [...worktrees].reverse()) {
     if (!existsSync(worktree)) continue;
     try {
       await removeInstalledDependencies(worktree);
       git(["worktree", "remove", "--force", worktree]);
     } catch (error) {
+      failures.push(error);
       process.stderr.write(`Could not remove temporary worktree: ${error}\n`);
     }
   }
-  git(["worktree", "prune"]);
+  if (failures.length > 0) {
+    throw new AggregateError(
+      failures,
+      "Refusing recursive cleanup because a temporary worktree or dependency link remains.",
+    );
+  }
   const disposableRoot = assertDisposablePath(
     temporaryRoot,
     tmpdir(),
     "xpanel-upgrade-e2e-",
   );
   await rm(disposableRoot, { force: true, recursive: true });
-  git(["worktree", "prune"]);
 }

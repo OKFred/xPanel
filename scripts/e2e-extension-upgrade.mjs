@@ -46,7 +46,12 @@ const seed = {
     method: "POST",
     url: "https://upgrade.invalid/v1/persisted",
     query: [
-      { name: "source", value: "2.0.1", enabled: true, sensitive: false },
+      {
+        name: "source",
+        value: expectedBaselineVersion,
+        enabled: true,
+        sensitive: false,
+      },
     ],
     headers: [
       {
@@ -94,6 +99,7 @@ async function launchChromium({ extensionRoot, profileRoot, startUrl }) {
       "--disable-default-apps",
       "--disable-sync",
       "--metrics-recording-only",
+      "--host-resolver-rules=MAP * ~NOTFOUND",
       `--remote-debugging-port=${debugPort}`,
       `--user-data-dir=${profileRoot}`,
       `--disable-extensions-except=${extensionRoot}`,
@@ -185,14 +191,24 @@ async function extensionSnapshot(client) {
       ]),
     ));
     const platform = await chrome.runtime.getPlatformInfo();
+    const self = await chrome.management.getSelf();
     return {
       id: chrome.runtime.id,
       manifest: chrome.runtime.getManifest(),
       granted,
       contains,
       platform,
+      self,
     };
   })()`);
+}
+
+async function permissionWarnings(client, manifest) {
+  return client.evaluate(
+    `chrome.management.getPermissionWarningsByManifest(${JSON.stringify(
+      JSON.stringify(manifest),
+    )})`,
+  );
 }
 
 async function seedBaseline(panel) {
@@ -287,6 +303,11 @@ async function verifyUpgradedWorkbench(session, extensionOrigin) {
     invariant(
       typeof runtime.platform?.os === "string",
       "The upgraded extension runtime is not usable.",
+    );
+    invariant(
+      runtime.self?.enabled === true &&
+        runtime.self?.version === expectedCurrentVersion,
+      `Chrome management reports an unusable update: ${JSON.stringify(runtime.self)}.`,
     );
     await waitFor(async () => {
       const text = await page.client.evaluate("document.body.innerText");
@@ -432,6 +453,17 @@ async function main() {
       (await seedBaseline(baselineUi.panel)) === 1,
       "Baseline data was not stored in IndexedDB v1.",
     );
+    const [baselineWarnings, currentWarnings] = await Promise.all([
+      permissionWarnings(baselineUi.panel, baselineBuild.manifest),
+      permissionWarnings(baselineUi.panel, current.manifest),
+    ]);
+    invariant(
+      sameValues(currentWarnings, baselineWarnings),
+      `Chrome reported new update permission warnings: ${JSON.stringify({
+        baselineWarnings,
+        currentWarnings,
+      })}.`,
+    );
     const extensionOrigin = `chrome-extension://${baselineRuntime.id}`;
     baselineUi.panel.close();
     baselineUi.devtools.close();
@@ -455,7 +487,7 @@ async function main() {
       "The unpacked extension ID changed across the upgrade.",
     );
     process.stdout.write(
-      `Chromium unpacked-extension upgrade passed: ${expectedBaselineVersion} [storage] -> ${expectedCurrentVersion} [storage, offscreen, alarms]; stable ID, enabled runtime, selectable collection/request, and IndexedDB v1 -> v2 migration verified.\n`,
+      `Chromium extension update checks passed: ${expectedBaselineVersion} [storage] -> ${expectedCurrentVersion} [storage, offscreen, alarms]; no new Chrome permission warning, stable ID, enabled runtime, selectable collection/request, and IndexedDB v1 -> v2 migration verified.\n`,
     );
   } finally {
     await stopChromium(browserSession);
