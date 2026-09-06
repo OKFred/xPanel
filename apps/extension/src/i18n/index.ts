@@ -155,6 +155,20 @@ export const messages = {
     autoFilterBrowserHeaders: "发送时自动过滤浏览器控制的请求头",
     autoFilterBrowserHeadersHint:
       "仅过滤 Headers 表格中的受控项；Cookie 模式由浏览器管理，认证、代理和 TLS 选项仍会单独校验。",
+    browserSiteAccess: "Browser 站点访问",
+    siteAccessPerDomain: "按域名询问",
+    siteAccessAllSites: "已允许全部 HTTP/HTTPS 站点",
+    grantAllSitesAccess: "一次授权全部站点",
+    revokeAllSitesAccess: "清除授权并恢复按域名询问",
+    siteAccessWorking: "正在更新…",
+    allSitesAccessOfferHint:
+      "可选择一次授权全部 HTTP/HTTPS 站点，之后更换域名不再弹窗。Chrome 会显示高范围权限提示；xPanel 仍只在你主动发送、解析已确认的引用或测试及使用 Relay 时访问网络。",
+    allSitesAccessActiveHint:
+      "授权由 Chrome 持久保存，Browser 请求和 Relay 连接不再逐域名询问。你也可以在 Chrome 扩展管理页限制或收回访问权限。",
+    allSitesAccessGranted: "已启用全部 HTTP/HTTPS 站点访问。",
+    allSitesAccessDenied: "Chrome 未授予全部站点访问，继续按域名询问。",
+    siteAccessRevoked: "已清除 HTTP/HTTPS 站点授权，恢复按域名询问。",
+    siteAccessRevokeFailed: "Chrome 未能清除站点授权。",
     browserHeadersFilteredNotice:
       "本次发送已过滤 {count} 个浏览器控制的请求头：{headers}。原始及已保存请求未被修改。",
     browserHeadersFilteredWarning:
@@ -379,6 +393,22 @@ export const messages = {
       "Automatically filter browser-controlled headers before sending",
     autoFilterBrowserHeadersHint:
       "Only controlled entries in the Headers table are filtered. Browser cookie mode, authentication, proxy, and TLS options are validated separately.",
+    browserSiteAccess: "Browser site access",
+    siteAccessPerDomain: "Ask per domain",
+    siteAccessAllSites: "All HTTP/HTTPS sites allowed",
+    grantAllSitesAccess: "Allow all sites once",
+    revokeAllSitesAccess: "Clear access and ask per domain",
+    siteAccessWorking: "Updating…",
+    allSitesAccessOfferHint:
+      "Optionally allow all HTTP/HTTPS sites once so changing domains no longer prompts. Chrome will show a broad-access warning; xPanel still accesses the network only when you send, resolve an approved reference, or test and use a Relay.",
+    allSitesAccessActiveHint:
+      "Chrome persists this grant, so Browser requests and Relay connections no longer prompt per domain. You can still restrict or revoke access in Chrome's extension settings.",
+    allSitesAccessGranted: "All HTTP/HTTPS site access is enabled.",
+    allSitesAccessDenied:
+      "Chrome did not grant all-site access. xPanel will keep asking per domain.",
+    siteAccessRevoked:
+      "HTTP/HTTPS site access was cleared. xPanel will ask per domain again.",
+    siteAccessRevokeFailed: "Chrome could not clear site access.",
     browserHeadersFilteredNotice:
       "Filtered {count} browser-controlled header(s) for this send: {headers}. The original and saved request were not changed.",
     browserHeadersFilteredWarning:

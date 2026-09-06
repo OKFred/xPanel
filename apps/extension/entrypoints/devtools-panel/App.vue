@@ -61,6 +61,7 @@ import {
 } from "@xpanel/contracts";
 
 import KeyValueEditor from "../../src/components/KeyValueEditor.vue";
+import HostAccessControl from "../../src/components/HostAccessControl.vue";
 import { Button } from "../../src/components/ui/button";
 import {
   browserUnsupportedReasons,
@@ -2129,6 +2130,7 @@ async function confirmDelete(): Promise<void> {
                   {{ $t("clearUnsupportedOptions") }}
                 </button>
               </div>
+              <HostAccessControl />
               <label class="check-row"
                 ><input v-model="autoFilterBrowserHeaders" type="checkbox" />
                 {{ $t("autoFilterBrowserHeaders") }}</label

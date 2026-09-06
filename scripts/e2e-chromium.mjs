@@ -14,6 +14,11 @@ import { basename, dirname, join, resolve } from "node:path";
 import { createServer as createTcpServer } from "node:net";
 import sharp from "sharp";
 
+import {
+  installHostAccessMock,
+  runHostAccessFlow,
+} from "./e2e/host-access-flow.mjs";
+
 const workspaceRoot = resolve(import.meta.dirname, "..");
 const extensionRoot = join(
   workspaceRoot,
@@ -565,13 +570,7 @@ async function runLocalizationFlow(panel) {
 }
 
 async function runBrowserFlow(panel, fixtureOrigin) {
-  const override = await panel.evaluate(`(() => {
-    const request = async () => true;
-    const contains = async () => true;
-    chrome.permissions.request = request;
-    chrome.permissions.contains = contains;
-    return chrome.permissions.request === request && chrome.permissions.contains === contains;
-  })()`);
+  const override = await installHostAccessMock(panel);
   invariant(override, "Could not isolate host permission prompts in E2E.");
 
   await setInput(
@@ -623,6 +622,7 @@ async function runBrowserFlow(panel, fixtureOrigin) {
     `document.querySelector('[aria-label="Timeout (seconds)"]')?.value`,
   );
   invariant(timeout === "60", "New requests do not default to 60 seconds.");
+  await runHostAccessFlow(panel);
 }
 
 async function runHarFlow(panel, inspectedPage) {

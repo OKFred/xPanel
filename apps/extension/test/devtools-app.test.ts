@@ -149,6 +149,12 @@ beforeAll(async () => {
     i18n: {
       getUILanguage: vi.fn(() => "en-US"),
     },
+    permissions: {
+      contains: vi.fn(async () => false),
+      getAll: vi.fn(async () => ({ origins: [] })),
+      remove: vi.fn(async () => true),
+      request: vi.fn(async () => true),
+    },
     storage: {
       local: storage,
     },
