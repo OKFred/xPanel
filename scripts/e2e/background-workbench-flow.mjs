@@ -131,14 +131,21 @@ async function cancelFromStandalone(standalone, fixtureOrigin) {
       (entry) => entry.textContent.trim() === "Stop",
     );
     if (!button) throw new Error("Stop button was not found.");
+    const statusRegion = document.querySelector(".workbench-status-region");
+    if (!statusRegion) throw new Error("Execution status region was not found.");
+    const isCancelled = () =>
+      /cancelled/iu.test(statusRegion.querySelector(".message-strip")?.innerText ?? "");
+    if (isCancelled()) {
+      throw new Error("Execution was already shown as cancelled before Stop.");
+    }
     window.__xpanelCancelLatencyMs = undefined;
     const startedAt = performance.now();
     const observer = new MutationObserver(() => {
-      if (!/cancelled/iu.test(document.body.innerText)) return;
+      if (!isCancelled()) return;
       window.__xpanelCancelLatencyMs = performance.now() - startedAt;
       observer.disconnect();
     });
-    observer.observe(document.body, {
+    observer.observe(statusRegion, {
       childList: true,
       characterData: true,
       subtree: true,
@@ -152,8 +159,9 @@ async function cancelFromStandalone(standalone, fixtureOrigin) {
     const snapshot = await standalone.evaluate(`(() => ({
       latencyMs: window.__xpanelCancelLatencyMs,
       text: document.body.innerText,
+      status: document.querySelector(".message-strip")?.innerText ?? "",
     }))()`);
-    return /cancelled/iu.test(snapshot.text) &&
+    return /cancelled/iu.test(snapshot.status) &&
       typeof snapshot.latencyMs === "number"
       ? snapshot
       : undefined;

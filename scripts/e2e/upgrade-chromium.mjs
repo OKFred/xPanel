@@ -4,6 +4,32 @@ import { CdpClient, jsonEndpoint } from "./cdp-client.mjs";
 import { availablePort, findChromium } from "./chromium.mjs";
 import { waitFor } from "./utils.mjs";
 
+async function waitForProcessExit(processHandle, timeoutMs) {
+  if (processHandle.exitCode !== null || processHandle.signalCode !== null) {
+    return true;
+  }
+  return Promise.race([
+    new Promise((resolveExit) => {
+      processHandle.once("exit", () => resolveExit(true));
+    }),
+    new Promise((resolveWait) =>
+      setTimeout(() => resolveWait(false), timeoutMs),
+    ),
+  ]);
+}
+
+async function forceStopProcess(processHandle) {
+  if (processHandle.exitCode !== null || processHandle.signalCode !== null) {
+    return;
+  }
+  processHandle.kill();
+  if (await waitForProcessExit(processHandle, 5_000)) return;
+  processHandle.kill("SIGKILL");
+  if (!(await waitForProcessExit(processHandle, 5_000))) {
+    throw new Error("Chromium did not exit after forced termination.");
+  }
+}
+
 export async function launchUpgradeChromium({
   extensionRoot,
   profileRoot,
@@ -37,33 +63,28 @@ export async function launchUpgradeChromium({
   processHandle.stderr.on("data", (chunk) => {
     stderr = `${stderr}${chunk}`.slice(-4_096);
   });
-  const version = await waitFor(
-    () => jsonEndpoint(debugPort, "/json/version"),
-    `Chromium debugging endpoint${stderr ? ` (${stderr})` : ""}`,
-    30_000,
-  );
-  const browser = await new CdpClient(version.webSocketDebuggerUrl).open();
-  return { browser, debugPort, processHandle };
+  try {
+    const version = await waitFor(
+      () => jsonEndpoint(debugPort, "/json/version"),
+      `Chromium debugging endpoint${stderr ? ` (${stderr})` : ""}`,
+      30_000,
+    );
+    const browser = await new CdpClient(version.webSocketDebuggerUrl).open();
+    return { browser, debugPort, processHandle };
+  } catch (error) {
+    await forceStopProcess(processHandle);
+    throw error;
+  }
 }
 
 export async function stopUpgradeChromium(session) {
   if (!session) return;
-  const exited = new Promise((resolveExit) => {
-    if (session.processHandle.exitCode !== null) resolveExit(true);
-    else session.processHandle.once("exit", () => resolveExit(true));
-  });
   try {
     await session.browser.send("Browser.close");
   } catch {
     // Browser shutdown can close the socket before the acknowledgement.
   }
   session.browser.close();
-  const closed = await Promise.race([
-    exited,
-    new Promise((resolveWait) => setTimeout(() => resolveWait(false), 5_000)),
-  ]);
-  if (!closed && session.processHandle.exitCode === null) {
-    session.processHandle.kill();
-    await exited;
-  }
+  if (await waitForProcessExit(session.processHandle, 5_000)) return;
+  await forceStopProcess(session.processHandle);
 }

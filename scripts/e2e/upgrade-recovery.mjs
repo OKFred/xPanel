@@ -1,9 +1,15 @@
 export const restartExecutionId = "execution-restart-orphan-e2e";
 const restartPayloadHandle = "payload-restart-orphan-e2e";
-const previousSessionId = "previous-chrome-session-e2e";
 
 export async function seedRestartOrphanCandidate(client, requestTemplate) {
   return client.evaluate(`(async () => {
+    const storedSession = await chrome.storage.session.get(
+      "executionSessionIdV1",
+    );
+    const currentSessionId = storedSession.executionSessionIdV1;
+    if (typeof currentSessionId !== "string" || currentSessionId.length === 0) {
+      throw new Error("The current Chrome execution session is unavailable.");
+    }
     const now = new Date().toISOString();
     const request = {
       ...${JSON.stringify(requestTemplate)},
@@ -27,7 +33,7 @@ export async function seedRestartOrphanCandidate(client, requestTemplate) {
         createdAt: now,
         updatedAt: now,
       },
-      sessionId: ${JSON.stringify(previousSessionId)},
+      sessionId: currentSessionId,
     };
     const payload = {
       schemaVersion: 1,
@@ -55,7 +61,7 @@ export async function seedRestartOrphanCandidate(client, requestTemplate) {
       transaction.onabort = () => reject(transaction.error);
     });
     db.close();
-    return true;
+    return currentSessionId;
   })()`);
 }
 
@@ -84,7 +90,15 @@ export async function restartOrphanSnapshot(client) {
   })()`);
 }
 
-export function isRecoveredRestartOrphan(snapshot) {
+export function isSeededRestartCandidate(snapshot, currentSessionId) {
+  return (
+    snapshot?.execution?.summary?.state === "running" &&
+    snapshot.execution.sessionId === currentSessionId &&
+    snapshot.payload?.executionId === restartExecutionId
+  );
+}
+
+export function isRecoveredRestartOrphan(snapshot, previousSessionId) {
   return (
     snapshot?.execution?.summary?.state === "orphaned" &&
     snapshot.execution.summary.error?.code === "orphaned" &&

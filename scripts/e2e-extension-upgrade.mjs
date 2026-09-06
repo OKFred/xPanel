@@ -9,6 +9,7 @@ import {
 } from "./e2e/upgrade-chromium.mjs";
 import {
   isRecoveredRestartOrphan,
+  isSeededRestartCandidate,
   restartOrphanSnapshot,
   seedRestartOrphanCandidate,
 } from "./e2e/upgrade-recovery.mjs";
@@ -318,6 +319,7 @@ async function main() {
   const profileRoot = join(temporaryRoot, "chromium-profile");
   const worktrees = [];
   let browserSession;
+  let restartSessionId;
 
   try {
     invariant(
@@ -435,7 +437,17 @@ async function main() {
       `${extensionOrigin}/workbench.html`,
     );
     try {
-      await seedRestartOrphanCandidate(restartSeedPage.client, seed.request);
+      const currentSessionId = await seedRestartOrphanCandidate(
+        restartSeedPage.client,
+        seed.request,
+      );
+      await waitFor(async () => {
+        const snapshot = await restartOrphanSnapshot(restartSeedPage.client);
+        return isSeededRestartCandidate(snapshot, currentSessionId)
+          ? snapshot
+          : undefined;
+      }, "running execution before Chrome restart");
+      restartSessionId = currentSessionId;
     } finally {
       restartSeedPage.client.close();
     }
@@ -455,7 +467,9 @@ async function main() {
     try {
       await waitFor(async () => {
         const snapshot = await restartOrphanSnapshot(restartedPage.client);
-        return isRecoveredRestartOrphan(snapshot) ? snapshot : undefined;
+        return isRecoveredRestartOrphan(snapshot, restartSessionId)
+          ? snapshot
+          : undefined;
       }, "Chrome restart orphan recovery");
     } finally {
       restartedPage.client.close();
