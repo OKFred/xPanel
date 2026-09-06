@@ -451,6 +451,21 @@ describe("background execution V1", () => {
     ).toBe(false);
     expect(
       ExecutionCommandV1Schema.safeParse({
+        ...start,
+        remoteContext: {
+          profile: {
+            schemaVersion: 1,
+            id: "relay-1",
+            name: "Private relay",
+            baseUrl: "https://relay.example.test",
+            tokenStorage: "session",
+          },
+          token: "ephemeral-token",
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      ExecutionCommandV1Schema.safeParse({
         protocolVersion: 1,
         commandId: "command-2",
         type: "execution.clear",

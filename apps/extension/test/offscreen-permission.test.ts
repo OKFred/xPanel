@@ -77,4 +77,50 @@ describe("offscreen permission preflight", () => {
       ),
     ).resolves.toMatchObject({ provider: "cloudflare" });
   });
+
+  it("asks the service worker about an approved cross-origin redirect", async () => {
+    const sendMessage = vi.fn(
+      async (message: { commandId: string; origin: string }) => ({
+        channel: "xpanel.execution.permission.v1",
+        commandId: message.commandId,
+        granted: message.origin === "https://redirected.example.test",
+      }),
+    );
+    vi.stubGlobal("chrome", { runtime: { sendMessage } });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(null, {
+            status: 302,
+            headers: {
+              location: "https://redirected.example.test/items",
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response('{"redirected":true}', {
+            headers: { "content-type": "application/json" },
+          }),
+        ),
+    );
+
+    const response = await executeBrowser(
+      createDefaultRequest({
+        id: "offscreen-redirect",
+        url: "https://api.example.test/items",
+      }),
+      { browserPermissionPreflighted: true },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.content).toBe('{"redirected":true}');
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: "xpanel.execution.permission.v1",
+        origin: "https://redirected.example.test",
+      }),
+    );
+  });
 });

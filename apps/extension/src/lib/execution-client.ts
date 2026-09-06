@@ -29,6 +29,7 @@ import {
   controlEnvelope,
   executionEventEnvelopeSchema,
 } from "./execution-messages";
+import { getRelayToken } from "./remote-profiles";
 import { executionSessionId } from "./execution-session";
 import {
   DEFAULT_RESPONSE_LIMIT_BYTES,
@@ -214,6 +215,16 @@ export async function startBackgroundExecution(
     request,
     input.permissionAlreadyGranted,
   );
+  const remoteContext =
+    validatedTarget.kind === "remote"
+      ? {
+          profile: validatedTarget.profile,
+          token: await getRelayToken(validatedTarget.profile),
+        }
+      : undefined;
+  if (remoteContext && !remoteContext.token) {
+    throw new Error("The Remote relay token is unavailable.");
+  }
 
   const preferences = await loadExecutionPreferences();
   const responseLimitBytes =
@@ -248,6 +259,14 @@ export async function startBackgroundExecution(
     type: "execution.start",
     executionId: staged.summary.executionId,
     payloadHandle: staged.payloadHandle,
+    ...(remoteContext?.token
+      ? {
+          remoteContext: {
+            profile: remoteContext.profile,
+            token: remoteContext.token,
+          },
+        }
+      : {}),
   };
   try {
     await sendCommand(command);

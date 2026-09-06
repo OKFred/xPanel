@@ -7,6 +7,7 @@ import {
   type ExecutionProgressV1,
   type ExecutionSummaryV1,
   type FileReferenceV1,
+  type RemoteExecutionContextV1,
   type RequestSpecV1,
 } from "@xpanel/contracts";
 
@@ -25,7 +26,6 @@ import {
   eventEnvelope,
   executionDispatchEnvelopeSchema,
 } from "./execution-messages";
-import { getRelayToken, loadRelayProfiles } from "./remote-profiles";
 
 interface ActiveJob {
   payloadHandle: string;
@@ -227,7 +227,7 @@ export class OffscreenExecutionCoordinator {
     this.jobs.set(command.executionId, job);
     const running = await markExecutionRunning(command.executionId);
     await broadcast(running);
-    void this.run(command.executionId, job);
+    void this.run(command.executionId, job, command.remoteContext);
     return commandResult(command.commandId, true);
   }
 
@@ -287,7 +287,11 @@ export class OffscreenExecutionCoordinator {
       .catch(() => undefined);
   }
 
-  private async run(executionId: string, job: ActiveJob): Promise<void> {
+  private async run(
+    executionId: string,
+    job: ActiveJob,
+    remoteContext?: RemoteExecutionContextV1,
+  ): Promise<void> {
     let processorJob:
       | Awaited<ReturnType<ExecutionProcessorClient["begin"]>>
       | undefined;
@@ -329,15 +333,19 @@ export class OffscreenExecutionCoordinator {
       if (payload.target.kind === "browser") {
         target = { kind: "browser" as const };
       } else {
-        const profileId = payload.target.profileId;
-        const profile = (await loadRelayProfiles()).find(
-          (candidate) => candidate.id === profileId,
-        );
-        if (!profile)
-          throw new Error("The Remote relay profile no longer exists.");
-        const token = await getRelayToken(profile);
-        if (!token) throw new Error("The Remote relay token is unavailable.");
-        target = { kind: "remote" as const, profile, token };
+        if (
+          !remoteContext ||
+          remoteContext.profile.id !== payload.target.profileId
+        ) {
+          throw new Error(
+            "The ephemeral Remote execution context is missing or mismatched.",
+          );
+        }
+        target = {
+          kind: "remote" as const,
+          profile: remoteContext.profile,
+          token: remoteContext.token,
+        };
       }
       const response = await executeRequestStream(request, {
         target,

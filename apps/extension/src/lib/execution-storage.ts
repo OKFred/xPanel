@@ -63,6 +63,14 @@ export interface ExecutionFileRecord {
   blob: Blob;
 }
 
+export function isStoredBlob(value: unknown): value is Blob {
+  return typeof Blob !== "undefined" && value instanceof Blob;
+}
+
+const storedBlobSchema = z.custom<Blob>(isStoredBlob, {
+  message: "Expected a stored Blob.",
+});
+
 const responseMetadataShape = responseRecordV1Schema.omit({ body: true });
 
 export const storedResponseMetadataSchema = responseMetadataShape
@@ -89,25 +97,18 @@ export type StoredResponseMetadata = z.infer<
   typeof storedResponseMetadataSchema
 >;
 
-export interface StoredResponseBody {
-  handle: string;
-  executionId: string;
-  blob: Blob;
-  prettyBlob?: Blob;
-  createdAt: string;
-  expiresAt?: string;
-}
-
-export function isStoredBlob(value: unknown): value is Blob {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "size" in value &&
-    typeof value.size === "number" &&
-    "arrayBuffer" in value &&
-    typeof value.arrayBuffer === "function"
-  );
-}
+export const storedResponseBodySchema = z
+  .object({
+    schemaVersion: z.literal(EXECUTION_PROTOCOL_VERSION),
+    handle: z.string().min(1),
+    executionId: z.string().min(1),
+    blob: storedBlobSchema,
+    prettyBlob: storedBlobSchema.optional(),
+    createdAt: z.string().datetime({ offset: true }),
+    expiresAt: z.string().datetime({ offset: true }).optional(),
+  })
+  .strict();
+export type StoredResponseBody = z.infer<typeof storedResponseBodySchema>;
 
 export const stageExecutionInputSchema = z
   .object({

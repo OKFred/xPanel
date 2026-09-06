@@ -25,6 +25,7 @@ import {
   executionControlEnvelopeSchema,
 } from "./execution-messages";
 import { executionSessionId } from "./execution-session";
+import { installExecutionPermissionBridge } from "./execution-permission-bridge";
 
 const OFFSCREEN_PATH = "offscreen.html";
 const CLEANUP_ALARM = "xpanel-execution-cleanup-v1";
@@ -127,6 +128,18 @@ async function startCommand(
       command,
       "invalid_payload",
       "The staged execution payload is missing or mismatched.",
+    );
+  }
+  const contextMismatch =
+    payload.target.kind === "browser"
+      ? command.remoteContext !== undefined
+      : !command.remoteContext ||
+        command.remoteContext.profile.id !== payload.target.profileId;
+  if (contextMismatch) {
+    return rejectExecution(
+      command,
+      "invalid_remote_context",
+      "The ephemeral Remote execution context is missing or mismatched.",
     );
   }
   const runningCount = (await listExecutionSummaries()).filter(
@@ -270,6 +283,7 @@ async function cleanupAndRecoverExecutions(): Promise<void> {
 }
 
 export function startExecutionBackground(): void {
+  installExecutionPermissionBridge();
   const initialized = initializeBackground();
   void initialized.catch(() => undefined);
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

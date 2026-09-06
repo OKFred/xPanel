@@ -1,6 +1,7 @@
 import type { RequestSpecV1, ResponseRecordV1 } from "@xpanel/contracts";
 
 import { boundFilesForRequest } from "../file-bindings";
+import { hasExecutionOriginPermission } from "../execution-permission-bridge";
 import {
   beginExecution,
   finishExecution,
@@ -123,9 +124,9 @@ export async function openBrowserResponse(
           redirectedHeaders.delete(name);
         }
         credentials = "omit";
-        const hasPermission = await chrome.permissions.contains({
-          origins: [`${redirectUrl.origin}/*`],
-        });
+        const hasPermission = await hasExecutionOriginPermission(
+          redirectUrl.origin,
+        );
         if (!hasPermission) {
           throw new Error(
             `The request redirected to ${redirectUrl.origin}. Review that origin and send it explicitly to grant access.`,

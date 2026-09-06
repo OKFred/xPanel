@@ -42,6 +42,27 @@ const remoteRelayBaseUrlSchema = z
     );
   }, "Expected an HTTPS relay URL without userinfo, query, or fragment");
 
+export const remoteRelayProfileV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    id: z.string().min(1),
+    name: z.string().min(1),
+    baseUrl: remoteRelayBaseUrlSchema,
+    tokenStorage: z.enum(["session", "local"]),
+  })
+  .strict();
+export type RemoteRelayProfileV1 = z.infer<typeof remoteRelayProfileV1Schema>;
+
+export const remoteExecutionContextV1Schema = z
+  .object({
+    profile: remoteRelayProfileV1Schema,
+    token: z.string().min(1).max(16_384),
+  })
+  .strict();
+export type RemoteExecutionContextV1 = z.infer<
+  typeof remoteExecutionContextV1Schema
+>;
+
 export const keyValueItemSchema = z
   .object({
     name: z.string(),
@@ -337,6 +358,7 @@ export const startExecutionMessageSchema = z
     type: z.literal("execution.start"),
     executionId: z.string().min(1),
     payloadHandle: z.string().min(1),
+    remoteContext: remoteExecutionContextV1Schema.optional(),
   })
   .strict();
 export type StartExecutionMessage = z.infer<typeof startExecutionMessageSchema>;
@@ -477,17 +499,6 @@ export const relayHeaderV1Schema = z
   })
   .strict();
 export type RelayHeaderV1 = z.infer<typeof relayHeaderV1Schema>;
-
-export const remoteRelayProfileV1Schema = z
-  .object({
-    schemaVersion: z.literal(1),
-    id: z.string().min(1),
-    name: z.string().min(1),
-    baseUrl: remoteRelayBaseUrlSchema,
-    tokenStorage: z.enum(["session", "local"]),
-  })
-  .strict();
-export type RemoteRelayProfileV1 = z.infer<typeof remoteRelayProfileV1Schema>;
 
 export const remoteRequestMetaV1Schema = z
   .object({
@@ -673,6 +684,7 @@ export const ExecutionEventV1Schema = executionEventV1Schema;
 export const ExecutionCommandResultV1Schema = executionCommandResultV1Schema;
 export const RelayHeaderV1Schema = relayHeaderV1Schema;
 export const RemoteRelayProfileV1Schema = remoteRelayProfileV1Schema;
+export const RemoteExecutionContextV1Schema = remoteExecutionContextV1Schema;
 export const RemoteRequestMetaV1Schema = remoteRequestMetaV1Schema;
 export const RemoteResponseMetaV1Schema = remoteResponseMetaV1Schema;
 export const RemoteCapabilitiesV1Schema = remoteCapabilitiesV1Schema;

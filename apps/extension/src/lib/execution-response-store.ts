@@ -6,7 +6,7 @@ import {
 
 import { database } from "./database";
 import {
-  isStoredBlob,
+  storedResponseBodySchema,
   storedResponseMetadataSchema,
   type StoredResponseBody,
   type StoredResponseMetadata,
@@ -16,6 +16,11 @@ export type ResponseMetadataV1 = Omit<ResponseRecordV1, "body">;
 export type StoredBodyDescriptor = Omit<ResponseBody, "kind" | "content"> & {
   kind: "stored";
 };
+
+interface StoredResponseRecords {
+  metadata: StoredResponseMetadata;
+  body: StoredResponseBody;
+}
 
 function decodeBase64(value: string): ArrayBuffer {
   const binary = atob(value);
@@ -92,61 +97,91 @@ export function createStoredResponseRecordsFromBlob(input: {
       body: input.body,
       ...(input.presentation ? { presentation: input.presentation } : {}),
     }),
-    body: {
+    body: storedResponseBodySchema.parse({
       ...common,
       blob: input.blob,
       ...(input.prettyBlob ? { prettyBlob: input.prettyBlob } : {}),
-    },
+    }),
   };
 }
 
-export async function loadExecutionResponseMetadata(
+export function validateStoredResponseRecords(
   responseHandle: string,
-): Promise<StoredResponseMetadata | undefined> {
-  const db = await database();
-  const record = await db.get("execution-responses", responseHandle);
-  return record ? storedResponseMetadataSchema.parse(record) : undefined;
-}
-
-export async function loadExecutionResponseBody(
-  responseHandle: string,
-): Promise<Blob | undefined> {
-  const db = await database();
-  const record = await db.get("execution-bodies", responseHandle);
-  if (!record) return undefined;
-  if (!isStoredBlob(record.blob)) {
-    throw new Error(`Stored response ${responseHandle} has an invalid body.`);
-  }
-  return record.blob;
-}
-
-export async function loadExecutionPrettyBody(
-  responseHandle: string,
-): Promise<Blob | undefined> {
-  const db = await database();
-  const record = await db.get("execution-bodies", responseHandle);
-  if (!record?.prettyBlob) return undefined;
-  if (!isStoredBlob(record.prettyBlob)) {
+  metadataValue: unknown,
+  bodyValue: unknown,
+): StoredResponseRecords {
+  const metadata = storedResponseMetadataSchema.parse(metadataValue);
+  const bodyResult = storedResponseBodySchema.safeParse(bodyValue);
+  if (!bodyResult.success) {
     throw new Error(
-      `Stored response ${responseHandle} has invalid pretty data.`,
+      `Stored response ${responseHandle} has invalid body data.`,
+      {
+        cause: bodyResult.error,
+      },
     );
   }
-  return record.prettyBlob;
+  const body = bodyResult.data;
+  if (metadata.handle !== responseHandle || body.handle !== responseHandle) {
+    throw new Error(
+      `Stored response ${responseHandle} has a mismatched handle.`,
+    );
+  }
+  if (metadata.executionId !== body.executionId) {
+    throw new Error(
+      `Stored response ${responseHandle} has a mismatched execution association.`,
+    );
+  }
+  if (body.blob.size !== metadata.body.sizeBytes) {
+    throw new Error(
+      `Stored response ${responseHandle} size does not match its metadata.`,
+    );
+  }
+  return { metadata, body };
 }
 
-export async function loadExecutionResponse(
+async function loadStoredResponseRecords(
   responseHandle: string,
-): Promise<ResponseRecordV1 | undefined> {
+): Promise<StoredResponseRecords | undefined> {
   const db = await database();
   const [metadataValue, bodyValue] = await Promise.all([
     db.get("execution-responses", responseHandle),
     db.get("execution-bodies", responseHandle),
   ]);
-  if (!metadataValue || !bodyValue) return undefined;
-  const metadata = storedResponseMetadataSchema.parse(metadataValue);
-  if (!isStoredBlob(bodyValue.blob)) {
-    throw new Error(`Stored response ${responseHandle} has an invalid body.`);
+  if (metadataValue === undefined && bodyValue === undefined) return undefined;
+  if (metadataValue === undefined || bodyValue === undefined) {
+    throw new Error(`Stored response ${responseHandle} is incomplete.`);
   }
+  return validateStoredResponseRecords(
+    responseHandle,
+    metadataValue,
+    bodyValue,
+  );
+}
+
+export async function loadExecutionResponseMetadata(
+  responseHandle: string,
+): Promise<StoredResponseMetadata | undefined> {
+  return (await loadStoredResponseRecords(responseHandle))?.metadata;
+}
+
+export async function loadExecutionResponseBody(
+  responseHandle: string,
+): Promise<Blob | undefined> {
+  return (await loadStoredResponseRecords(responseHandle))?.body.blob;
+}
+
+export async function loadExecutionPrettyBody(
+  responseHandle: string,
+): Promise<Blob | undefined> {
+  return (await loadStoredResponseRecords(responseHandle))?.body.prettyBlob;
+}
+
+export async function loadExecutionResponse(
+  responseHandle: string,
+): Promise<ResponseRecordV1 | undefined> {
+  const records = await loadStoredResponseRecords(responseHandle);
+  if (!records) return undefined;
+  const { metadata, body: bodyValue } = records;
   const { body, ...stored } = metadata;
   const response: ResponseMetadataV1 = {
     requestId: stored.requestId,
