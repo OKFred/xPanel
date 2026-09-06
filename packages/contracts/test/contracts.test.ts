@@ -3,7 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   CollectionFileV1Schema,
   DEFAULT_REQUEST_TIMEOUT_MS,
+  EXECUTION_PROTOCOL_VERSION,
+  ExecutionCommandResultV1Schema,
+  ExecutionCommandV1Schema,
+  ExecutionEventV1Schema,
   ExecutionProgressV1Schema,
+  ExecutionSummaryV1Schema,
+  HttpMethodSchema,
   ExecutorV1Schema,
   REDACTED_VALUE,
   REMOTE_ERROR_CODES,
@@ -107,6 +113,19 @@ describe("RequestSpecV1", () => {
         RequestSpecV1Schema.safeParse(createDefaultRequest({ body }, fixedId))
           .success,
       ).toBe(true);
+    }
+  });
+
+  it("accepts uppercase HTTP token methods and rejects invalid syntax", () => {
+    for (const method of ["PROPFIND", "M-SEARCH", "CUSTOM_METHOD", "PURGE!"]) {
+      expect(HttpMethodSchema.parse(method)).toBe(method);
+      expect(
+        RequestSpecV1Schema.safeParse(createDefaultRequest({ method }, fixedId))
+          .success,
+      ).toBe(true);
+    }
+    for (const method of ["get", "BAD METHOD", "METHOD:", ""]) {
+      expect(HttpMethodSchema.safeParse(method).success).toBe(false);
     }
   });
 });
@@ -376,6 +395,115 @@ describe("Remote Relay V1", () => {
           message: "Failure",
           details: { token: "must-not-be-returned" },
         },
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("background execution V1", () => {
+  const summary = {
+    schemaVersion: EXECUTION_PROTOCOL_VERSION,
+    executionId: "execution-1",
+    requestId: "request-1",
+    executor: "browser" as const,
+    state: "running" as const,
+    retention: "10m" as const,
+    revision: 2,
+    progress: {
+      phase: "downloading" as const,
+      loadedBytes: 128,
+      totalBytes: 256,
+      elapsedMs: 12,
+    },
+    createdAt: "2026-09-06T00:00:00.000Z",
+    updatedAt: "2026-09-06T00:00:01.000Z",
+    expiresAt: "2026-09-06T00:10:01.000Z",
+  };
+
+  it("validates strict summaries and retention modes", () => {
+    expect(ExecutionSummaryV1Schema.parse(summary)).toEqual(summary);
+    for (const retention of ["10m", "1h", "session", "manual"] as const) {
+      expect(
+        ExecutionSummaryV1Schema.safeParse({ ...summary, retention }).success,
+      ).toBe(true);
+    }
+    expect(
+      ExecutionSummaryV1Schema.safeParse({ ...summary, body: "secret" })
+        .success,
+    ).toBe(false);
+    expect(
+      ExecutionSummaryV1Schema.safeParse({ ...summary, schemaVersion: 2 })
+        .success,
+    ).toBe(false);
+  });
+
+  it("keeps commands body-free and rejects unknown fields", () => {
+    const start = {
+      protocolVersion: EXECUTION_PROTOCOL_VERSION,
+      commandId: "command-1",
+      type: "execution.start" as const,
+      executionId: "execution-1",
+      payloadHandle: "payload-1",
+    };
+    expect(ExecutionCommandV1Schema.parse(start)).toEqual(start);
+    expect(
+      ExecutionCommandV1Schema.safeParse({ ...start, body: "secret" }).success,
+    ).toBe(false);
+    expect(
+      ExecutionCommandV1Schema.safeParse({
+        protocolVersion: 1,
+        commandId: "command-2",
+        type: "execution.clear",
+        expiredOnly: true,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("requires terminal events to match their state", () => {
+    const completed = {
+      protocolVersion: 1,
+      eventId: "event-1",
+      type: "execution.completed" as const,
+      execution: {
+        ...summary,
+        state: "succeeded" as const,
+        responseHandle: "response-1",
+      },
+    };
+    expect(ExecutionEventV1Schema.parse(completed)).toEqual(completed);
+    expect(
+      ExecutionEventV1Schema.safeParse({
+        ...completed,
+        execution: { ...summary, state: "succeeded" },
+      }).success,
+    ).toBe(false);
+    expect(
+      ExecutionEventV1Schema.safeParse({
+        protocolVersion: 1,
+        eventId: "event-2",
+        type: "execution.failed",
+        execution: {
+          ...summary,
+          state: "cancelled",
+          error: { code: "cancelled", message: "Request cancelled." },
+        },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("requires a structured error for rejected commands", () => {
+    expect(
+      ExecutionCommandResultV1Schema.parse({
+        protocolVersion: 1,
+        commandId: "command-1",
+        accepted: true,
+      }).accepted,
+    ).toBe(true);
+    expect(
+      ExecutionCommandResultV1Schema.safeParse({
+        protocolVersion: 1,
+        commandId: "command-1",
+        accepted: false,
       }).success,
     ).toBe(false);
   });
