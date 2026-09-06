@@ -7,17 +7,15 @@ and final submission remain manual developer-dashboard actions.
 ## URLs and classification
 
 - Category: Developer Tools
-- Homepage:
-  <https://github.com/OKFred/xPanel/tree/codex/refactor-mv3-devpanel>
+- Homepage: <https://github.com/OKFred/xPanel>
 - Support: <https://github.com/OKFred/xPanel/issues>
 - Privacy policy:
-  <https://github.com/OKFred/xPanel/blob/codex/refactor-mv3-devpanel/docs/privacy.md>
+  <https://github.com/OKFred/xPanel/blob/main/docs/privacy.md>
 - Primary locale: Chinese (Simplified)
 - Additional locale: English
 
-Keep `codex/refactor-mv3-devpanel` public while any dashboard field references
-it. After the release is merged, change the URLs to their `main` equivalents
-before deleting this branch.
+Keep these `main` URLs in the dashboard so the listing does not depend on a
+temporary development branch.
 
 ## English listing
 

@@ -2,7 +2,7 @@ name: Build review artifacts
 
 on:
   push:
-    branches: [codex/refactor-mv3-devpanel]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

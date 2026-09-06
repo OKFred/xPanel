@@ -44,7 +44,7 @@ const status = git("status", "--porcelain", "--untracked-files=all");
 invariant(!status, `Release preparation requires a clean worktree:\n${status}`);
 const branch = git("branch", "--show-current");
 invariant(
-  branch === "codex/refactor-mv3-devpanel",
+  branch === "main",
   `Refusing to prepare a store package from ${branch}.`,
 );
 const commit = git("rev-parse", "HEAD");
@@ -154,7 +154,7 @@ await writeFile(
         entries: zipEntryNames.length,
       },
       privacyPolicy:
-        "https://github.com/OKFred/xPanel/blob/codex/refactor-mv3-devpanel/docs/privacy.md",
+        "https://github.com/OKFred/xPanel/blob/main/docs/privacy.md",
       assets,
     },
     null,

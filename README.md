@@ -67,8 +67,8 @@ headers, credentials, and body pass through that service. See
 [Chrome Web Store submission kit](docs/chrome-web-store/submission.md),
 [Permissions](docs/permissions.md), and the [2.0 migration notes](docs/migration-2.0.md).
 
-The current development branch does not publish a GitHub Release or submit a
-Chrome Web Store update automatically.
+GitHub Actions produces review artifacts but does not publish a GitHub Release
+or submit a Chrome Web Store update automatically.
 
 ## License
 
