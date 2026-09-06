@@ -1,4 +1,4 @@
-# Chrome Web Store submission kit for xPanel 2.0.0
+# Chrome Web Store submission kit for xPanel 2.0.1
 
 This document contains the exact material for updating the existing item
 `diaemdialoooebdennhpgnmobnjabohm`. It does not authorize publication. Upload
@@ -7,12 +7,16 @@ and final submission remain manual developer-dashboard actions.
 ## URLs and classification
 
 - Category: Developer Tools
-- Homepage: <https://github.com/OKFred/xPanel>
+- Homepage: <https://github.com/okfred>
 - Support: <https://github.com/OKFred/xPanel/issues>
 - Privacy policy:
   <https://github.com/OKFred/xPanel/blob/main/docs/privacy.md>
 - Primary locale: Chinese (Simplified)
 - Additional locale: English
+
+`Official URL` is separate from the Manifest and listing homepage. Leave it
+unset unless the publisher account has a suitable Search Console-verified site;
+`homepage_url` does not populate that verified-site selector.
 
 Keep these `main` URLs in the dashboard so the listing does not depend on a
 temporary development branch.
@@ -122,7 +126,7 @@ to the xPanel developer.
 
 ## Reviewer instructions
 
-1. Install version 2.0.0 and open any ordinary web page.
+1. Install version 2.0.1 and open any ordinary web page.
 2. Open Chrome DevTools and select the **xPanel** tab. The extension popup is
    informational; the full product is the DevTools panel.
 3. In the default **Browser** executor, enter a public test API URL and click
@@ -153,7 +157,7 @@ window. The promo tile is 440x280, and the store icon is 128x128.
 
 ## Final dashboard checklist
 
-- Upload the reviewed `xpanelextension-2.0.0-chrome.zip` to the existing item.
+- Upload the reviewed `xpanelextension-2.0.1-chrome.zip` to the existing item.
 - Paste the localized listing copy and replace all outdated Manifest V2 images.
 - Upload the 128x128 icon, three screenshots per locale, and 440x280 promo tile.
 - Complete every Privacy practices field using the text above.
