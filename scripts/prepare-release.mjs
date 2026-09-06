@@ -19,6 +19,10 @@ const workspaceRoot = resolve(import.meta.dirname, "..");
 const extensionRoot = join(workspaceRoot, "apps", "extension");
 const outputRoot = join(extensionRoot, ".output");
 const artifactRoot = join(workspaceRoot, "artifacts", "chrome-web-store");
+const expectedRequiredPermissions = ["alarms", "offscreen", "storage"];
+const expectedOptionalHosts = ["http://*/*", "https://*/*"];
+const expectedExtensionVersion = "2.1.0";
+const expectedHomepageUrl = "https://github.com/okfred";
 const extensionPackage = JSON.parse(
   await readFile(join(extensionRoot, "package.json"), "utf8"),
 );
@@ -54,23 +58,31 @@ const commit = git("rev-parse", "HEAD");
 const upstreamCommit = git("rev-parse", "@{upstream}");
 invariant(commit === upstreamCommit, "The release commit has not been pushed.");
 invariant(manifest.manifest_version === 3, "The extension is not Manifest V3.");
-invariant(manifest.version === "2.0.1", "The extension version is not 2.0.1.");
+invariant(
+  manifest.version === expectedExtensionVersion,
+  `The extension version is not ${expectedExtensionVersion}.`,
+);
 invariant(
   extensionPackage.version === manifest.version,
   "The extension package and Manifest versions do not match.",
 );
 invariant(
-  manifest.homepage_url === "https://github.com/okfred",
+  manifest.homepage_url === expectedHomepageUrl,
   "The extension homepage URL changed after review.",
 );
 invariant(
-  JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]),
+  JSON.stringify([...(manifest.permissions ?? [])].sort()) ===
+    JSON.stringify(expectedRequiredPermissions),
   "Required permissions changed after review.",
 );
 invariant(
-  JSON.stringify(manifest.optional_host_permissions) ===
-    JSON.stringify(["http://*/*", "https://*/*"]),
+  JSON.stringify([...(manifest.optional_host_permissions ?? [])].sort()) ===
+    JSON.stringify(expectedOptionalHosts),
   "Optional host permissions changed after review.",
+);
+invariant(
+  Boolean(manifest.background?.service_worker),
+  "The extension has no background service worker.",
 );
 
 const zipFiles = (await readdir(outputRoot)).filter((name) =>
@@ -106,8 +118,27 @@ const zippedManifest = JSON.parse(
 invariant(
   zippedManifest.manifest_version === manifest.manifest_version &&
     zippedManifest.version === manifest.version &&
-    zippedManifest.homepage_url === manifest.homepage_url,
+    zippedManifest.homepage_url === manifest.homepage_url &&
+    JSON.stringify([...(zippedManifest.permissions ?? [])].sort()) ===
+      JSON.stringify(expectedRequiredPermissions) &&
+    JSON.stringify(
+      [...(zippedManifest.optional_host_permissions ?? [])].sort(),
+    ) === JSON.stringify(expectedOptionalHosts) &&
+    zippedManifest.background?.service_worker ===
+      manifest.background.service_worker,
   "The packaged manifest differs from the reviewed build output.",
+);
+invariant(
+  zipEntries["offscreen.html"],
+  "The extension ZIP does not contain the offscreen execution document.",
+);
+invariant(
+  zipEntries["workbench.html"],
+  "The extension ZIP does not contain the standalone workbench.",
+);
+invariant(
+  zipEntries[zippedManifest.background.service_worker],
+  "The extension ZIP does not contain its background service worker.",
 );
 
 invariant(
@@ -160,6 +191,9 @@ await writeFile(
       itemId: "diaemdialoooebdennhpgnmobnjabohm",
       version: manifest.version,
       manifestVersion: manifest.manifest_version,
+      homepageUrl: manifest.homepage_url,
+      permissions: expectedRequiredPermissions,
+      optionalHostPermissions: expectedOptionalHosts,
       branch,
       commit,
       package: {

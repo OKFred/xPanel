@@ -25,6 +25,10 @@ const ignoredSegments = new Set([
   "dist",
   "node_modules",
 ]);
+const expectedRequiredPermissions = ["alarms", "offscreen", "storage"];
+const expectedOptionalHosts = ["http://*/*", "https://*/*"];
+const expectedExtensionVersion = "2.1.0";
+const expectedHomepageUrl = "https://github.com/okfred";
 const forbiddenSourcePatterns = [
   ["eval", /\beval\s*\(/u],
   ["dynamic Function constructor", /\bnew\s+Function\s*\(/u],
@@ -170,10 +174,8 @@ for (const file of trackedNames) {
   }
 }
 
-const manifestPath = join(
-  root,
-  "apps/extension/.output/chrome-mv3/manifest.json",
-);
+const extensionOutputRoot = join(root, "apps/extension/.output/chrome-mv3");
+const manifestPath = join(extensionOutputRoot, "manifest.json");
 if (!existsSync(manifestPath)) {
   failures.push(
     "production MV3 manifest is missing; run the extension build first",
@@ -189,17 +191,21 @@ if (!existsSync(manifestPath)) {
 
   if (manifest.manifest_version !== 3)
     failures.push("built manifest is not Manifest V3");
-  if (manifest.version !== "2.0.1")
-    failures.push("built manifest version is not 2.0.1");
+  if (manifest.version !== expectedExtensionVersion) {
+    failures.push(`built manifest version is not ${expectedExtensionVersion}`);
+  }
   if (extensionPackage.version !== manifest.version) {
     failures.push("extension package and built manifest versions do not match");
   }
-  if (manifest.homepage_url !== "https://github.com/okfred") {
+  if (manifest.homepage_url !== expectedHomepageUrl) {
     failures.push("built manifest homepage URL is unexpected");
   }
-  if (JSON.stringify(requiredPermissions) !== JSON.stringify(["storage"])) {
+  if (
+    JSON.stringify(requiredPermissions) !==
+    JSON.stringify(expectedRequiredPermissions)
+  ) {
     failures.push(
-      `required permissions are not storage-only: ${requiredPermissions.join(", ")}`,
+      `required permissions are unexpected: ${requiredPermissions.join(", ")}`,
     );
   }
   if (optionalPermissions.length !== 0) {
@@ -207,16 +213,29 @@ if (!existsSync(manifestPath)) {
       `optional permissions are unexpected: ${optionalPermissions.join(", ")}`,
     );
   }
-  if (
-    JSON.stringify(optionalHosts) !==
-    JSON.stringify(["http://*/*", "https://*/*"].sort())
-  ) {
+  if (JSON.stringify(optionalHosts) !== JSON.stringify(expectedOptionalHosts)) {
     failures.push(
       `optional host permissions are unexpected: ${optionalHosts.join(", ")}`,
     );
   }
   if (!manifest.devtools_page)
     failures.push("built manifest has no DevTools entrypoint");
+  const backgroundScript = manifest.background?.service_worker;
+  if (!backgroundScript) {
+    failures.push("built manifest has no background service worker");
+  } else if (!existsSync(join(extensionOutputRoot, backgroundScript))) {
+    failures.push(
+      "production MV3 build is missing its background service worker",
+    );
+  }
+  for (const [file, label] of [
+    ["offscreen.html", "offscreen execution document"],
+    ["workbench.html", "standalone workbench"],
+  ]) {
+    if (!existsSync(join(extensionOutputRoot, file))) {
+      failures.push(`production MV3 build has no ${label}`);
+    }
+  }
 
   const serialized = JSON.stringify(manifest);
   for (const forbidden of [
@@ -235,6 +254,6 @@ if (failures.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    "Static MV3, permission, remote-code, and Git-history audit passed.",
+    "Static MV3, background-execution, permission, remote-code, and Git-history audit passed.",
   );
 }
