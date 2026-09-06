@@ -278,6 +278,32 @@ describe("background execution repository", () => {
     ).not.toHaveProperty("content");
   });
 
+  it("keeps a previous-session orphan visible for the new session", async () => {
+    const interrupted = await stageExecution(
+      {
+        request: createDefaultRequest({ id: "request-session-orphan" }),
+        target: { kind: "browser" },
+        retention: "session",
+      },
+      "expired-session",
+    );
+
+    // Startup clears old completed session data before it marks interrupted
+    // work as orphaned. The resulting failure therefore remains observable.
+    await cleanupPreviousSessions("replacement-session");
+    await markPreviousSessionExecutionsOrphaned("replacement-session");
+
+    expect(await listExecutionSummaries()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          executionId: interrupted.summary.executionId,
+          state: "orphaned",
+          retention: "session",
+        }),
+      ]),
+    );
+  });
+
   it("orphans a queued payload after its dispatch lease expires", async () => {
     const staged = await stageExecution(
       {

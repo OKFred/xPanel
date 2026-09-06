@@ -227,12 +227,15 @@ async function handleCommand(
 
 async function initializeBackground(): Promise<void> {
   const sessionId = await executionSessionId();
+  // Clear completed session-only data first. Active work from the previous
+  // Chrome session is orphaned afterwards so the new session can surface the
+  // failure instead of deleting it before a workbench has a chance to recover.
+  await cleanupPreviousSessions(sessionId);
   const previousSessionOrphans =
     await markPreviousSessionExecutionsOrphaned(sessionId);
   for (const execution of previousSessionOrphans) {
     await broadcast(eventForFailed(execution));
   }
-  await cleanupPreviousSessions(sessionId);
   for (const execution of await markStaleQueuedExecutionsOrphaned()) {
     await broadcast(eventForFailed(execution));
   }
