@@ -3,7 +3,7 @@ import { LoaderCircle, Play, X } from "lucide-vue-next";
 
 import AppDialog from "./AppDialog.vue";
 
-const props = defineProps<{
+defineProps<{
   busy: boolean;
   error: string;
   target: string;
@@ -47,8 +47,8 @@ const emit = defineEmits<{
         {{ $t("relayConsentIntro", { target, relay }) }}
       </p>
       <div class="relay-consent-map">
-        <span>{{ target }}</span><span aria-hidden="true">→</span
-        ><span>{{ baseUrl }}</span>
+        <span>{{ target }}</span
+        ><span aria-hidden="true">→</span><span>{{ baseUrl }}</span>
       </div>
       <strong>{{ $t("relayDataHeading") }}</strong>
       <ul class="relay-data-list">

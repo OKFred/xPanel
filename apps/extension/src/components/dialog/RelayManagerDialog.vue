@@ -16,9 +16,9 @@ import type {
 
 import AppDialog from "./AppDialog.vue";
 
+const draft = defineModel<RemoteRelayProfileV1>("draft", { required: true });
 defineProps<{
   profiles: RemoteRelayProfileV1[];
-  draft: RemoteRelayProfileV1;
   token: string;
   persistConfirmed: boolean;
   busy: boolean;
@@ -90,7 +90,8 @@ const emit = defineEmits<{
             :disabled="busy"
             @click="emit('edit', profile)"
           >
-            <strong>{{ profile.name }}</strong><span>{{ profile.baseUrl }}</span>
+            <strong>{{ profile.name }}</strong
+            ><span>{{ profile.baseUrl }}</span>
           </button>
           <button
             class="icon-button delete-icon"
@@ -136,36 +137,66 @@ const emit = defineEmits<{
               autocomplete="new-password"
               :placeholder="$t('relayTokenPlaceholder')"
               :disabled="busy"
-              @input="emit('update:token', ($event.target as HTMLInputElement).value)"
+              @input="
+                emit('update:token', ($event.target as HTMLInputElement).value)
+              "
             />
           </label>
           <label class="check-row">
-            <input v-model="draft.tokenStorage" type="radio" value="session" :disabled="busy" />
+            <input
+              v-model="draft.tokenStorage"
+              type="radio"
+              value="session"
+              :disabled="busy"
+            />
             {{ $t("relayTokenSession") }}
           </label>
           <label class="check-row">
-            <input v-model="draft.tokenStorage" type="radio" value="local" :disabled="busy" />
+            <input
+              v-model="draft.tokenStorage"
+              type="radio"
+              value="local"
+              :disabled="busy"
+            />
             {{ $t("relayTokenLocal") }}
           </label>
-          <div v-if="draft.tokenStorage === 'local'" class="relay-token-warning">
+          <div
+            v-if="draft.tokenStorage === 'local'"
+            class="relay-token-warning"
+          >
             <p>{{ $t("relayTokenLocalWarning") }}</p>
             <label class="check-row">
               <input
                 :checked="persistConfirmed"
                 type="checkbox"
                 :disabled="busy"
-                @change="emit('update:persistConfirmed', ($event.target as HTMLInputElement).checked)"
+                @change="
+                  emit(
+                    'update:persistConfirmed',
+                    ($event.target as HTMLInputElement).checked,
+                  )
+                "
               />
               {{ $t("relayPersistConfirm") }}
             </label>
           </div>
           <div class="relay-profile-actions">
-            <button class="ghost-button" type="button" :disabled="busy" @click="emit('test')">
+            <button
+              class="ghost-button"
+              type="button"
+              :disabled="busy"
+              @click="emit('test')"
+            >
               <LoaderCircle v-if="busy" class="spin" :size="14" />
               <Globe2 v-else :size="14" />
               {{ busy ? $t("testingConnection") : $t("testConnection") }}
             </button>
-            <button class="primary-button" type="button" :disabled="busy" @click="emit('save')">
+            <button
+              class="primary-button"
+              type="button"
+              :disabled="busy"
+              @click="emit('save')"
+            >
               <Save :size="14" /> {{ $t("saveRequest") }}
             </button>
           </div>
@@ -180,7 +211,12 @@ const emit = defineEmits<{
       </div>
     </div>
     <footer>
-      <button class="ghost-button" type="button" :disabled="busy" @click="emit('close')">
+      <button
+        class="ghost-button"
+        type="button"
+        :disabled="busy"
+        @click="emit('close')"
+      >
         {{ $t("cancel") }}
       </button>
     </footer>

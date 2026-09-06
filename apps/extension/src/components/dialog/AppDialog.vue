@@ -4,13 +4,15 @@ import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 const props = withDefaults(
   defineProps<{
     labelledBy: string;
-    ariaLabel?: string;
-    describedBy?: string;
+    ariaLabel?: string | undefined;
+    describedBy?: string | undefined;
     role?: "dialog" | "alertdialog";
     busy?: boolean;
     cardClass?: string;
   }>(),
   {
+    ariaLabel: undefined,
+    describedBy: undefined,
     role: "dialog",
     busy: false,
     cardClass: "",
@@ -31,8 +33,11 @@ const focusableSelector = [
 
 function focusableElements(): HTMLElement[] {
   if (!dialog.value) return [];
-  const elements = [...dialog.value.querySelectorAll<HTMLElement>(focusableSelector)].filter(
-    (element) => !element.hidden && element.getAttribute("aria-hidden") !== "true",
+  const elements = [
+    ...dialog.value.querySelectorAll<HTMLElement>(focusableSelector),
+  ].filter(
+    (element) =>
+      !element.hidden && element.getAttribute("aria-hidden") !== "true",
   );
   const preferred = dialog.value.querySelector<HTMLElement>(
     "[data-dialog-initial-focus]:not([disabled])",
@@ -76,7 +81,9 @@ function trapTab(event: KeyboardEvent): void {
 
 onMounted(() => {
   returnFocus =
-    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
   const element = dialog.value;
   if (!element) return;
   if (typeof element.showModal === "function") element.showModal();

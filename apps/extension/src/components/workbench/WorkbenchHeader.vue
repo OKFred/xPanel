@@ -19,8 +19,8 @@ import type {
 
 import HttpMethodCombobox from "../HttpMethodCombobox.vue";
 
+const current = defineModel<RequestSpecV1>("current", { required: true });
 defineProps<{
-  current: RequestSpecV1;
   collections: CollectionRecord[];
   selectedCollectionId: string;
   relayProfiles: RemoteRelayProfileV1[];
@@ -49,18 +49,36 @@ const emit = defineEmits<{
 
 <template>
   <header class="toolbar">
-    <input v-model="current.name" class="request-name" :aria-label="$t('requestName')" />
+    <input
+      v-model="current.name"
+      class="request-name"
+      :aria-label="$t('requestName')"
+    />
     <select
       :value="selectedCollectionId"
       :aria-label="$t('saveToCollection')"
-      @change="emit('update:selectedCollectionId', ($event.target as HTMLSelectElement).value)"
+      @change="
+        emit(
+          'update:selectedCollectionId',
+          ($event.target as HTMLSelectElement).value,
+        )
+      "
     >
-      <option v-for="collection in collections" :key="collection.id" :value="collection.id">
+      <option
+        v-for="collection in collections"
+        :key="collection.id"
+        :value="collection.id"
+      >
         {{ displayCollectionName(collection) }}
       </option>
     </select>
     <div class="toolbar-actions">
-      <button class="ghost-button" type="button" :disabled="busy" @click="emit('import')">
+      <button
+        class="ghost-button"
+        type="button"
+        :disabled="busy"
+        @click="emit('import')"
+      >
         <Upload :size="15" /> <span>{{ $t("import") }}</span>
       </button>
       <button class="ghost-button" type="button" @click="emit('export')">
@@ -88,10 +106,19 @@ const emit = defineEmits<{
       class="executor-select"
       :aria-label="$t('executor')"
       :disabled="busy"
-      @change="emit('update:executorSelection', ($event.target as HTMLSelectElement).value)"
+      @change="
+        emit(
+          'update:executorSelection',
+          ($event.target as HTMLSelectElement).value,
+        )
+      "
     >
       <option value="browser">{{ $t("browserExecutor") }}</option>
-      <option v-for="profile in relayProfiles" :key="profile.id" :value="profile.id">
+      <option
+        v-for="profile in relayProfiles"
+        :key="profile.id"
+        :value="profile.id"
+      >
         {{ $t("remoteExecutor", { name: profile.name }) }}
       </option>
     </select>
@@ -111,7 +138,12 @@ const emit = defineEmits<{
       :aria-label="$t('requestUrl')"
       @keyup.enter="emit('send')"
     />
-    <button v-if="!busy" class="send-button" type="button" @click="emit('send')">
+    <button
+      v-if="!busy"
+      class="send-button"
+      type="button"
+      @click="emit('send')"
+    >
       <Play :size="16" fill="currentColor" /> {{ $t("send") }}
     </button>
     <button
@@ -133,8 +165,12 @@ const emit = defineEmits<{
       class="execution-progress"
       role="progressbar"
       aria-valuemin="0"
-      :aria-valuemax="progressPercent === undefined ? undefined : progress.totalBytes"
-      :aria-valuenow="progressPercent === undefined ? undefined : progress.loadedBytes"
+      :aria-valuemax="
+        progressPercent === undefined ? undefined : progress.totalBytes
+      "
+      :aria-valuenow="
+        progressPercent === undefined ? undefined : progress.loadedBytes
+      "
       :aria-label="progressPhaseLabel"
       :aria-valuetext="progressDetail"
       aria-live="polite"
@@ -148,7 +184,11 @@ const emit = defineEmits<{
       >
         <span
           class="progress-fill"
-          :style="progressPercent === undefined ? undefined : { width: `${progressPercent}%` }"
+          :style="
+            progressPercent === undefined
+              ? undefined
+              : { width: `${progressPercent}%` }
+          "
         />
       </span>
       <span class="progress-detail">{{ progressDetail }}</span>
