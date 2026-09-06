@@ -231,6 +231,8 @@ if (!existsSync(manifestPath)) {
   for (const [file, label] of [
     ["offscreen.html", "offscreen execution document"],
     ["workbench.html", "standalone workbench"],
+    ["execution-processor.js", "streaming response processor worker"],
+    ["response-document.js", "virtual response viewer worker"],
   ]) {
     if (!existsSync(join(extensionOutputRoot, file))) {
       failures.push(`production MV3 build has no ${label}`);

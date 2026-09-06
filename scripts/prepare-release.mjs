@@ -137,6 +137,14 @@ invariant(
   "The extension ZIP does not contain the standalone workbench.",
 );
 invariant(
+  zipEntries["execution-processor.js"],
+  "The extension ZIP does not contain the streaming response processor worker.",
+);
+invariant(
+  zipEntries["response-document.js"],
+  "The extension ZIP does not contain the virtual response viewer worker.",
+);
+invariant(
   zipEntries[zippedManifest.background.service_worker],
   "The extension ZIP does not contain its background service worker.",
 );
