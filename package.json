@@ -1,6 +1,6 @@
 {
   "name": "xpanel",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "description": "A local-first Manifest V3 API client inside Chrome DevTools.",
   "license": "MIT",

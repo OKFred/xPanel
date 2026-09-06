@@ -51,7 +51,11 @@ const commit = git("rev-parse", "HEAD");
 const upstreamCommit = git("rev-parse", "@{upstream}");
 invariant(commit === upstreamCommit, "The release commit has not been pushed.");
 invariant(manifest.manifest_version === 3, "The extension is not Manifest V3.");
-invariant(manifest.version === "2.0.0", "The extension version is not 2.0.0.");
+invariant(manifest.version === "2.0.1", "The extension version is not 2.0.1.");
+invariant(
+  manifest.homepage_url === "https://github.com/okfred",
+  "The extension homepage URL changed after review.",
+);
 invariant(
   JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]),
   "Required permissions changed after review.",

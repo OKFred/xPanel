@@ -321,7 +321,7 @@ export function exportHarWithWarnings(
     value: {
       log: {
         version: "1.2",
-        creator: { name: "xPanel", version: "2.0.0" },
+        creator: { name: "xPanel", version: "2.0.1" },
         entries,
       },
     },

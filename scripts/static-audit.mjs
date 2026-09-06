@@ -186,8 +186,11 @@ if (!existsSync(manifestPath)) {
 
   if (manifest.manifest_version !== 3)
     failures.push("built manifest is not Manifest V3");
-  if (manifest.version !== "2.0.0")
-    failures.push("built manifest version is not 2.0.0");
+  if (manifest.version !== "2.0.1")
+    failures.push("built manifest version is not 2.0.1");
+  if (manifest.homepage_url !== "https://github.com/okfred") {
+    failures.push("built manifest homepage URL is unexpected");
+  }
   if (JSON.stringify(requiredPermissions) !== JSON.stringify(["storage"])) {
     failures.push(
       `required permissions are not storage-only: ${requiredPermissions.join(", ")}`,
