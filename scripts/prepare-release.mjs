@@ -69,9 +69,12 @@ invariant(
 const zipFiles = (await readdir(outputRoot)).filter((name) =>
   name.endsWith("-chrome.zip"),
 );
-invariant(zipFiles.length === 1, "Expected exactly one Chrome release ZIP.");
-const sourceZip = join(outputRoot, zipFiles[0]);
-const packageName = basename(sourceZip);
+const packageName = `xpanelextension-${manifest.version}-chrome.zip`;
+invariant(
+  zipFiles.includes(packageName),
+  `Expected the version-matched Chrome release ZIP ${packageName}.`,
+);
+const sourceZip = join(outputRoot, packageName);
 const packageHash = await sha256(sourceZip);
 const packageSize = (await stat(sourceZip)).size;
 const zipEntries = unzipSync(new Uint8Array(await readFile(sourceZip)));
@@ -95,7 +98,8 @@ const zippedManifest = JSON.parse(
 );
 invariant(
   zippedManifest.manifest_version === manifest.manifest_version &&
-    zippedManifest.version === manifest.version,
+    zippedManifest.version === manifest.version &&
+    zippedManifest.homepage_url === manifest.homepage_url,
   "The packaged manifest differs from the reviewed build output.",
 );
 
