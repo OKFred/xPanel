@@ -11,6 +11,7 @@ import {
 } from "./execution-response-store";
 import { isTerminalExecution } from "./execution-repository";
 import {
+  executionPayloadRecordSchema,
   storedExecutionRecordSchema,
   type StoredResponseMetadata,
 } from "./execution-storage";
@@ -55,6 +56,16 @@ export async function completeStreamedExecution(
     await transaction.done;
     return current.summary;
   }
+  const payloadStore = transaction.objectStore("execution-payloads");
+  const requestedPayload = await payloadStore.get(input.payloadHandle);
+  const ownedPayload =
+    requestedPayload?.executionId === input.executionId
+      ? executionPayloadRecordSchema.parse(requestedPayload)
+      : await payloadStore.index("by-execution").get(input.executionId);
+  if (!ownedPayload) {
+    throw new Error(`Execution ${input.executionId} has no staged payload.`);
+  }
+  const validatedPayload = executionPayloadRecordSchema.parse(ownedPayload);
 
   const completedAt = Date.now();
   const updatedAt = new Date(completedAt).toISOString();
@@ -89,12 +100,12 @@ export async function completeStreamedExecution(
   const fileStore = transaction.objectStore("execution-files");
   const fileKeys = await fileStore
     .index("by-payload")
-    .getAllKeys(input.payloadHandle);
+    .getAllKeys(validatedPayload.handle);
   await Promise.all([
     executionStore.put({ ...current, summary }),
     transaction.objectStore("execution-responses").put(records.metadata),
     transaction.objectStore("execution-bodies").put(records.body),
-    transaction.objectStore("execution-payloads").delete(input.payloadHandle),
+    payloadStore.delete(validatedPayload.handle),
     ...fileKeys.map((key) => fileStore.delete(key)),
   ]);
   await transaction.done;

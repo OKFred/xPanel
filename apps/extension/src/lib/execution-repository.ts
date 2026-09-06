@@ -253,6 +253,16 @@ export async function completeExecution(
     await transaction.done;
     return current.summary;
   }
+  const payloadStore = transaction.objectStore("execution-payloads");
+  const requestedPayload = await payloadStore.get(payloadHandle);
+  const ownedPayload =
+    requestedPayload?.executionId === executionId
+      ? executionPayloadRecordSchema.parse(requestedPayload)
+      : await payloadStore.index("by-execution").get(executionId);
+  if (!ownedPayload) {
+    throw new Error(`Execution ${executionId} has no staged payload.`);
+  }
+  const validatedPayload = executionPayloadRecordSchema.parse(ownedPayload);
   const completedAt = Date.now();
   const expiration = expiresAt(current.summary.retention, completedAt);
   const responseHandle = crypto.randomUUID();
@@ -280,12 +290,12 @@ export async function completeExecution(
   const fileStore = transaction.objectStore("execution-files");
   const fileKeys = await fileStore
     .index("by-payload")
-    .getAllKeys(payloadHandle);
+    .getAllKeys(validatedPayload.handle);
   await Promise.all([
     executionStore.put({ ...current, summary }),
     transaction.objectStore("execution-responses").put(records.metadata),
     transaction.objectStore("execution-bodies").put(records.body),
-    transaction.objectStore("execution-payloads").delete(payloadHandle),
+    payloadStore.delete(validatedPayload.handle),
     ...fileKeys.map((key) => fileStore.delete(key)),
   ]);
   await transaction.done;
