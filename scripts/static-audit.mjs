@@ -180,6 +180,9 @@ if (!existsSync(manifestPath)) {
   );
 } else {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const extensionPackage = JSON.parse(
+    readFileSync(join(root, "apps/extension/package.json"), "utf8"),
+  );
   const requiredPermissions = [...(manifest.permissions ?? [])].sort();
   const optionalPermissions = [...(manifest.optional_permissions ?? [])].sort();
   const optionalHosts = [...(manifest.optional_host_permissions ?? [])].sort();
@@ -188,6 +191,9 @@ if (!existsSync(manifestPath)) {
     failures.push("built manifest is not Manifest V3");
   if (manifest.version !== "2.0.1")
     failures.push("built manifest version is not 2.0.1");
+  if (extensionPackage.version !== manifest.version) {
+    failures.push("extension package and built manifest versions do not match");
+  }
   if (manifest.homepage_url !== "https://github.com/okfred") {
     failures.push("built manifest homepage URL is unexpected");
   }

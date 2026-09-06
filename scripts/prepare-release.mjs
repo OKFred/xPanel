@@ -19,6 +19,9 @@ const workspaceRoot = resolve(import.meta.dirname, "..");
 const extensionRoot = join(workspaceRoot, "apps", "extension");
 const outputRoot = join(extensionRoot, ".output");
 const artifactRoot = join(workspaceRoot, "artifacts", "chrome-web-store");
+const extensionPackage = JSON.parse(
+  await readFile(join(extensionRoot, "package.json"), "utf8"),
+);
 const manifest = JSON.parse(
   await readFile(join(outputRoot, "chrome-mv3", "manifest.json"), "utf8"),
 );
@@ -52,6 +55,10 @@ const upstreamCommit = git("rev-parse", "@{upstream}");
 invariant(commit === upstreamCommit, "The release commit has not been pushed.");
 invariant(manifest.manifest_version === 3, "The extension is not Manifest V3.");
 invariant(manifest.version === "2.0.1", "The extension version is not 2.0.1.");
+invariant(
+  extensionPackage.version === manifest.version,
+  "The extension package and Manifest versions do not match.",
+);
 invariant(
   manifest.homepage_url === "https://github.com/okfred",
   "The extension homepage URL changed after review.",
