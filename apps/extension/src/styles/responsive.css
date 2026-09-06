@@ -1,0 +1,30 @@
+@media (max-width: 1000px) {
+  .workbench-shell {
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+  .split-pane {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(300px, 1fr) minmax(260px, 1fr);
+    overflow: auto;
+  }
+  .request-pane {
+    border-right: 0;
+    border-bottom: 1px solid #1e293b;
+  }
+  .toolbar-actions .ghost-button span {
+    display: none;
+  }
+  .executor-select {
+    width: 125px;
+  }
+  .relay-manage-button {
+    padding-inline: 7px;
+  }
+  .execution-progress {
+    grid-template-columns: minmax(110px, auto) minmax(100px, 1fr);
+  }
+  .progress-detail {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+}

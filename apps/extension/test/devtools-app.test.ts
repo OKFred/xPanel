@@ -133,6 +133,12 @@ async function mountApp(pinia: Pinia = createPinia()): Promise<VueWrapper> {
   const wrapper = mount(App, {
     global: {
       plugins: [pinia, i18n],
+      stubs: {
+        ResponseDocumentViewer: {
+          props: ["source", "sizeBytes", "mode", "ariaLabel"],
+          template: '<pre class="response-document-viewer">{{ source }}</pre>',
+        },
+      },
     },
   });
   await flushPromises();
@@ -933,11 +939,18 @@ describe("saved item deletion", () => {
     expect(dialog.text()).toContain("Delete request?");
     expect(dialog.text()).toContain("every collection and Favorites");
     expect(dialog.text()).toContain("This action cannot be undone.");
-    expect(wrapper.get("aside.sidebar").attributes()).toHaveProperty("inert");
+    expect(wrapper.get("aside.sidebar").attributes()).not.toHaveProperty(
+      "inert",
+    );
+    expect(wrapper.get("aside.sidebar").attributes()).not.toHaveProperty(
+      "aria-hidden",
+    );
+    expect(dialog.attributes()).toHaveProperty("open");
     const cancel = dialog.get("button.ghost-button");
     expect(focus.mock.instances).toContain(cancel.element);
 
     await cancel.trigger("click");
+    await flushPromises();
 
     expect(deleteRequest).not.toHaveBeenCalled();
     expect(wrapper.find('[role="alertdialog"]').exists()).toBe(false);

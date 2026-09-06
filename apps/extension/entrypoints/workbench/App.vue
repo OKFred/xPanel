@@ -3,5 +3,5 @@ import Workbench from "../../src/components/workbench/Workbench.vue";
 </script>
 
 <template>
-  <Workbench surface="devtools" />
+  <Workbench surface="standalone" />
 </template>
