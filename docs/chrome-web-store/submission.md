@@ -5,6 +5,14 @@ the existing item `diaemdialoooebdennhpgnmobnjabohm`. It does not authorize
 upload, submission, or publication; all three remain manual
 developer-dashboard actions.
 
+## Yellow Argon resubmission
+
+The 7 September 2026 review rejected only the localized listing descriptions
+for excessive format keywords (`Yellow Argon`). Keep the already uploaded
+2.1.0 package, edit both descriptions using the copy below, and resubmit the
+draft without appealing. Do not upload the unchanged ZIP again or increment the
+extension version for this metadata-only correction.
+
 ## Publishing mode
 
 Use [deferred publishing](https://developer.chrome.com/docs/webstore/update#deferred-publishing)
@@ -51,12 +59,12 @@ explicit choice and confirmation.
 
 Key features:
 
-- Build requests with URL parameters, authentication, headers, JSON, text,
-  URL-encoded, and multipart bodies.
-- Inspect pretty or raw response bodies, headers, timing, redirects, and
-  returned Set-Cookie values.
-- Import and export cURL (Bash), PowerShell, Node fetch, HAR 1.2, OpenAPI 3,
-  Swagger 2, and versioned xPanel collections.
+- Build HTTP requests with parameters, authentication, headers, and common
+  body types.
+- Inspect response content and metadata, including redirects and returned
+  cookies.
+- Bring requests in from common developer-tool exports and API documents, then
+  export reusable collections.
 - Save collections and favorites locally, format JSON, copy results quickly,
   and cancel active requests.
 - Continue a request the user started if the standalone page or DevTools panel
@@ -90,9 +98,9 @@ xPanel 既提供独立扩展页面，也保留 Chrome DevTools 内的 API 请求
 
 主要功能：
 
-- 编辑 URL 参数、认证、请求头以及 JSON、文本、URL 编码和 multipart 请求正文。
-- 查看美化或原始响应、响应头、耗时、重定向以及返回的 Set-Cookie。
-- 导入和导出 cURL（Bash）、PowerShell、Node fetch、HAR 1.2、OpenAPI 3、Swagger 2 和版本化 xPanel 集合。
+- 构建包含参数、认证、请求头和常见正文类型的 HTTP 请求。
+- 检查响应内容与元数据，包括重定向和返回的 Cookie。
+- 从常见开发工具导出内容和接口文档中导入请求，并导出为可复用集合。
 - 在本地保存集合和收藏，快速美化 JSON、复制结果并中止请求。
 - 独立页面或 DevTools 面板关闭后，仍可继续完成用户主动发起的请求；重新打开工作台即可读取临时本地结果。默认保留 10 分钟，也可选择 1 小时、当前 Chrome 会话或手动清理；手动保留会再次提示敏感数据风险。
 - 默认超时 60 秒，显示真实请求阶段；响应大小已知时显示下载百分比。
@@ -182,7 +190,11 @@ is 440x280, and the store icon is 128x128.
 
 ## Final dashboard checklist
 
-- Upload the reviewed `xpanelextension-2.1.0-chrome.zip` to the existing item.
+- For the `Yellow Argon` metadata resubmission, keep the existing uploaded
+  2.1.0 package and confirm that neither rejected keyword list remains in the
+  localized descriptions.
+- Upload `xpanelextension-2.1.0-chrome.zip` only when creating the original
+  2.1.0 draft or when the dashboard no longer retains that package.
 - Paste the localized listing copy and replace all outdated Manifest V2 images.
 - Upload the 128x128 icon, three screenshots per locale, and 440x280 promo tile.
 - Complete every Privacy practices field using the text above.

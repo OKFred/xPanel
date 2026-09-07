@@ -24,6 +24,7 @@ jobs:
       - run: pnpm build:packages
       - run: pnpm --filter @xpanel/extension zip
       - run: pnpm audit:static
+      - run: pnpm listing:verify
       - uses: anchore/sbom-action@v0
         with:
           path: apps/extension/.output/chrome-mv3
