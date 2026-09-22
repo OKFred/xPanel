@@ -102,6 +102,14 @@ post-fix full repeat remains open.
   adoption (without stealing locally pending tasks), regression tests and a
   new passing Node UI run. Cloud resources and credentials were deleted and
   absence verified. The original run remains failed pending a full repeat.
+- `xp3-df378786aa92`: failed the deployment verifier's public Control route
+  check before UI acceptance; subsequent read-only health/capabilities probes
+  returned 200. After confirming the helper stopped and the exact deployment
+  owner/revision, guarded cleanup deleted both Workers and D1. The synthetic
+  fixture was separately deleted and absence verified. The original failed
+  receipt is unchanged; local credential deletion requires user confirmation.
+  Readiness now requires three consecutive successful public-route probes,
+  including a regression test for intermittent provider responses.
 
 Failed runs and their cleanup follow-ups are not evidence of passed acceptance.
 

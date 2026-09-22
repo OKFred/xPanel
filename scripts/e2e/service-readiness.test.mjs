@@ -23,6 +23,17 @@ test("waits only on read-only public routes and retries propagation", async () =
   assert.equal(waits, 4);
 });
 
+test("Control readiness resets after an intermittent provider response", async () => {
+  let calls = 0;
+  const rounds = [200, 200, 503, 200, 200, 200];
+  await waitForControlRoutes("https://control.example", {
+    fetch: async () =>
+      new Response(null, { status: rounds[Math.floor(calls++ / 2)] }),
+    wait: async () => {},
+  });
+  assert.equal(calls, 12);
+});
+
 test("Gateway readiness requires protocol response, sends no credentials or target", async () => {
   let calls = 0;
   await waitForGatewayRoute("https://gateway.example/", {
