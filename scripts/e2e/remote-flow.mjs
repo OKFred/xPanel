@@ -1,6 +1,6 @@
 import { clickTextScript, setInput } from "./panel-actions.mjs";
 import { invariant, waitFor } from "./utils.mjs";
-import { runRemoteResultChecks } from "./remote-result-checks.mjs";
+import { runRemoteResultChecks, result } from "./remote-result-checks.mjs";
 import { runRemoteConformanceFlow } from "./remote-conformance-flow.mjs";
 import { runRemotePayloadFlow } from "./remote-payload-flow.mjs";
 
@@ -151,10 +151,11 @@ export async function runRemoteFlow(
       30_000,
     );
   } catch (error) {
-    const snapshot = await panel.evaluate(
-      `document.body.innerText.slice(-4000)`,
-    );
-    throw new Error(`Remote UI snapshot:\n${snapshot}`, { cause: error });
+    // Keep diagnostics separate from target body/headers, even for fixtures.
+    const snapshot = await result(panel);
+    throw new Error(`Remote UI state: ${JSON.stringify(snapshot)}`, {
+      cause: error,
+    });
   }
   invariant(
     text.includes("Remote"),

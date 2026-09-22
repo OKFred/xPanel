@@ -9,7 +9,10 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { invariant } from "./utils.mjs";
 import { verifyOneFetchSource } from "./one-fetch-source.mjs";
-import { waitForControlRoutes } from "./service-readiness.mjs";
+import {
+  waitForControlRoutes,
+  waitForGatewayRoute,
+} from "./service-readiness.mjs";
 
 const execute = promisify(execFile);
 const { OneFetchControlClient } = await import(
@@ -173,6 +176,9 @@ export async function startOneFetchCloudflareFixture(
     receipt.stage = "control-readiness";
     await record();
     await waitForControlRoutes(deployed.controlUrl);
+    receipt.stage = "gateway-readiness";
+    await record();
+    await waitForGatewayRoute(deployed.gatewayUrl);
     receipt.stage = "verify";
     await record();
     await deploy.verifyCloudflareDeployment(

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { waitForControlRoutes } from "./service-readiness.mjs";
+import {
+  waitForControlRoutes,
+  waitForGatewayRoute,
+} from "./service-readiness.mjs";
 
 test("waits only on read-only public routes and retries propagation", async () => {
   let calls = 0;
@@ -18,6 +21,41 @@ test("waits only on read-only public routes and retries propagation", async () =
   });
   assert.equal(calls, 6);
   assert.equal(waits, 2);
+});
+
+test("Gateway readiness requires protocol response, sends no credentials or target", async () => {
+  let calls = 0;
+  await waitForGatewayRoute("https://gateway.example/", {
+    fetch: async (url, init) => {
+      assert.equal(url, "https://gateway.example/");
+      assert.equal(init.method, "GET");
+      assert.equal(init.headers, undefined);
+      calls += 1;
+      return new Response(
+        null,
+        calls < 3
+          ? { status: 404 }
+          : {
+              status: 400,
+              headers: { "One-Fetch-Response": "application-rejection" },
+            },
+      );
+    },
+    wait: async () => {},
+  });
+  assert.equal(calls, 3);
+  calls = 0;
+  await assert.rejects(
+    waitForGatewayRoute("https://gateway.example/", {
+      fetch: async () => {
+        calls += 1;
+        return new Response(null, { status: 400 });
+      },
+      wait: async () => {},
+    }),
+    /bounded startup/,
+  );
+  assert.equal(calls, 10);
 });
 
 test("fails closed on authorization and bounded never-ready probes", async () => {

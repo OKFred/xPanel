@@ -39,3 +39,31 @@ export async function waitForControlRoutes(controlUrl, dependencies = {}) {
     "Control public routes did not become ready within the bounded startup window.",
   );
 }
+
+/** No token or target metadata: this probe cannot initiate an upstream request. */
+export async function waitForGatewayRoute(gatewayUrl, dependencies = {}) {
+  const read = dependencies.fetch ?? fetch;
+  const wait =
+    dependencies.wait ?? (() => new Promise((done) => setTimeout(done, 5_000)));
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      const response = await read(gatewayUrl, {
+        method: "GET",
+        cache: "no-store",
+        redirect: "error",
+        signal: globalThis.AbortSignal.timeout(10_000),
+      });
+      // This checks application routing, not credential or signature validity.
+      const ready =
+        response.status === 400 && response.headers.has("One-Fetch-Response");
+      await response.body?.cancel();
+      if (ready) return;
+    } catch (error) {
+      if (!(error instanceof TypeError) || attempt === 9) throw error;
+    }
+    if (attempt < 9) await wait();
+  }
+  throw new Error(
+    "Gateway did not return its protocol rejection within the bounded startup window.",
+  );
+}
