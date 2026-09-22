@@ -22,7 +22,9 @@ export async function send(panel, url) {
   await waitFor(
     () => panel.evaluate("globalThis.__xpanelRemoteCycle.finished"),
     "Remote request finish",
-    40_000,
+    // Production defaults to 60 seconds. Never fail the harness while a valid
+    // request is still inside that budget (plus Control/report overhead).
+    75_000,
   );
 }
 export async function result(panel) {

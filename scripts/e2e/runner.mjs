@@ -188,13 +188,18 @@ export async function runChromiumE2e(config = e2eConfig) {
       fixtureOrigin,
       panel: panelClient,
     });
-    if (remoteConfig.remoteFixtureKind === "xpanel-synthetic-v1")
+    if (
+      ["xpanel-synthetic-v1", "one-fetch-conformance"].includes(
+        remoteConfig.remoteFixtureKind,
+      )
+    )
       await runRemoteBackgroundFlow({
         browser: browserClient,
         debugPort,
         extensionOrigin,
         failures: pageFailures,
         origin: new URL(remoteConfig.remoteTargetUrl).origin,
+        cloud: remoteConfig.remoteFixtureKind === "one-fetch-conformance",
       });
     if (captureStoreAssets) {
       const standalonePage = await openPageTarget(

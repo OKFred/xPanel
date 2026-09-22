@@ -15,7 +15,10 @@ export async function runRemoteBackgroundFlow({
   extensionOrigin,
   failures,
   origin,
+  cloud = false,
 }) {
+  const slowUrl = `${origin}/${cloud ? "delay/12000" : "slow"}`;
+  const marker = cloud ? "delayed" : "remote-slow";
   const opened = await openPageTarget(
     browser,
     debugPort,
@@ -35,12 +38,12 @@ export async function runRemoteBackgroundFlow({
     select.value = [...select.options].find(option => option.value !== 'browser').value;
     select.dispatchEvent(new Event('change', {bubbles: true}));
   })()`);
-  await setInput(panel, ".url-input", `${origin}/slow`);
+  await setInput(panel, ".url-input", slowUrl);
   await panel.evaluate(clickTextScript("Send"), { userGesture: true });
   await waitFor(
     () =>
       panel.evaluate(
-        "document.querySelector('[role=progressbar]')?.getAttribute('aria-label')?.includes('Downloading')",
+        `document.querySelector('[role=progressbar]')?.getAttribute('aria-label')?.includes('${cloud ? "Waiting" : "Downloading"}')`,
       ),
     "remote background stream",
   );
@@ -60,12 +63,12 @@ export async function runRemoteBackgroundFlow({
   try {
     await waitFor(
       () =>
-        panel.evaluate(`document.body.innerText.includes('remote-slow') &&
+        panel.evaluate(`document.body.innerText.includes(${JSON.stringify(marker)}) &&
       /Body integrity\\s*:\\s*Verified\\b/.test(document.querySelector('.one-fetch-result')?.innerText ?? '')`),
       "remote background verified completion",
       30_000,
     );
-    await setInput(panel, ".url-input", `${origin}/slow`);
+    await setInput(panel, ".url-input", slowUrl);
     await panel.evaluate(clickTextScript("Send"), { userGesture: true });
     await waitFor(
       () =>
@@ -97,7 +100,9 @@ export async function runRemoteBackgroundFlow({
         "remote cancellation reflected at sender",
       );
       invariant(
-        await panel.evaluate("document.body.innerText.includes('remote-slow')"),
+        await panel.evaluate(
+          `document.body.innerText.includes(${JSON.stringify(marker)})`,
+        ),
         "Cross-interface cancellation lost the last successful body.",
       );
     } finally {
