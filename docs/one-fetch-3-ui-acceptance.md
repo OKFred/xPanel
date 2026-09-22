@@ -9,7 +9,7 @@ permission to merge, submit to the Chrome Web Store or publish the extension.
   All 18 public release files match the reviewed manifest/checksums; provenance
   was verified separately. See [release evidence](one-fetch-browser-0.1.2-acceptance.md).
 - Type checking, lint, dependency-source tests and all unit/component suites;
-  extension tests include 192 cases. Browser envelope negotiation fails closed,
+  extension tests include 195 cases. Browser envelope negotiation fails closed,
   and signed target statuses are not confused with outer HTTP 200.
 - Actual Node-backed Chromium workbench: target 201/302/404/503, policy error,
   repeated Set-Cookie, target timing, 20 MiB digest, overflow/partial protection,
@@ -17,7 +17,8 @@ permission to merge, submit to the Chrome Web Store or publish the extension.
 - Node UI also verifies exact UTF-8 JSON, repeated/encoded query, a selected
   binary file, multipart text/file and a one-second timeout retaining the last
   result. The latest repeat passed after adding cancellable capability-preflight
-  progress; Remote Stop acknowledgement was 65.9 ms.
+  progress and live cross-window execution adoption; Remote Stop acknowledgement
+  was 62.0 ms.
 - Production dependency audit passed after pinning YAML 2.8.3 and fflate 0.8.3.
   Bounded regression tests exercise deeply nested YAML and malformed ZIP64.
 - Release packaging now requires a production CycloneDX dependency inventory
@@ -80,6 +81,18 @@ do not substitute for full xPanel UI acceptance with the released dependencies.
   and credential cleanup completed and absence was verified. A separate,
   bounded Gateway routing probe now requires the application's protocol
   rejection before starting UI tests; it sends no token or target metadata.
+- `xp3-be1c8ab984f4`: passed upload/status/timing/20 MiB cases, but the ordinary
+  Workers-hosted errored stream was normalized into a complete seven-byte
+  response. The test did not represent a wire truncation, so the run failed.
+  Its resources and credentials were deleted and absence verified.
+- `xp3-f81e419b6750`: the replacement FixedLengthStream fixture first proved
+  a real read failure with fourteen advertised bytes. UI status, payload,
+  timing, 20 MiB/+1, truncation and Stop checks then passed. Background completion
+  and recovery passed, but a second window opened during preflight missed the
+  subsequent execution event. This product race is fixed with idle-observer
+  adoption (without stealing locally pending tasks), regression tests and a
+  new passing Node UI run. Cloud resources and credentials were deleted and
+  absence verified. The original run remains failed pending a full repeat.
 
 Failed runs and their cleanup follow-ups are not evidence of passed acceptance.
 
