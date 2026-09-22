@@ -22,6 +22,7 @@ export default tseslint.config(
       "**/worker-configuration.d.ts",
       "artifacts/**",
       "legacy/**",
+      "apps/relay-cloudflare/**",
     ],
   },
   eslint.configs.recommended,
