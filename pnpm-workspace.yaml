@@ -2,6 +2,12 @@ packages:
   - apps/*
   - packages/*
 
+# pnpm 11 has no per-package exotic-subdependency exception. The readPackage
+# hook allows ONLY the three audited one-fetch Release URLs, rejecting all
+# other non-registry transitive sources. Frozen lockfiles pin their integrity.
+blockExoticSubdeps: false
+pnpmfile: .pnpmfile.cjs
+
 allowBuilds:
   "@tailwindcss/oxide": true
   esbuild: true

@@ -4,6 +4,8 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+pnpmfileChecksum: sha256-lzfwgIYKaJOxYtdP98hIuMx+R1rsgemJKW+pjs7ZrQM=
+
 importers:
 
   .:
@@ -47,6 +49,12 @@ importers:
 
   apps/extension:
     dependencies:
+      '@one-fetch/client':
+        specifier: https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-client-0.1.1.tgz
+        version: https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-client-0.1.1.tgz
+      '@one-fetch/protocol':
+        specifier: https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-protocol-0.1.1.tgz
+        version: https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-protocol-0.1.1.tgz
       '@vueuse/core':
         specifier: 13.9.0
         version: 13.9.0(vue@3.5.42(typescript@5.9.2))
@@ -151,6 +159,9 @@ importers:
 
   packages/contracts:
     dependencies:
+      '@one-fetch/protocol':
+        specifier: https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-protocol-0.1.1.tgz
+        version: https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-protocol-0.1.1.tgz
       zod:
         specifier: 4.5.4
         version: 4.5.4
@@ -915,6 +926,18 @@ packages:
   '@nodelib/fs.walk@1.2.8':
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
+
+  '@one-fetch/client@https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-client-0.1.1.tgz':
+    resolution: {tarball: https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-client-0.1.1.tgz}
+    version: 0.1.1
+
+  '@one-fetch/core@https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-core-0.1.1.tgz':
+    resolution: {tarball: https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-core-0.1.1.tgz}
+    version: 0.1.1
+
+  '@one-fetch/protocol@https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-protocol-0.1.1.tgz':
+    resolution: {tarball: https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-protocol-0.1.1.tgz}
+    version: 0.1.1
 
   '@one-ini/wasm@0.1.1':
     resolution: {integrity: sha512-XuySG1E38YScSJoMlqovLru4KTUNSjgVTIjyh7qMX6aNN5HY5Ct5LhRJdxO79JtTzKfzV/bnWpz+zquYrISsvw==}
@@ -3534,6 +3557,20 @@ snapshots:
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.3
+
+  '@one-fetch/client@https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-client-0.1.1.tgz':
+    dependencies:
+      '@one-fetch/core': https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-core-0.1.1.tgz
+      '@one-fetch/protocol': https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-protocol-0.1.1.tgz
+      zod: 4.5.4
+
+  '@one-fetch/core@https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-core-0.1.1.tgz':
+    dependencies:
+      '@one-fetch/protocol': https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-protocol-0.1.1.tgz
+
+  '@one-fetch/protocol@https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-protocol-0.1.1.tgz':
+    dependencies:
+      zod: 4.5.4
 
   '@one-ini/wasm@0.1.1': {}
 
