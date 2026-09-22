@@ -55,6 +55,19 @@ invariant(
   `Refusing to prepare a store package from ${branch}.`,
 );
 const commit = git("rev-parse", "HEAD");
+const sbomPath = join(outputRoot, "sbom.cdx.json");
+const sbom = JSON.parse(await readFile(sbomPath, "utf8"));
+const sbomProperty = (name) =>
+  sbom.metadata?.properties?.find((item) => item.name === name)?.value;
+invariant(
+  sbomProperty("xpanel:commit") === commit,
+  "SBOM belongs to a different commit.",
+);
+invariant(
+  sbomProperty("xpanel:lockfile-sha256") ===
+    (await sha256(join(workspaceRoot, "pnpm-lock.yaml"))),
+  "SBOM lockfile digest is stale.",
+);
 const upstreamCommit = git("rev-parse", "@{upstream}");
 invariant(commit === upstreamCommit, "The release commit has not been pushed.");
 invariant(manifest.manifest_version === 3, "The extension is not Manifest V3.");
@@ -157,6 +170,7 @@ invariant(
 await rm(artifactRoot, { recursive: true, force: true });
 await mkdir(artifactRoot, { recursive: true });
 await copyFile(sourceZip, join(artifactRoot, packageName));
+await copyFile(sbomPath, join(artifactRoot, "sbom.cdx.json"));
 await cp(
   join(workspaceRoot, "docs", "chrome-web-store"),
   join(artifactRoot, "submission-kit"),
@@ -168,7 +182,7 @@ await copyFile(
 );
 await writeFile(
   join(artifactRoot, "SHA256SUMS"),
-  `${packageHash}  ${packageName}\n`,
+  `${packageHash}  ${packageName}\n${await sha256(sbomPath)}  sbom.cdx.json\n`,
   "utf8",
 );
 
@@ -209,6 +223,11 @@ await writeFile(
         sha256: packageHash,
         bytes: packageSize,
         entries: zipEntryNames.length,
+      },
+      sbom: {
+        name: "sbom.cdx.json",
+        sha256: await sha256(sbomPath),
+        components: sbom.components.length,
       },
       privacyPolicy:
         "https://github.com/OKFred/xPanel/blob/main/docs/privacy.md",

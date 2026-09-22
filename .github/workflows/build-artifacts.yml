@@ -25,6 +25,7 @@ jobs:
       - run: pnpm --filter @xpanel/extension zip
       - run: pnpm audit:static
       - run: pnpm listing:verify
+      - run: pnpm sbom:extension
       - uses: anchore/sbom-action@v0
         with:
           path: apps/extension/.output/chrome-mv3
@@ -49,6 +50,7 @@ jobs:
             apps/extension/.output/*-chrome.zip
             apps/extension/.output/SHA256SUMS
             apps/extension/.output/sbom.spdx.json
+            apps/extension/.output/sbom.cdx.json
             docs/chrome-web-store
             docs/privacy.md
 
