@@ -214,6 +214,8 @@ export async function startOneFetchSupabaseFixture(
     );
     fixtureAttempted = true;
     const fixture = await fixtureTools.deployCloudflareFixture(fixtureName, {
+      // Same bounded workers.dev propagation window as Cloudflare acceptance.
+      wait: () => new Promise((resolveWait) => setTimeout(resolveWait, 5_000)),
       // Readiness GETs are safe to retry; resource creation is never retried.
       fetch: async (url, init) => {
         for (let attempt = 0; attempt < 3; attempt += 1) {

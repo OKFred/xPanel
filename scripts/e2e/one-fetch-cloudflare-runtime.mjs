@@ -146,6 +146,9 @@ export async function startOneFetchCloudflareFixture(
     fixtureAttempted = true;
     // Retry only safe readiness GETs, never the resource-creation operation.
     fixture = await fixtureTools.deployCloudflareFixture(fixtureName, {
+      // workers.dev routing can take longer than the fixture CLI's 9-second
+      // default window. Keep ten read-only probes, spaced five seconds apart.
+      wait: () => new Promise((resolveWait) => setTimeout(resolveWait, 5_000)),
       fetch: async (url, init) => {
         for (let attempt = 0; attempt < 3; attempt += 1) {
           try {
