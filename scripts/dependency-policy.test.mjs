@@ -3,8 +3,8 @@ import { createRequire } from "node:module";
 import test from "node:test";
 
 const { hooks } = createRequire(import.meta.url)("../.pnpmfile.cjs");
-const base = "https://github.com/OKFred/one-fetch/releases/download/v0.1.1/";
-const approved = `${base}one-fetch-client-0.1.1.tgz`;
+const base = "https://github.com/OKFred/one-fetch/releases/download/v0.1.2/";
+const approved = `${base}one-fetch-client-0.1.2.tgz`;
 const packageWith = (spec, name = "untrusted", field = "dependencies") => ({
   name,
   [field]: { "@one-fetch/client": spec },
@@ -55,7 +55,7 @@ test("rejects exotic dependencies including aliases and dev/optional/peer fields
   assert.throws(
     () =>
       hooks.readPackage(
-        packageWith(approved.replace("v0.1.1", "v0.1.2"), "@xpanel/extension"),
+        packageWith(approved.replace("v0.1.2", "v0.1.1"), "@xpanel/extension"),
       ),
     /Unapproved/,
   );

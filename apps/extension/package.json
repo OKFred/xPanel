@@ -12,9 +12,9 @@
     "zip": "wxt zip"
   },
   "dependencies": {
-    "@one-fetch/client": "https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-client-0.1.1.tgz",
-    "@one-fetch/core": "https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-core-0.1.1.tgz",
-    "@one-fetch/protocol": "https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-protocol-0.1.1.tgz",
+    "@one-fetch/client": "https://github.com/OKFred/one-fetch/releases/download/v0.1.2/one-fetch-client-0.1.2.tgz",
+    "@one-fetch/core": "https://github.com/OKFred/one-fetch/releases/download/v0.1.2/one-fetch-core-0.1.2.tgz",
+    "@one-fetch/protocol": "https://github.com/OKFred/one-fetch/releases/download/v0.1.2/one-fetch-protocol-0.1.2.tgz",
     "@vueuse/core": "13.9.0",
     "@xpanel/contracts": "workspace:*",
     "@xpanel/request-core": "workspace:*",

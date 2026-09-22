@@ -1,11 +1,11 @@
 // Scoped replacement for pnpm 11's all-or-nothing blockExoticSubdeps setting.
 // No downloaded manifest may introduce an arbitrary URL/git/file dependency.
 /* global module */
-const base = "https://github.com/OKFred/one-fetch/releases/download/v0.1.1/";
+const base = "https://github.com/OKFred/one-fetch/releases/download/v0.1.2/";
 const approved = new Map(
   ["client", "core", "protocol"].map((name) => [
     `@one-fetch/${name}`,
-    `${base}one-fetch-${name}-0.1.1.tgz`,
+    `${base}one-fetch-${name}-0.1.2.tgz`,
   ]),
 );
 
@@ -44,10 +44,10 @@ function readPackage(pkg) {
 
 const integrity = {
   client:
-    "sha512-MgruitV82ehl6oC6vNL1IbN7daZPQfG1inItr2JQ9IwBs0rzGDloKY1O8xRgP4Nt07+Aa8khHvd9+86YPqOBGA==",
+    "sha512-z6eKiMYbWvBicqYDWTI8yCl1y5J7bafkrKXrRf6KS9B/22p6EsEJxfrvwfgoU2YyfGe3L4uHPaw7FLNxVc5ZUg==",
   protocol:
-    "sha512-nAnynTp0I5y7CRor0aPHAeOLF29hBHoYqJKvUuUGWKspwy+ybTO6lDe5eqUijmIuIQJr1DWdsP31DoFUDOGTPQ==",
-  core: "sha512-CBikVSbbiINdDJIiH+r2NmqalA9OwXxhjcUESao1ZJ/pOC7pJa/vwc9/mMKcDEFcKDs2fNPGLmuBoL7SWva0FA==",
+    "sha512-45tWYI45fauNIraI01Wov1NbJwZJN4Dm+RSC4OcQQXGG2MFSPE33vaVVjoJ8hUdmjNg/zaTZIjwP88dfJjdKIw==",
+  core: "sha512-c/mGPFk6CuAncLAVBDE355AOcm3LdWcXB4KmW9hy3/SEecCS6jwquuXNyolZhzk0KZYvNUE5KgEKkPenA31dAQ==",
 };
 
 function afterAllResolved(lockfile) {

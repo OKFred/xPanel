@@ -3,15 +3,20 @@
 This branch replaces the legacy Relay V1 client with one-fetch Protocol V1.
 Browser execution and portable request/collection formats remain unchanged.
 
-The client, core and protocol dependencies use immutable `v0.1.1` GitHub
+The client, core and protocol dependencies use immutable `v0.1.2` GitHub
 Release archives, with SHA-512 integrity in pnpm-lock.yaml. Never replace a
 published archive under the same tag or fall back to an unpinned branch.
 
-Source: `b8e8b3558bca6236e92b7c18db167759da9cc43c` in OKFred/one-fetch.
-Review bundle: https://github.com/OKFred/one-fetch/actions/runs/35696257932.
-Client SHA-256: `09a300fcbd1ea443c7ed6397eda7b68dcdac4c9b03186a43eaa9c131b6d7e442`.
-Core SHA-256: `49d0508ad194647230b59571ffb3d16a80a6745263d6e8150b1039ab5df6d011`.
-Protocol SHA-256: `ba6122a24fd7472a6cbc9a189de77866a4c3a48a50ff7944299510b12fdbf532`.
+Source: `056380ecbfc48cedea82096a86196a29261395b4` in OKFred/one-fetch.
+Review bundle: https://github.com/OKFred/one-fetch/actions/runs/35733088736.
+Client SHA-256: `1bcd7f1808419116d30e5401abe87b0f925fa0840d84c84b8e5019d8f9c79d15`.
+Core SHA-256: `0c6287c34f35ab3855125d4eb92ad904c1061d913b09ff69eb23fc4a0bc5b459`.
+Protocol SHA-256: `67425c68d3f5eeb3ceb691ed66fae1884c808a468b203131e13a659241e1d13a`.
+
+xPanel explicitly requires the advertised `adapter.browserResponse` capability
+with `envelope-v1`. The signed target status is independent of outer HTTP 200;
+old services without this browser-compatible mode are blocked before Gateway
+access. Signature/identity/mode mismatches remain intermediary diagnostics.
 
 Profiles use separate Control and Gateway service URLs; same-origin Supabase
 function prefixes are supported. HTTPS is required except explicitly confirmed
