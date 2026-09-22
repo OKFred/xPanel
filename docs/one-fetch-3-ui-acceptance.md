@@ -135,6 +135,14 @@ not a final main ZIP digest or permission to publish.
   backoff and persisted success classification. All temporary resources and
   credentials were deleted and absence verified. All adapters will be repeated
   on the hardened runtime; this attempt is not a passed acceptance.
+- `xp3-6076305e3d84`: the full hardened Cloudflare run passed; guarded cleanup
+  verified both Workers, D1, synthetic fixture and local credentials absent.
+- `xpanel-three-76dde0aa7e45`: the Supabase repeat stopped before UI acceptance
+  because the independent synthetic truncation probe did not receive the
+  expected wire length. The temporary project, fixture and credentials were
+  removed and checked absent. Fixture probes now retry only read-only 404/5xx
+  responses, never a successful but non-truncated response, and expose only the
+  status code when the advertised length is wrong. This attempt did not pass.
 
 Failed runs and their cleanup follow-ups are not evidence of passed acceptance.
 

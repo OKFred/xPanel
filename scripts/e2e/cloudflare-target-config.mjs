@@ -35,15 +35,28 @@ export async function fixtureDeploymentRunner(root, directory, runWrangler) {
 }
 
 /** Fail before UI acceptance if the platform cannot produce a real truncation. */
-export async function verifyTruncatedFixture(origin, read = fetch) {
-  const response = await read(`${origin}/truncated-fixed`, {
-    cache: "no-store",
-    redirect: "error",
-    signal: globalThis.AbortSignal.timeout(10_000),
-  });
+export async function verifyTruncatedFixture(
+  origin,
+  read = fetch,
+  wait = () => new Promise((resolve) => setTimeout(resolve, 5_000)),
+) {
+  let response;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    response = await read(`${origin}/truncated-fixed`, {
+      cache: "no-store",
+      redirect: "error",
+      signal: globalThis.AbortSignal.timeout(10_000),
+    });
+    // Read-only retry for workers.dev propagation/provider failures. A 200
+    // with the wrong length or a body that completes is never waved through.
+    if (attempt === 4 || (response.status !== 404 && response.status < 500))
+      break;
+    await response.body?.cancel();
+    await wait();
+  }
   invariant(
     response.status === 200 && response.headers.get("content-length") === "14",
-    "Synthetic truncation did not preserve its advertised length.",
+    `Synthetic truncation did not preserve its advertised length (HTTP ${response.status}).`,
   );
   let failed = false;
   try {
