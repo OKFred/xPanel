@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { decodeRequestMetadata } from "@one-fetch/protocol";
+import { randomNonce } from "@one-fetch/core";
 import { createDefaultRequest } from "@xpanel/contracts";
 import { cancelRequest, executeRemote } from "../src/lib/execute";
 import { openRemoteResponse } from "../src/lib/execution/remote";
@@ -147,7 +148,7 @@ describe("one-fetch HTTP execution", () => {
     await new Response(response.stream).arrayBuffer();
     expect((await response.finalizeRemote!()).integrity).toBe("unverified");
   });
-  it.each(["unsigned", "bad-signature", "wrong-request"])(
+  it.each(["unsigned", "bad-signature", "wrong-request", "wrong-nonce"])(
     "labels %s responses as intermediary diagnostics even with HTTP 200",
     async (mode) => {
       mockTransport(async (_url, init) =>
@@ -158,7 +159,9 @@ describe("one-fetch HTTP execution", () => {
               "diagnostic",
               mode === "wrong-request"
                 ? { requestId: crypto.randomUUID() }
-                : {},
+                : mode === "wrong-nonce"
+                  ? { nonce: randomNonce() }
+                  : {},
               mode === "bad-signature" ? "wrong-token" : token,
             ),
       );
