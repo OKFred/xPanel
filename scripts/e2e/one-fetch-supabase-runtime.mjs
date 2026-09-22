@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import { invariant } from "./utils.mjs";
 import { deploymentDiagnostic } from "./deployment-diagnostic.mjs";
 import { verifyOneFetchSource } from "./one-fetch-source.mjs";
+import { waitForControlRoutes } from "./service-readiness.mjs";
 
 const execute = promisify(execFile);
 const { OneFetchControlClient } = await import(
@@ -238,6 +239,7 @@ export async function startOneFetchSupabaseFixture(
     );
     const controlUrl = environment.get("ONE_FETCH_CONTROL_BASE_URL");
     const gatewayUrl = environment.get("ONE_FETCH_GATEWAY_BASE_URL");
+    await waitForControlRoutes(controlUrl);
     const control = new OneFetchControlClient({ controlUrl });
     invariant(
       (await control.getCapabilities()).buildVersion === expectedBuildVersion,

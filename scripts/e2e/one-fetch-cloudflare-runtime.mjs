@@ -9,6 +9,7 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { invariant } from "./utils.mjs";
 import { verifyOneFetchSource } from "./one-fetch-source.mjs";
+import { waitForControlRoutes } from "./service-readiness.mjs";
 
 const execute = promisify(execFile);
 const { OneFetchControlClient } = await import(
@@ -130,6 +131,7 @@ export async function startOneFetchCloudflareFixture(
     );
   };
   try {
+    receipt.stage = "plan";
     const plan = await deploy.createCloudflareDeploymentPlan(values);
     receipt.accountId = plan.accountId;
     await record();
@@ -144,6 +146,8 @@ export async function startOneFetchCloudflareFixture(
       "Fixture name is already owned.",
     );
     fixtureAttempted = true;
+    receipt.stage = "fixture-readiness";
+    await record();
     // Retry only safe readiness GETs, never the resource-creation operation.
     fixture = await fixtureTools.deployCloudflareFixture(fixtureName, {
       // workers.dev routing can take longer than the fixture CLI's 9-second
@@ -159,10 +163,17 @@ export async function startOneFetchCloudflareFixture(
         }
       },
     });
+    receipt.stage = "install";
+    await record();
     const deployed = await deploy.applyCloudflareDeployment(values);
     receipt.controlUrl = deployed.controlUrl;
     receipt.gatewayUrl = deployed.gatewayUrl;
     receipt.targetOrigin = fixture.origin;
+    await record();
+    receipt.stage = "control-readiness";
+    await record();
+    await waitForControlRoutes(deployed.controlUrl);
+    receipt.stage = "verify";
     await record();
     await deploy.verifyCloudflareDeployment(
       new Map([
@@ -170,6 +181,8 @@ export async function startOneFetchCloudflareFixture(
         ["--expected-build", source.version],
       ]),
     );
+    receipt.stage = "synthetic-setup";
+    await record();
     control = new OneFetchControlClient({ controlUrl: deployed.controlUrl });
     await control.bootstrap({
       schemaVersion: 1,
@@ -228,6 +241,8 @@ export async function startOneFetchCloudflareFixture(
     process.stdout.write(
       `Cloudflare one-fetch ${source.version} ready with a synthetic-only policy and short-lived token.\n`,
     );
+    receipt.stage = "ui-acceptance";
+    await record();
     return {
       remoteControlUrl: deployed.controlUrl,
       remoteGatewayUrl: deployed.gatewayUrl,
@@ -245,13 +260,22 @@ export async function startOneFetchCloudflareFixture(
       },
       cleanup,
     };
-  } catch (error) {
+  } catch {
     receipt.failed = true;
     await record();
-    await cleanup();
-    // Avoid exposing a Control response or process environment in a tool log.
-    throw new Error(
-      `Cloudflare fixture failed: ${error instanceof Error ? error.message : "unknown error"}`,
+    // Preserve the original failing stage even when cleanup also requires
+    // recovery; never print arbitrary Control response/exception text.
+    const failure = new Error(
+      `Cloudflare fixture failed at ${receipt.stage}; inspect the ownership journal.`,
     );
+    try {
+      await cleanup();
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [failure, cleanupError],
+        "Cloudflare fixture and cleanup both require attention.",
+      );
+    }
+    throw failure;
   }
 }
