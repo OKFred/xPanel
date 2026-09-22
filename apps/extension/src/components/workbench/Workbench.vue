@@ -15,6 +15,7 @@ import RelayManagerDialog from "../dialog/RelayManagerDialog.vue";
 import RemoteConsentDialog from "../dialog/RemoteConsentDialog.vue";
 import RequestEditorPane from "./RequestEditorPane.vue";
 import ResponsePane from "./ResponsePane.vue";
+import OneFetchCapabilities from "../one-fetch/OneFetchCapabilities.vue";
 import WorkbenchHeader from "./WorkbenchHeader.vue";
 import WorkbenchSidebar from "./WorkbenchSidebar.vue";
 import { shouldAutoPretty } from "../response/model";
@@ -63,6 +64,8 @@ const executionWorkbench = useExecutionWorkbench({
 });
 const {
   cancelling,
+  showDiagnostic,
+  hasDiagnostic,
   clearResults,
   executionProgress,
   loadDisplayedResponse,
@@ -104,6 +107,9 @@ const {
 });
 const {
   closeRelayManager,
+  legacyProfiles,
+  removeLegacyProfile,
+  relayRulesText,
   editRelayProfile,
   executorSelection,
   initializeRelayState,
@@ -157,6 +163,7 @@ const {
   remoteConsentRelay,
   remoteConsentTarget,
   remoteTrustSession,
+  executionCapabilities,
   send,
 } = useRequestExecutionFlow({
   current,
@@ -332,6 +339,10 @@ function stop(): void {
         @stop="stop"
       >
         <template #message>
+          <OneFetchCapabilities
+            v-if="executorSelection !== 'browser' && executionCapabilities"
+            :capabilities="executionCapabilities"
+          />
           <div
             v-if="displayedNotice || errorMessage"
             class="message-strip"
@@ -382,6 +393,8 @@ function stop(): void {
           @clear-results="clearExecutionResults"
         />
         <ResponsePane
+          :has-diagnostic="hasDiagnostic"
+          :show-diagnostic="showDiagnostic"
           :response="response"
           :body-source="responseBody"
           :pretty-source="responsePrettyBody"
@@ -390,6 +403,7 @@ function stop(): void {
           :headers-text="responseHeaders"
           :timing-text="responseTiming"
           :copied="copied"
+          @toggle-diagnostic="showDiagnostic = !showDiagnostic"
           @update:tab="responseTab = $event"
           @copy-body="copyResponseBody"
           @copy-headers="copyText('response-headers', responseHeaders)"
@@ -413,11 +427,15 @@ function stop(): void {
       v-model:token="relayTokenInput"
       v-model:persist-confirmed="relayPersistConfirmed"
       v-model:draft="relayDraft"
+      :legacy-profiles="legacyProfiles"
+      :rules-text="relayRulesText"
       :profiles="relayProfiles"
       :busy="relayManagerBusy"
       :error="relayManagerError"
       :notice="relayManagerNotice"
       :capabilities="relayCapabilities"
+      @update:rules-text="relayRulesText = $event"
+      @remove-legacy="removeLegacyProfile"
       @close="closeRelayManager"
       @create="startNewRelayProfile"
       @edit="editRelayProfile"
@@ -428,11 +446,12 @@ function stop(): void {
     <RemoteConsentDialog
       v-if="remoteConsentOpen && pendingRemoteSend"
       v-model:trust-session="remoteTrustSession"
+      :capabilities="executionCapabilities"
       :busy="remoteConsentBusy"
       :error="remoteConsentError"
       :target="remoteConsentTarget"
       :relay="remoteConsentRelay"
-      :base-url="pendingRemoteSend.profile.baseUrl"
+      :base-url="pendingRemoteSend.profile.gatewayUrl"
       @close="closeRemoteConsent"
       @confirm="confirmRemoteSend"
     />

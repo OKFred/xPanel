@@ -1,4 +1,6 @@
+import { oneFetchEN } from "./one-fetch";
 export const enUS = {
+  ...oneFetchEN,
   send: "Send",
   cancel: "Cancel",
   import: "Import",
@@ -213,16 +215,17 @@ export const enUS = {
   browserExecutor: "Browser",
   remoteExecutor: "Remote: {name}",
   remoteRelayShort: "Remote",
-  manageRelays: "Manage relays",
-  relayProfiles: "Remote Relay",
+  manageRelays: "Manage one-fetch services",
+  relayProfiles: "one-fetch services",
   relayProfilesHint:
-    "Relays are services you deploy and trust. xPanel provides no public proxy and never switches to Remote automatically.",
-  noRelayProfiles: "No relay configured. Browser remains the default.",
-  addRelayProfile: "Add relay",
+    "Configure your self-hosted one-fetch Control and Gateway URLs with an execution token. Manage accounts and system policy in the service admin site. xPanel provides no public proxy and never switches to Remote automatically.",
+  noRelayProfiles:
+    "No one-fetch service configured. Browser remains the default.",
+  addRelayProfile: "Add service",
   editRelayProfile: "Edit",
   relayProfileName: "Name",
   relayBaseUrl: "HTTPS endpoint",
-  relayToken: "Bearer token",
+  relayToken: "Execution token",
   relayTokenPlaceholder: "Leave empty to keep the current token",
   relayTokenSession: "Keep until Chrome closes (recommended)",
   relayTokenLocal: "Persist token locally in plaintext",
@@ -233,29 +236,31 @@ export const enUS = {
   testConnection: "Test connection",
   testingConnection: "Connecting…",
   connectionReady: "Connected: {policy}, {limit} request/response limit.",
-  relaySaved: "Relay “{name}” saved.",
-  relayDeleted: "Relay “{name}” deleted.",
-  relayNameUnique: "Relay names must be unique.",
+  relaySaved: "Service “{name}” saved.",
+  relayDeleted: "Service “{name}” deleted.",
+  relayNameUnique: "Service profile names must be unique.",
   relayUrlInvalid:
     "Endpoint must be an HTTPS URL without userinfo, query, or hash.",
-  relayTokenRequired: "Enter the Bearer token for this relay.",
-  deleteRelayProfile: "Delete relay",
-  relayConsentTitle: "Send through Remote Relay?",
+  relayTokenRequired:
+    "Enter the one-fetch execution token (not an administrator token).",
+  deleteRelayProfile: "Delete service",
+  relayConsentTitle: "Send through one-fetch?",
   relayConsentIntro:
-    "This request will travel from target {target} through relay {relay}, which then contacts the destination.",
+    "This device sends the request for target {target} to your service {relay}, which then contacts the target.",
   relayDataHeading: "Data leaving this device",
   relayDataUrl: "Full URL and query",
   relayDataHeaders: "Request headers and authentication credentials",
   relayDataBody: "Request body and files selected again in this panel",
-  relayTrustSession: "Trust this endpoint and token until Chrome closes",
+  relayTrustSession:
+    "Trust this service, token and configuration until Chrome closes",
   sendRemote: "Confirm and send",
   remoteNotAutomatic:
-    "Remote is an explicit choice. Changing the endpoint or token immediately revokes session trust.",
+    "Remote is an explicit choice. Changed URLs, token, rules, instance or configuration require confirmation again.",
   remoteSetCookieNotice:
     "Remote Set-Cookie values are shown for inspection and copying only; Chrome cookies are unchanged.",
-  switchToRemote: "Select Remote Relay",
+  switchToRemote: "Select one-fetch",
   browserUnsupportedRemoteHint:
-    "Filter browser-controlled headers for this send, or explicitly select a configured Remote Relay.",
+    "Filter browser-controlled headers for this send, or explicitly select a configured one-fetch service.",
   browserCompatibilityTitle: "Browser cannot preserve this request",
   browserCompatibilityDescription:
     "The following fields exceed Browser Fetch capabilities. The original request and saved copy will not be changed.",

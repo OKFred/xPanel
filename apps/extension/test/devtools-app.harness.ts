@@ -1,3 +1,5 @@
+import { oneFetchProfileV1Schema } from "@xpanel/contracts";
+import { capabilities, consent } from "./one-fetch.fixture";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, type Pinia } from "pinia";
 import type { Component, Plugin } from "vue";
@@ -8,8 +10,7 @@ import {
   type ExecutionEventV1,
   type ExecutionProgressV1,
   type ExecutionSummaryV1,
-  type RemoteCapabilitiesV1,
-  type RemoteRelayProfileV1,
+  type OneFetchProfileV1,
   type RequestSpecV1,
   type ResponseRecordV1,
   type ResultRetentionV1,
@@ -44,7 +45,7 @@ export const execution = {
           | { kind: "browser" }
           | {
               kind: "remote";
-              profile: RemoteRelayProfileV1;
+              profile: OneFetchProfileV1;
               token: string;
             };
         relayPermissionAlreadyGranted?: boolean;
@@ -97,32 +98,18 @@ export const remoteProfiles = {
   getRelayToken: vi.fn(async () => null as string | null),
   getSessionExecutorSelection: vi.fn(async () => "browser"),
   isRelayTrusted: vi.fn(async () => false),
-  loadRelayProfiles: vi.fn(async () => [] as RemoteRelayProfileV1[]),
+  loadRelayProfiles: vi.fn(async () => [] as OneFetchProfileV1[]),
   revokeRelayTrust: vi.fn(async () => undefined),
-  saveRelayProfile: vi.fn(async (profile: RemoteRelayProfileV1) => profile),
+  saveRelayProfile: vi.fn(async (profile: OneFetchProfileV1) => profile),
   setSessionExecutorSelection: vi.fn(async () => undefined),
-  testRelayConnection: vi.fn(
-    async () =>
-      ({
-        protocolVersion: 1,
-        provider: "cloudflare",
-        targetPolicy: "allowlist",
-        maxMetadataBytes: 49_152,
-        maxRequestBodyBytes: 20_971_520,
-        maxResponseBodyBytes: 20_971_520,
-        features: {
-          explicitCookie: true,
-          responseSetCookie: true,
-          files: true,
-          multipart: true,
-          proxy: false,
-          customTls: false,
-          clientCertificate: false,
-        },
-      }) satisfies RemoteCapabilitiesV1,
-  ),
+  testRelayConnection: vi.fn(async () => capabilities()),
+  loadLegacyRelayProfiles: vi.fn(async () => []),
+  deleteLegacyRelayProfile: vi.fn(async () => undefined),
+  validateRelayProfile: (value: OneFetchProfileV1) =>
+    oneFetchProfileV1Schema.parse(value),
+  consentIdentity: () => consent,
   trustRelayForSession: vi.fn<
-    (_profile: RemoteRelayProfileV1, _token: string) => Promise<void>
+    (_profile: OneFetchProfileV1, _token: string) => Promise<void>
   >(async () => undefined),
 };
 

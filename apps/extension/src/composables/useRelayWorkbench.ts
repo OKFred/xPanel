@@ -1,10 +1,11 @@
-import { computed, ref, watch } from "vue";
+import { computed, ref, shallowRef, shallowReactive, watch } from "vue";
+import { UserDenyRulesV1Schema } from "@one-fetch/protocol";
 import { useI18n } from "vue-i18n";
 
 import {
-  type RemoteCapabilitiesV1,
-  type RemoteRelayProfileV1,
-  remoteRelayProfileV1Schema,
+  type OneFetchCapabilitiesV1,
+  type OneFetchProfileV1,
+  oneFetchProfileV1Schema,
 } from "@xpanel/contracts";
 
 import {
@@ -17,53 +18,46 @@ import {
   saveRelayProfile,
   setSessionExecutorSelection,
   testRelayConnection,
-} from "../lib/remote-profiles";
+  loadLegacyRelayProfiles,
+  deleteLegacyRelayProfile,
+  validateRelayProfile,
+} from "../lib/one-fetch-profiles";
 
-function normalizeRelayBaseUrl(value: string): string | undefined {
-  const trimmed = value.trim();
-  if (trimmed.includes("?") || trimmed.includes("#")) return undefined;
-  try {
-    const url = new URL(trimmed);
-    if (
-      url.protocol !== "https:" ||
-      url.username ||
-      url.password ||
-      url.search ||
-      url.hash
-    ) {
-      return undefined;
-    }
-    url.pathname = url.pathname.replace(/\/+$/u, "");
-    return url.href.replace(/\/$/u, "");
-  } catch {
-    return undefined;
-  }
-}
-
-function blankRelayDraft(): RemoteRelayProfileV1 {
+function blankRelayDraft(): OneFetchProfileV1 {
   return {
     schemaVersion: 1,
     id: crypto.randomUUID(),
     name: "",
-    baseUrl: "https://",
+    controlUrl: "https://",
+    gatewayUrl: "https://",
     tokenStorage: "session",
+    allowLoopbackHttp: false,
+    userDenyRules: { schemaVersion: 1, rules: [] },
   };
 }
 
 export function useRelayWorkbench() {
   const { t } = useI18n();
-  const relayProfiles = ref<RemoteRelayProfileV1[]>([]);
+  const relayProfiles = shallowRef<OneFetchProfileV1[]>([]);
+  const legacyProfiles = ref<
+    Awaited<ReturnType<typeof loadLegacyRelayProfiles>>
+  >([]);
   const executorSelection = ref("browser");
   const sessionSelectionReady = ref(false);
   const relayManagerOpen = ref(false);
   const relayManagerBusy = ref(false);
   const relayManagerError = ref("");
   const relayManagerNotice = ref("");
-  const relayCapabilities = ref<RemoteCapabilitiesV1 | null>(null);
+  const relayCapabilities = shallowRef<OneFetchCapabilitiesV1 | null>(null);
   const relayPersistConfirmed = ref(false);
   const relayDraftOriginalStorage = ref<"session" | "local" | null>(null);
   const relayTokenInput = ref("");
-  const relayDraft = ref<RemoteRelayProfileV1>(blankRelayDraft());
+  const relayDraft = shallowRef<OneFetchProfileV1>(
+    shallowReactive(blankRelayDraft()),
+  );
+  const relayRulesText = ref(
+    JSON.stringify({ schemaVersion: 1, rules: [] }, null, 2),
+  );
   const selectedRelayProfile = computed(() =>
     executorSelection.value === "browser"
       ? undefined
@@ -74,6 +68,7 @@ export function useRelayWorkbench() {
 
   async function refreshRelayProfiles(): Promise<void> {
     relayProfiles.value = await loadRelayProfiles();
+    legacyProfiles.value = await loadLegacyRelayProfiles();
     if (
       executorSelection.value !== "browser" &&
       !relayProfiles.value.some(
@@ -85,7 +80,12 @@ export function useRelayWorkbench() {
   }
 
   function startNewRelayProfile(): void {
-    relayDraft.value = blankRelayDraft();
+    relayDraft.value = shallowReactive(blankRelayDraft());
+    relayRulesText.value = JSON.stringify(
+      relayDraft.value.userDenyRules,
+      null,
+      2,
+    );
     relayDraftOriginalStorage.value = null;
     relayTokenInput.value = "";
     relayPersistConfirmed.value = false;
@@ -94,8 +94,9 @@ export function useRelayWorkbench() {
     relayManagerNotice.value = "";
   }
 
-  function editRelayProfile(profile: RemoteRelayProfileV1): void {
-    relayDraft.value = remoteRelayProfileV1Schema.parse(profile);
+  function editRelayProfile(profile: OneFetchProfileV1): void {
+    relayDraft.value = shallowReactive(oneFetchProfileV1Schema.parse(profile));
+    relayRulesText.value = JSON.stringify(profile.userDenyRules, null, 2);
     relayDraftOriginalStorage.value = profile.tokenStorage;
     relayTokenInput.value = "";
     relayPersistConfirmed.value = false;
@@ -130,10 +131,9 @@ export function useRelayWorkbench() {
 
   function validatedRelayDraft(
     enforcePersistenceConfirmation = false,
-  ): RemoteRelayProfileV1 | undefined {
+  ): OneFetchProfileV1 | undefined {
     relayManagerError.value = "";
     const name = relayDraft.value.name.trim();
-    const baseUrl = normalizeRelayBaseUrl(relayDraft.value.baseUrl);
     if (!name) {
       relayManagerError.value = t("relayProfileName");
       return undefined;
@@ -148,10 +148,6 @@ export function useRelayWorkbench() {
       relayManagerError.value = t("relayNameUnique");
       return undefined;
     }
-    if (!baseUrl) {
-      relayManagerError.value = t("relayUrlInvalid");
-      return undefined;
-    }
     if (
       enforcePersistenceConfirmation &&
       relayDraft.value.tokenStorage === "local" &&
@@ -162,7 +158,22 @@ export function useRelayWorkbench() {
       relayManagerError.value = t("relayPersistConfirm");
       return undefined;
     }
-    return { ...relayDraft.value, name, baseUrl };
+    try {
+      return validateRelayProfile(
+        {
+          ...relayDraft.value,
+          name,
+          userDenyRules: UserDenyRulesV1Schema.parse(
+            JSON.parse(relayRulesText.value),
+          ),
+        },
+        relayProfiles.value,
+      );
+    } catch (error) {
+      relayManagerError.value =
+        error instanceof Error ? error.message : String(error);
+      return undefined;
+    }
   }
 
   async function saveRelayDraft(): Promise<void> {
@@ -200,10 +211,7 @@ export function useRelayWorkbench() {
         force: true,
         permissionAlreadyGranted: true,
       });
-      relayManagerNotice.value = t("connectionReady", {
-        policy: relayCapabilities.value.targetPolicy,
-        limit: formatBytes(relayCapabilities.value.maxRequestBodyBytes),
-      });
+      relayManagerNotice.value = t("oneFetchConnectionReady");
     } catch (error) {
       relayManagerError.value =
         error instanceof Error ? error.message : String(error);
@@ -212,9 +220,7 @@ export function useRelayWorkbench() {
     }
   }
 
-  async function removeRelayProfile(
-    profile: RemoteRelayProfileV1,
-  ): Promise<void> {
+  async function removeRelayProfile(profile: OneFetchProfileV1): Promise<void> {
     if (
       relayManagerBusy.value ||
       !window.confirm(`${t("deleteRelayProfile")}: ${profile.name}?`)
@@ -249,11 +255,20 @@ export function useRelayWorkbench() {
     sessionSelectionReady.value = true;
   }
 
+  async function removeLegacyProfile(profileId: string): Promise<void> {
+    if (!window.confirm(t("oneFetchDeleteLegacyConfirm"))) return;
+    await deleteLegacyRelayProfile(profileId);
+    await refreshRelayProfiles();
+  }
+
   watch(executorSelection, async (value) => {
     if (sessionSelectionReady.value) await setSessionExecutorSelection(value);
   });
 
   return {
+    legacyProfiles,
+    relayRulesText,
+    removeLegacyProfile,
     closeRelayManager,
     editRelayProfile,
     executorSelection,
@@ -275,10 +290,4 @@ export function useRelayWorkbench() {
     startNewRelayProfile,
     testRelayDraft,
   };
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1_024) return `${bytes} B`;
-  if (bytes < 1_048_576) return `${(bytes / 1_024).toFixed(1)} KiB`;
-  return `${(bytes / 1_048_576).toFixed(1)} MiB`;
 }

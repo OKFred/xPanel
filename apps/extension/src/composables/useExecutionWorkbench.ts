@@ -67,6 +67,14 @@ export function useExecutionWorkbench(options: UseExecutionWorkbenchOptions) {
   const cancelling = ref(false);
   const executionProgress = ref<ExecutionProgressV1 | null>(null);
   const responseView = shallowRef<ExecutionResponseView | null>(null);
+  const diagnosticView = shallowRef<ExecutionResponseView | null>(null);
+  const showDiagnostic = ref(false);
+  const displayedView = computed(() =>
+    showDiagnostic.value && diagnosticView.value
+      ? diagnosticView.value
+      : responseView.value,
+  );
+  const hasDiagnostic = computed(() => diagnosticView.value !== null);
   const retention = ref<ResultRetentionV1>("10m");
   const responseLimitMiB = ref(20);
   const summaries = new Map<string, ExecutionSummaryV1>();
@@ -77,10 +85,10 @@ export function useExecutionWorkbench(options: UseExecutionWorkbenchOptions) {
   let progressTimer: number | undefined;
   let executionStartedAt = 0;
 
-  const response = computed(() => responseView.value?.metadata ?? null);
-  const responseBody = computed(() => responseView.value?.body ?? null);
+  const response = computed(() => displayedView.value?.metadata ?? null);
+  const responseBody = computed(() => displayedView.value?.body ?? null);
   const responsePrettyBody = computed(
-    () => responseView.value?.prettyBody ?? null,
+    () => displayedView.value?.prettyBody ?? null,
   );
 
   function stopProgressClock(): void {
@@ -134,11 +142,18 @@ export function useExecutionWorkbench(options: UseExecutionWorkbenchOptions) {
       const displayedMetadata = warning
         ? { ...metadata, warnings: [...metadata.warnings, warning] }
         : metadata;
-      responseView.value = {
+      const view = {
         metadata: displayedMetadata,
         body,
         ...(prettyBody ? { prettyBody } : {}),
       };
+      if (summary.state === "failed") {
+        diagnosticView.value = view;
+        showDiagnostic.value = true;
+      } else {
+        responseView.value = view;
+        showDiagnostic.value = false;
+      }
       options.onResponseReady?.(displayedMetadata);
     } catch (error) {
       if (revision !== responseLoadRevision) return;
@@ -177,6 +192,7 @@ export function useExecutionWorkbench(options: UseExecutionWorkbenchOptions) {
     } else {
       executionProgress.value = null;
       if (summary.error) options.errorMessage.value = summary.error.message;
+      if (summary.responseHandle) await loadResponse(summary);
     }
   }
 
@@ -210,6 +226,19 @@ export function useExecutionWorkbench(options: UseExecutionWorkbenchOptions) {
         summary.state === "succeeded" && Boolean(summary.responseHandle),
     );
     if (successful) await loadResponse(successful);
+    const diagnostic = mostRecent(
+      summaries.values(),
+      (summary) =>
+        summary.state === "failed" && Boolean(summary.responseHandle),
+    );
+    if (
+      diagnostic &&
+      (!successful || diagnostic.updatedAt > successful.updatedAt)
+    ) {
+      await loadResponse(diagnostic);
+      if (diagnostic.error)
+        options.errorMessage.value = diagnostic.error.message;
+    }
     const active = mostRecent(summaries.values(), isActive);
     if (active) {
       activeExecutionId.value = active.executionId;
@@ -227,6 +256,7 @@ export function useExecutionWorkbench(options: UseExecutionWorkbenchOptions) {
   async function run(input: RunExecutionInput): Promise<void> {
     if (options.busy.value) return;
     options.errorMessage.value = "";
+    showDiagnostic.value = false;
     options.notice.value = input.notice ?? "";
     options.busy.value = true;
     cancelling.value = false;
@@ -305,7 +335,18 @@ export function useExecutionWorkbench(options: UseExecutionWorkbenchOptions) {
     );
     responseLoadRevision += 1;
     responseView.value = null;
+    diagnosticView.value = null;
+    showDiagnostic.value = false;
     if (summary) await loadResponse(summary);
+    const diagnostic = mostRecent(
+      summaries.values(),
+      (item) =>
+        item.requestId === requestId &&
+        item.state === "failed" &&
+        Boolean(item.responseHandle),
+    );
+    if (diagnostic && (!summary || diagnostic.updatedAt > summary.updatedAt))
+      await loadResponse(diagnostic);
   }
 
   async function persistImportedResponses(
@@ -347,7 +388,7 @@ export function useExecutionWorkbench(options: UseExecutionWorkbenchOptions) {
   async function loadDisplayedResponse(): Promise<
     ResponseRecordV1 | undefined
   > {
-    const handle = responseView.value?.metadata.handle;
+    const handle = displayedView.value?.metadata.handle;
     return handle ? loadExecutionResponse(handle) : undefined;
   }
 
@@ -368,9 +409,13 @@ export function useExecutionWorkbench(options: UseExecutionWorkbenchOptions) {
     summaries.clear();
     responseLoadRevision += 1;
     responseView.value = null;
+    diagnosticView.value = null;
+    showDiagnostic.value = false;
   }
 
   return {
+    showDiagnostic,
+    hasDiagnostic,
     activeExecutionId,
     cancelling,
     clearResults,

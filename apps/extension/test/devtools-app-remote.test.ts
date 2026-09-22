@@ -1,9 +1,10 @@
+import { consent as consentSnapshot } from "./one-fetch.fixture";
 import { flushPromises } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  type RemoteRelayProfileV1,
+  type OneFetchProfileV1,
   type ResponseRecordV1,
 } from "@xpanel/contracts";
 
@@ -28,16 +29,19 @@ vi.mock(
   async () => (await import("./devtools-app.harness")).backgroundExecution,
 );
 vi.mock(
-  "../src/lib/remote-profiles",
+  "../src/lib/one-fetch-profiles",
   async () => (await import("./devtools-app.harness")).remoteProfiles,
 );
 
 describe("Remote Relay selection and progress", () => {
-  const profile: RemoteRelayProfileV1 = {
+  const profile: OneFetchProfileV1 = {
     schemaVersion: 1,
     id: "relay-development",
     name: "Development Relay",
-    baseUrl: "https://relay.example.workers.dev",
+    controlUrl: "https://control.example.workers.dev",
+    gatewayUrl: "https://relay.example.workers.dev",
+    allowLoopbackHttp: false,
+    userDenyRules: { schemaVersion: 1, rules: [] },
     tokenStorage: "session",
   };
 
@@ -88,6 +92,7 @@ describe("Remote Relay selection and progress", () => {
     expect(remoteProfiles.trustRelayForSession).toHaveBeenCalledWith(
       profile,
       "relay-secret",
+      consentSnapshot,
     );
     expect(remoteProfiles.ensureRelayPermission).toHaveBeenCalledOnce();
     const executeCall = execution.executeRequest.mock.calls[0];
@@ -106,7 +111,7 @@ describe("Remote Relay selection and progress", () => {
   });
 
   it("keeps Browser selected after creating a relay profile", async () => {
-    let savedProfile: RemoteRelayProfileV1 | undefined;
+    let savedProfile: OneFetchProfileV1 | undefined;
     remoteProfiles.loadRelayProfiles.mockImplementation(async () =>
       savedProfile ? [structuredClone(savedProfile)] : [],
     );
@@ -124,13 +129,15 @@ describe("Remote Relay selection and progress", () => {
     const fields = dialog.findAll("input.field");
     await fields[0]!.setValue("New relay");
     await fields[1]!.setValue("https://new-relay.example");
-    await fields[2]!.setValue("new-relay-token");
+    await fields[2]!.setValue("https://new-gateway.example");
+    await fields[3]!.setValue("new-relay-token");
     await dialog.get("button.primary-button").trigger("click");
     await flushPromises();
 
     expect(savedProfile).toMatchObject({
       name: "New relay",
-      baseUrl: "https://new-relay.example",
+      controlUrl: "https://new-relay.example",
+      gatewayUrl: "https://new-gateway.example",
       tokenStorage: "session",
     });
     expect((executor.element as HTMLSelectElement).value).toBe("browser");
@@ -156,7 +163,9 @@ describe("Remote Relay selection and progress", () => {
     await flushPromises();
     const dialog = wrapper.get('[aria-labelledby="relay-manager-title"]');
     await dialog.get('input[type="radio"][value="local"]').setValue(true);
-    await dialog.get('input[type="checkbox"]').setValue(true);
+    await dialog
+      .get('.relay-token-warning input[type="checkbox"]')
+      .setValue(true);
     await dialog.get("button.primary-button").trigger("click");
     await flushPromises();
 

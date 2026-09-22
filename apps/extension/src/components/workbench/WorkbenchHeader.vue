@@ -13,7 +13,7 @@ import {
 import type {
   CollectionRecord,
   ExecutionProgressV1,
-  RemoteRelayProfileV1,
+  OneFetchProfileV1,
   RequestSpecV1,
 } from "@xpanel/contracts";
 
@@ -23,7 +23,7 @@ const current = defineModel<RequestSpecV1>("current", { required: true });
 defineProps<{
   collections: CollectionRecord[];
   selectedCollectionId: string;
-  relayProfiles: RemoteRelayProfileV1[];
+  relayProfiles: OneFetchProfileV1[];
   executorSelection: string;
   busy: boolean;
   cancelling: boolean;

@@ -123,6 +123,40 @@ beforeEach(() => {
 });
 
 describe("execution workbench", () => {
+  it("restores failed remote diagnostics without overwriting the prior successful response", async () => {
+    const success = summary({
+      executionId: "success",
+      requestId: "same",
+      state: "succeeded",
+      revision: 2,
+      responseHandle: "good",
+    });
+    const failed = summary({
+      executionId: "failure",
+      requestId: "same",
+      state: "failed",
+      revision: 3,
+      responseHandle: "diagnostic",
+      error: { code: "partial", message: "Remote body incomplete" },
+      updatedAt: "2026-09-06T00:00:02.000Z",
+    });
+    client.listExecutionSummaries.mockResolvedValue([success, failed]);
+    client.loadExecutionResponseMetadata.mockImplementation(
+      async (handle: string) =>
+        response("same", handle === "good" ? "success" : "failure", handle),
+    );
+    const harness = createHarness();
+    await harness.workbench.initialize();
+    expect(harness.workbench.response.value?.handle).toBe("diagnostic");
+    expect(harness.workbench.hasDiagnostic.value).toBe(true);
+    harness.workbench.showDiagnostic.value = false;
+    expect(harness.workbench.response.value?.handle).toBe("good");
+    await harness.workbench.showLatestForRequest("same");
+    expect(harness.workbench.response.value?.handle).toBe("diagnostic");
+    await harness.workbench.clearResults();
+    expect(harness.workbench.hasDiagnostic.value).toBe(false);
+    harness.workbench.dispose();
+  });
   it("rejects a missing persisted body handle", async () => {
     client.listExecutionSummaries.mockResolvedValue([
       summary({
