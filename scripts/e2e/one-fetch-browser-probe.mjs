@@ -55,6 +55,7 @@ const port = await availablePort();
 let processHandle, browser, page, runtime;
 const receipt = {
   schemaVersion: 1,
+  testKind: "official-client-chromium-source",
   adapter,
   ...source,
   startedAt: new Date().toISOString(),
@@ -83,6 +84,7 @@ try {
     () => jsonEndpoint(port, "/json/version"),
     "Browser probe startup",
   );
+  receipt.browserVersion = version.Browser;
   browser = await new CdpClient(version.webSocketDebuggerUrl).open();
   const inventory = await openPageTarget(browser, port, "chrome://extensions");
   const installed = await inventory.client.evaluate(
@@ -110,6 +112,7 @@ try {
         ? () => startOneFetchCloudflareFixture(workspace, origin, { commit })
         : () => startOneFetchSupabaseFixture(workspace, origin, { commit });
   runtime = await start();
+  receipt.serviceBuildVersion = runtime.remoteBuildVersion ?? source.version;
   await grantTestHostAccess(browser, port, extension.id, [
     runtime.remoteControlUrl,
     runtime.remoteGatewayUrl,
