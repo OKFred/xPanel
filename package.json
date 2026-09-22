@@ -28,7 +28,7 @@
     "release:prepare": "pnpm check && pnpm e2e:chromium && pnpm e2e:upgrade && pnpm --filter @xpanel/extension zip && pnpm sbom:extension && node scripts/prepare-release.mjs",
     "sbom:extension": "pnpm --filter @xpanel/extension sbom --sbom-format cyclonedx --sbom-spec-version 1.6 --prod --lockfile-only | node scripts/record-sbom.mjs",
     "test": "pnpm build:packages && pnpm -r --if-present test && pnpm test:tooling",
-    "test:tooling": "node --test scripts/dependency-policy.test.mjs scripts/import-dependency-security.test.mjs scripts/e2e/service-readiness.test.mjs",
+    "test:tooling": "node --test scripts/dependency-policy.test.mjs scripts/import-dependency-security.test.mjs scripts/e2e/service-readiness.test.mjs scripts/e2e/cloudflare-target-config.test.mjs",
     "test:watch": "vitest",
     "typecheck": "pnpm build:packages && pnpm -r --if-present typecheck"
   },

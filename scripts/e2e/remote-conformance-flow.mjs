@@ -62,7 +62,7 @@ export async function runRemoteConformanceFlow(
     (await result(panel)).meta.includes("20971520 B"),
     "Cloud oversize replaced the previous result.",
   );
-  await send(panel, `${origin}/truncated`);
+  await send(panel, `${origin}/truncated-fixed`);
   await settle(panel, (s) => s.error.length > 0, "cloud partial rejection");
   await setInput(panel, ".url-input", `${origin}/delay/12000`);
   await panel.evaluate(clickTextScript("Send"), { userGesture: true });

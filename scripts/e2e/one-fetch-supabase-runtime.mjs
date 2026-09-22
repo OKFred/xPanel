@@ -8,6 +8,10 @@ import { promisify } from "node:util";
 import { invariant } from "./utils.mjs";
 import { deploymentDiagnostic } from "./deployment-diagnostic.mjs";
 import { verifyOneFetchSource } from "./one-fetch-source.mjs";
+import {
+  fixtureDeploymentRunner,
+  verifyTruncatedFixture,
+} from "./cloudflare-target-config.mjs";
 import { waitForControlRoutes } from "./service-readiness.mjs";
 
 const execute = promisify(execFile);
@@ -215,6 +219,11 @@ export async function startOneFetchSupabaseFixture(
     );
     fixtureAttempted = true;
     const fixture = await fixtureTools.deployCloudflareFixture(fixtureName, {
+      runWrangler: await fixtureDeploymentRunner(
+        root,
+        directory,
+        cf.runWrangler,
+      ),
       // Same bounded workers.dev propagation window as Cloudflare acceptance.
       wait: () => new Promise((resolveWait) => setTimeout(resolveWait, 5_000)),
       // Readiness GETs are safe to retry; resource creation is never retried.
@@ -228,6 +237,7 @@ export async function startOneFetchSupabaseFixture(
         }
       },
     });
+    await verifyTruncatedFixture(fixture.origin);
     const environment = new Map(
       (await readFile(envFile, "utf8"))
         .trim()

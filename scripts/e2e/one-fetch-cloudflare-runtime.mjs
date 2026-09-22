@@ -10,6 +10,10 @@ import { promisify } from "node:util";
 import { invariant } from "./utils.mjs";
 import { verifyOneFetchSource } from "./one-fetch-source.mjs";
 import {
+  fixtureDeploymentRunner,
+  verifyTruncatedFixture,
+} from "./cloudflare-target-config.mjs";
+import {
   waitForControlRoutes,
   waitForGatewayRoute,
 } from "./service-readiness.mjs";
@@ -153,6 +157,11 @@ export async function startOneFetchCloudflareFixture(
     await record();
     // Retry only safe readiness GETs, never the resource-creation operation.
     fixture = await fixtureTools.deployCloudflareFixture(fixtureName, {
+      runWrangler: await fixtureDeploymentRunner(
+        root,
+        privateDirectory,
+        runtime.runWrangler,
+      ),
       // workers.dev routing can take longer than the fixture CLI's 9-second
       // default window. Keep ten read-only probes, spaced five seconds apart.
       wait: () => new Promise((resolveWait) => setTimeout(resolveWait, 5_000)),
@@ -166,6 +175,7 @@ export async function startOneFetchCloudflareFixture(
         }
       },
     });
+    await verifyTruncatedFixture(fixture.origin);
     receipt.stage = "install";
     await record();
     const deployed = await deploy.applyCloudflareDeployment(values);
