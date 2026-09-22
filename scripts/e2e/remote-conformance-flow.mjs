@@ -72,10 +72,24 @@ export async function runRemoteConformanceFlow(
     "cloud 20 MiB digest",
   );
   await send(panel, `${origin}/bytes/20971521`);
-  await settle(panel, (s) => s.error.length > 0, "cloud 20 MiB + 1 rejection");
+  await settle(
+    panel,
+    (s) =>
+      /response_too_large|exceeds.*limit|incomplete response \(partial\)/iu.test(
+        s.error + s.detail,
+      ),
+    "cloud 20 MiB + 1 explicit rejection",
+  );
   await verifyPreviousBody(panel);
   await send(panel, `${origin}/truncated-fixed`);
-  await settle(panel, (s) => s.error.length > 0, "cloud partial rejection");
+  await settle(
+    panel,
+    (s) =>
+      /partial|incomplete|upstream_network|Failed to fetch/iu.test(
+        s.error + s.detail,
+      ),
+    "cloud explicit partial rejection",
+  );
   await verifyPreviousBody(panel);
   await setInput(panel, ".url-input", `${origin}/delay/12000`);
   await panel.evaluate(clickTextScript("Send"), { userGesture: true });
