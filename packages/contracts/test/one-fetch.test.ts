@@ -82,4 +82,23 @@ describe("one-fetch local contracts", () => {
         .success,
     ).toBe(false);
   });
+  it("allows opaque status only for unverified intermediary diagnostics", () => {
+    const details = {
+      schemaVersion: 1,
+      source: "intermediary",
+      outerStatus: 0,
+      outerHeaders: [],
+      mutations: [],
+      audit: "unknown",
+      integrity: "unverified",
+    };
+    expect(oneFetchResponseDetailsV1Schema.safeParse(details).success).toBe(
+      true,
+    );
+    for (const source of ["target", "relay-error"])
+      expect(
+        oneFetchResponseDetailsV1Schema.safeParse({ ...details, source })
+          .success,
+      ).toBe(false);
+  });
 });

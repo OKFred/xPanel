@@ -60,11 +60,19 @@ const phases = computed(() => {
       <span v-if="details.reason === 'report-digest-unavailable'"
         >{{ $t("oneFetchNoDigest") }}
       </span>
+      <span v-if="details.reason === 'browser-opaque-redirect'"
+        >{{ $t("oneFetchOpaqueRedirect") }}
+      </span>
       {{ details.reason }}
     </p>
     <details v-if="tab === 'headers'">
       <summary>
-        {{ $t("oneFetchOuterHeaders") }} · HTTP {{ details.outerStatus }}
+        {{ $t("oneFetchOuterHeaders") }} ·
+        {{
+          details.outerStatus === 0
+            ? $t("oneFetchUnavailable")
+            : `HTTP ${details.outerStatus}`
+        }}
       </summary>
       <pre>{{
         details.outerHeaders.map((h) => `${h.name}: ${h.value}`).join("\n")

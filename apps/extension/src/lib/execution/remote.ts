@@ -161,7 +161,12 @@ export async function openRemoteResponse(
         : {}),
       ...(signed?.reportId ? { reportId: signed.reportId } : {}),
       ...(classification.source === "intermediary"
-        ? { reason: classification.reason }
+        ? {
+            reason:
+              result.response.type === "opaqueredirect"
+                ? "browser-opaque-redirect"
+                : classification.reason,
+          }
         : {}),
       ...(classification.source === "relay"
         ? { problem: classification.error }

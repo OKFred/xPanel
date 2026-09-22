@@ -28,6 +28,8 @@ export const oneFetchEN = {
   oneFetchUnverified: "Not verified",
   oneFetchNoDigest:
     "The service did not supply a body digest; signature verification does not prove body integrity.",
+  oneFetchOpaqueRedirect:
+    "Chrome hid this redirect's status, headers and body. Its source cannot be verified. A browser-compatible one-fetch service is required; the outer redirect was not followed.",
   oneFetchFailed: "Failed",
   oneFetchOuterHeaders: "Outer service headers",
   oneFetchGatewayTiming: "Gateway timing",
@@ -71,6 +73,8 @@ export const oneFetchZH: Record<keyof typeof oneFetchEN, string> = {
   oneFetchVerified: "已核验",
   oneFetchUnverified: "未核验",
   oneFetchNoDigest: "服务未提供正文摘要；目标签名有效不代表正文完整性已核验。",
+  oneFetchOpaqueRedirect:
+    "Chrome 隐藏了此重定向的状态、响应头和正文，无法核验来源。需要支持浏览器兼容模式的 one-fetch 服务；未跟随外层重定向。",
   oneFetchFailed: "失败",
   oneFetchOuterHeaders: "外层服务响应头",
   oneFetchGatewayTiming: "Gateway 阶段耗时",

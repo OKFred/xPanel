@@ -82,7 +82,8 @@ export const oneFetchResponseDetailsV1Schema = z
     schemaVersion: z.literal(1),
     source: z.enum(["target", "relay-error", "intermediary"]),
     reason: z.string().max(256).optional(),
-    outerStatus: z.number().int().min(100).max(599),
+    // Fetch opaque/opaqueredirect responses expose status 0, not a real HTTP code.
+    outerStatus: z.union([z.literal(0), z.number().int().min(100).max(599)]),
     outerHeaders: z.array(HeaderEntryV1Schema).max(256),
     configVersion: z.string().max(256).optional(),
     timing: OneFetchTimingV1Schema.optional(),
@@ -96,7 +97,14 @@ export const oneFetchResponseDetailsV1Schema = z
       .optional(),
     problem: OneFetchProblemV1Schema.optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (value) => value.outerStatus !== 0 || value.source === "intermediary",
+    {
+      message: "Opaque status cannot be a verified target or service response",
+      path: ["outerStatus"],
+    },
+  );
 export type OneFetchResponseDetailsV1 = z.infer<
   typeof oneFetchResponseDetailsV1Schema
 >;

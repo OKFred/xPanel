@@ -187,6 +187,26 @@ describe("one-fetch HTTP execution", () => {
     await new Response(response.stream).text();
     await response.finalizeRemote!();
   });
+  it("keeps browser-hidden redirects as unavailable, unverified diagnostics", async () => {
+    mockTransport(async () => {
+      const response = Response.error();
+      Object.defineProperty(response, "type", { value: "opaqueredirect" });
+      return response;
+    });
+    const response = await openRemoteResponse(
+      { ...createDefaultRequest(), url: "https://target.example" },
+      remoteTarget(),
+    );
+    expect(response.status).toBe(0);
+    expect(response.remoteDetails).toMatchObject({
+      source: "intermediary",
+      outerStatus: 0,
+      reason: "browser-opaque-redirect",
+      integrity: "unverified",
+    });
+    await new Response(response.stream).text();
+    expect((await response.finalizeRemote!()).integrity).toBe("unverified");
+  });
   it("blocks config changes between consent and send without making a target request", async () => {
     const fetch = mockTransport(async (_url, init) => signedResponse(init));
     await expect(

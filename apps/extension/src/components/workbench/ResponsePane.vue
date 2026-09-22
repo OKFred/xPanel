@@ -76,7 +76,10 @@ const documentMode = computed<"pretty" | "raw">(() =>
             response.status < 400
           "
         >
-          {{ response.status }} {{ response.statusText }}
+          {{
+            response.status === 0 ? $t("oneFetchUnavailable") : response.status
+          }}
+          {{ response.statusText }}
         </strong>
         <span v-else>{{ $t("noResponse") }}</span>
       </div>

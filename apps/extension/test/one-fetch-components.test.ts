@@ -97,4 +97,26 @@ describe("one-fetch disclosures and deny-rule editor", () => {
     expect(wrapper.text()).toContain("oneFetchTimingUnavailable");
     wrapper.unmount();
   });
+  it("explains browser-hidden redirects without presenting status zero as HTTP", () => {
+    const wrapper = mount(OneFetchResponseDetails, {
+      props: {
+        details: {
+          schemaVersion: 1,
+          source: "intermediary",
+          reason: "browser-opaque-redirect",
+          outerStatus: 0,
+          outerHeaders: [],
+          mutations: [],
+          audit: "unknown",
+          integrity: "unverified",
+        },
+        tab: "headers",
+      },
+      global,
+    });
+    expect(wrapper.text()).toContain("oneFetchOpaqueRedirect");
+    expect(wrapper.text()).toContain("oneFetchUnavailable");
+    expect(wrapper.text()).not.toContain("oneFetchVerified");
+    wrapper.unmount();
+  });
 });
