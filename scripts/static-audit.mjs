@@ -27,7 +27,7 @@ const ignoredSegments = new Set([
 ]);
 const expectedRequiredPermissions = ["alarms", "offscreen", "storage"];
 const expectedOptionalHosts = ["http://*/*", "https://*/*"];
-const expectedExtensionVersion = "2.1.0";
+const expectedExtensionVersion = "3.0.0";
 const expectedHomepageUrl = "https://github.com/okfred";
 const forbiddenSourcePatterns = [
   ["eval", /\beval\s*\(/u],

@@ -21,7 +21,7 @@ const outputRoot = join(extensionRoot, ".output");
 const artifactRoot = join(workspaceRoot, "artifacts", "chrome-web-store");
 const expectedRequiredPermissions = ["alarms", "offscreen", "storage"];
 const expectedOptionalHosts = ["http://*/*", "https://*/*"];
-const expectedExtensionVersion = "2.1.0";
+const expectedExtensionVersion = "3.0.0";
 const expectedHomepageUrl = "https://github.com/okfred";
 const extensionPackage = JSON.parse(
   await readFile(join(extensionRoot, "package.json"), "utf8"),

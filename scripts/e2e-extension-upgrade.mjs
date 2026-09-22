@@ -22,6 +22,10 @@ import {
   workspaceRoot,
 } from "./e2e/upgrade-worktrees.mjs";
 import { invariant, waitFor } from "./e2e/utils.mjs";
+import {
+  seedLegacyRelay,
+  verifyLegacyRelayDisabled,
+} from "./e2e/upgrade-legacy-relay.mjs";
 
 const updateBaseline = JSON.parse(
   await readFile(
@@ -29,7 +33,7 @@ const updateBaseline = JSON.parse(
       workspaceRoot,
       "scripts",
       "fixtures",
-      "extension-update-baseline-2.0.json",
+      "extension-update-baseline-2.1.json",
     ),
     "utf8",
   ),
@@ -158,7 +162,7 @@ async function seedBaseline(panel) {
   return panel.evaluate(`(async () => {
     const seed = ${JSON.stringify(seed)};
     const db = await new Promise((resolveOpen, reject) => {
-      const request = indexedDB.open("xpanel", 1);
+      const request = indexedDB.open("xpanel");
       request.onsuccess = () => resolveOpen(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -305,6 +309,7 @@ async function verifyUpgradedWorkbench(session, extensionOrigin) {
       ].every((store) => database.stores.includes(store)),
       `The upgraded execution stores are incomplete: ${database.stores}.`,
     );
+    await verifyLegacyRelayDisabled(page.client);
     return runtime;
   } finally {
     page.client.close();
@@ -361,7 +366,7 @@ async function main() {
         baselineBuild.manifest.permissions,
         expectedBaselinePermissions,
       ),
-      `Baseline permissions do not match the 2.0 store line: ${baselineBuild.manifest.permissions}.`,
+      `Baseline permissions do not match the 2.1 store line: ${baselineBuild.manifest.permissions}.`,
     );
     invariant(
       sameValues(
@@ -389,14 +394,15 @@ async function main() {
         baselineRuntime.granted.permissions.includes(permission),
       ) &&
         baselineRuntime.contains.storage === true &&
-        baselineRuntime.contains.offscreen === false &&
-        baselineRuntime.contains.alarms === false,
-      `Baseline permissions are not isolated to the 2.0 capability set: ${JSON.stringify(baselineRuntime)}.`,
+        baselineRuntime.contains.offscreen === true &&
+        baselineRuntime.contains.alarms === true,
+      `Baseline permissions differ from the 2.1 capability set: ${JSON.stringify(baselineRuntime)}.`,
     );
     invariant(
-      (await seedBaseline(baselineUi.panel)) === 1,
-      "Baseline data was not stored in IndexedDB v1.",
+      (await seedBaseline(baselineUi.panel)) === 2,
+      "Baseline data was not stored in IndexedDB v2.",
     );
+    await seedLegacyRelay(baselineUi.panel);
     const [baselineWarnings, currentWarnings] = await Promise.all([
       permissionWarnings(baselineUi.panel, baselineBuild.manifest),
       permissionWarnings(baselineUi.panel, current.manifest),
@@ -475,7 +481,7 @@ async function main() {
       restartedPage.client.close();
     }
     process.stdout.write(
-      `Chromium extension update checks passed: ${expectedBaselineVersion} [storage] -> ${expectedCurrentVersion} [storage, offscreen, alarms]; no new Chrome permission warning, stable ID, enabled runtime, selectable collection/request, IndexedDB v1 -> v2 migration, and Chrome restart orphan recovery verified.\n`,
+      `Chromium extension update checks passed: ${expectedBaselineVersion} -> ${expectedCurrentVersion}; unchanged permissions, stable ID, enabled runtime, selectable collection/favorite, legacy Relay disabled and explicitly removed, IndexedDB v2 preserved, and Chrome restart orphan recovery verified.\n`,
     );
   } finally {
     await stopUpgradeChromium(browserSession);
