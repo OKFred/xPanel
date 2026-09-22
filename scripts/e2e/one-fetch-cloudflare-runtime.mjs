@@ -260,8 +260,17 @@ export async function startOneFetchCloudflareFixture(
       },
       cleanup,
     };
-  } catch {
+  } catch (error) {
     receipt.failed = true;
+    // Only source locations and fixed error categories; never provider stdout,
+    // response bodies, command arguments, SQL, URLs or authentication values.
+    receipt.failure = {
+      category: error?.name === "TypeError" ? "network-or-type" : "operation",
+      locations:
+        String(error?.stack ?? "")
+          .match(/cloudflare[\w.-]*\.mjs:\d+:\d+/gu)
+          ?.slice(0, 4) ?? [],
+    };
     await record();
     // Preserve the original failing stage even when cleanup also requires
     // recovery; never print arbitrary Control response/exception text.

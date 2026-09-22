@@ -15,10 +15,23 @@ export async function send(panel, url) {
   await panel.evaluate(clickTextScript("Send"), { userGesture: true });
   // run() sets busy before its first await; observe the execution's state instead
   // of matching a marker that could belong to the previous successful body.
-  await waitFor(
-    () => panel.evaluate("globalThis.__xpanelRemoteCycle.started"),
-    "Remote request start",
-  );
+  try {
+    await waitFor(
+      () => panel.evaluate("globalThis.__xpanelRemoteCycle.started"),
+      "Remote request start",
+      30_000,
+    );
+  } catch (error) {
+    const state = await panel.evaluate(`({
+      error: document.querySelector('[data-error=true]')?.innerText ?? '',
+      consentOpen: Boolean(document.querySelector('[role=alertdialog]')),
+      active: Boolean(document.querySelector('button.stop-button')),
+      phase: document.querySelector('[role=progressbar]')?.getAttribute('aria-label')
+    })`);
+    throw new Error(`Remote start failed: ${JSON.stringify(state)}`, {
+      cause: error,
+    });
+  }
   await waitFor(
     () => panel.evaluate("globalThis.__xpanelRemoteCycle.finished"),
     "Remote request finish",
