@@ -166,7 +166,15 @@ export function useExecutionWorkbench(options: UseExecutionWorkbenchOptions) {
     if (!mergeSummary(summary)) return;
     const matchesPending =
       pendingRequestId !== "" && summary.requestId === pendingRequestId;
-    if (!activeExecutionId.value && isActive(summary) && matchesPending) {
+    // A window may subscribe before another window's capability preflight
+    // finishes. Follow the later execution without replacing this window's
+    // draft; never steal focus from a locally pending or active execution.
+    const idleObserver = pendingRequestId === "" && !options.busy.value;
+    if (
+      !activeExecutionId.value &&
+      isActive(summary) &&
+      (matchesPending || idleObserver)
+    ) {
       activeExecutionId.value = summary.executionId;
     }
     if (summary.executionId !== activeExecutionId.value) {

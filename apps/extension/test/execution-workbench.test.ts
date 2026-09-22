@@ -123,6 +123,71 @@ beforeEach(() => {
 });
 
 describe("execution workbench", () => {
+  it("follows and cancels an execution that starts in another window after subscribing", async () => {
+    const harness = createHarness();
+    await harness.workbench.initialize();
+    expect(harness.busy.value).toBe(false);
+    listener?.({
+      protocolVersion: 1,
+      eventId: "external-start",
+      type: "execution.progress",
+      execution: summary({
+        executionId: "external",
+        requestId: "external-request",
+        state: "running",
+        revision: 1,
+      }),
+    });
+    await flushPromises();
+    expect(harness.busy.value).toBe(true);
+    expect(harness.workbench.activeExecutionId.value).toBe("external");
+    await harness.workbench.stop();
+    expect(client.cancelBackgroundExecution).toHaveBeenCalledWith("external");
+    harness.workbench.dispose();
+  });
+
+  it("does not adopt an external execution while its own start acknowledgement is pending", async () => {
+    let acknowledge!: (summary: ExecutionSummaryV1) => void;
+    client.startBackgroundExecution.mockReturnValue(
+      new Promise<ExecutionSummaryV1>((resolve) => {
+        acknowledge = resolve;
+      }),
+    );
+    const harness = createHarness();
+    await harness.workbench.initialize();
+    const request = createDefaultRequest({ url: "https://example.com" });
+    const started = harness.workbench.run({
+      request,
+      target: { kind: "browser" },
+    });
+    listener?.({
+      protocolVersion: 1,
+      eventId: "external-start",
+      type: "execution.progress",
+      execution: summary({
+        executionId: "external",
+        requestId: "external-request",
+        state: "running",
+        revision: 1,
+      }),
+    });
+    await flushPromises();
+    expect(harness.workbench.activeExecutionId.value).toBe("");
+    acknowledge(
+      summary({
+        executionId: "local",
+        requestId: request.id,
+        state: "running",
+        revision: 1,
+      }),
+    );
+    await started;
+    expect(harness.workbench.activeExecutionId.value).toBe("local");
+    await harness.workbench.stop();
+    expect(client.cancelBackgroundExecution).toHaveBeenCalledWith("local");
+    harness.workbench.dispose();
+  });
+
   it("restores failed remote diagnostics without overwriting the prior successful response", async () => {
     const success = summary({
       executionId: "success",
