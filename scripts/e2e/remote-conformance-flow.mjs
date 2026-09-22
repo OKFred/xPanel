@@ -1,6 +1,23 @@
-import { send, settle, result } from "./remote-result-checks.mjs";
+import { send, settle } from "./remote-result-checks.mjs";
 import { clickTextScript, setInput } from "./panel-actions.mjs";
 import { invariant, waitFor } from "./utils.mjs";
+
+async function verifyPreviousBody(panel) {
+  // A signed target can still be incomplete. The source classification is
+  // independent of integrity, so use the diagnostic toggle, not data-source.
+  const showingDiagnostic = await panel.evaluate(
+    `[...document.querySelectorAll('.response-pane button')].some(button => button.textContent.trim() === 'Show last successful response')`,
+  );
+  if (showingDiagnostic)
+    await panel.evaluate(clickTextScript("Show last successful response"));
+  await settle(
+    panel,
+    (state) =>
+      state.meta.includes("20971520 B") &&
+      /Body integrity\s*:\s*Verified\b/u.test(state.detail),
+    "previous complete cloud response is retained after failure",
+  );
+}
 
 export async function runRemoteConformanceFlow(
   panel,
@@ -56,20 +73,10 @@ export async function runRemoteConformanceFlow(
   );
   await send(panel, `${origin}/bytes/20971521`);
   await settle(panel, (s) => s.error.length > 0, "cloud 20 MiB + 1 rejection");
-  if ((await result(panel)).source !== "target")
-    await panel.evaluate(clickTextScript("Show last successful response"));
-  invariant(
-    (await result(panel)).meta.includes("20971520 B"),
-    "Cloud oversize replaced the previous result.",
-  );
+  await verifyPreviousBody(panel);
   await send(panel, `${origin}/truncated-fixed`);
   await settle(panel, (s) => s.error.length > 0, "cloud partial rejection");
-  if ((await result(panel)).source !== "target")
-    await panel.evaluate(clickTextScript("Show last successful response"));
-  invariant(
-    (await result(panel)).meta.includes("20971520 B"),
-    "Cloud partial response replaced the previous successful body.",
-  );
+  await verifyPreviousBody(panel);
   await setInput(panel, ".url-input", `${origin}/delay/12000`);
   await panel.evaluate(clickTextScript("Send"), { userGesture: true });
   await waitFor(

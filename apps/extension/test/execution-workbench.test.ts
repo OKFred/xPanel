@@ -207,15 +207,32 @@ describe("execution workbench", () => {
     });
     client.listExecutionSummaries.mockResolvedValue([success, failed]);
     client.loadExecutionResponseMetadata.mockImplementation(
-      async (handle: string) =>
-        response("same", handle === "good" ? "success" : "failure", handle),
+      async (handle: string) => ({
+        ...response("same", handle === "good" ? "success" : "failure", handle),
+        remoteDetails: {
+          schemaVersion: 1,
+          source: "target",
+          integrity: handle === "good" ? "verified" : "failed",
+          outerStatus: 200,
+          outerHeaders: [],
+          mutations: [],
+          audit: "recorded",
+        },
+      }),
     );
     const harness = createHarness();
     await harness.workbench.initialize();
     expect(harness.workbench.response.value?.handle).toBe("diagnostic");
+    expect(harness.workbench.response.value?.remoteDetails).toMatchObject({
+      source: "target",
+      integrity: "failed",
+    });
     expect(harness.workbench.hasDiagnostic.value).toBe(true);
     harness.workbench.showDiagnostic.value = false;
     expect(harness.workbench.response.value?.handle).toBe("good");
+    expect(harness.workbench.response.value?.remoteDetails?.integrity).toBe(
+      "verified",
+    );
     await harness.workbench.showLatestForRequest("same");
     expect(harness.workbench.response.value?.handle).toBe("diagnostic");
     await harness.workbench.clearResults();

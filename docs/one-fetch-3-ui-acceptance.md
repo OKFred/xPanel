@@ -110,6 +110,12 @@ post-fix full repeat remains open.
   receipt is unchanged; local credential deletion requires user confirmation.
   Readiness now requires three consecutive successful public-route probes,
   including a regression test for intermittent provider responses.
+- `xp3-94b9348ffc1c`: passed setup, payload/status/timing and 20 MiB cases;
+  the new prior-body assertion incorrectly used response source to decide
+  whether diagnostics were displayed. A signed target can have failed body
+  integrity. The assertion now uses the explicit diagnostic toggle and waits
+  for the previous verified body. Cloud resources and local credentials were
+  deleted and absence verified; the original run is not marked as passed.
 
 Failed runs and their cleanup follow-ups are not evidence of passed acceptance.
 
