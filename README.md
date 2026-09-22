@@ -1,9 +1,10 @@
-# xPanel 2.1.0
+# xPanel 3.0.0
 
 xPanel is a local-first API workbench available both as a standalone extension
-page and inside Chrome DevTools. Version 2.1.0 adds extension-managed background
-execution while retaining request collections, safe import/export, response
-inspection, Browser Fetch, and the optional self-hosted Remote Relay.
+page and inside Chrome DevTools. Version 3.0.0 replaces the old Remote Relay with
+explicitly configured [one-fetch 0.1.2 Preview](https://github.com/OKFred/one-fetch/releases/tag/v0.1.2)
+services, while retaining Browser Fetch, background execution, collections,
+safe import/export, and the virtual response viewer.
 
 ## Highlights
 
@@ -16,8 +17,13 @@ inspection, Browser Fetch, and the optional self-hosted Remote Relay.
 - Browser Fetch execution with exact-origin permission prompts by default, plus
   an explicit one-time all-HTTP/HTTPS grant for users who regularly switch API
   domains.
-- Explicitly selected, named Remote Relay profiles for requests that browser
-  Fetch cannot faithfully express. xPanel never switches to a relay silently.
+- Named one-fetch profiles with separate Control and Gateway URLs, session-only
+  execution tokens by default, and optional per-profile user deny rules.
+  Remote sends require only service-site permission, not target-site grants.
+  xPanel never switches to Remote silently.
+- Distinguishes signed target responses, signed service errors and unverified
+  intermediary responses. Target and outer headers, execution timing and target
+  Server-Timing are displayed separately; returned cookies are never installed.
 - Per-request timeout control with a 60-second default.
 - Honest staged progress, streamed response downloads, and one Stop control for
   both Browser and Remote requests.
@@ -33,7 +39,7 @@ inspection, Browser Fetch, and the optional self-hosted Remote Relay.
 
 ```text
 apps/extension       WXT + Vue 3 + shadcn-vue/Tailwind MV3 extension
-apps/relay-cloudflare Self-hosted Cloudflare Worker implementing Relay V1
+apps/relay-cloudflare Retired template awaiting three-platform migration sign-off
 packages/contracts   Runtime-validated request and response schemas
 packages/request-core Safe request format converters
 legacy/              Archived xPanel 1.1.1 MV2 source (not built)
@@ -46,18 +52,18 @@ Requirements: Node.js 24, pnpm 11, and Chrome 120+.
 ```bash
 pnpm install
 pnpm --filter @xpanel/extension dev
-pnpm --filter @xpanel/relay-cloudflare dev
 pnpm check
 pnpm e2e:chromium
 ```
 
 The Chromium E2E runner uses an isolated temporary profile and an installed
 Chromium/Chrome for Testing binary. Set `XPANEL_CHROMIUM_EXECUTABLE` when it
-cannot discover one. Optional online Relay acceptance also reads
-`XPANEL_REMOTE_BASE_URL`, `XPANEL_REMOTE_TOKEN`, and
-`XPANEL_REMOTE_TARGET_URL`; it never prints the token. The protocol suite uses
-the synthetic Fixture origin as the target, while Chromium E2E expects the
-fixture's concrete `/e2e` URL.
+cannot discover one. `node scripts/e2e-chromium.mjs --one-fetch-node` runs the
+published, digest-checked Node archive in an owned disposable Docker container.
+Online acceptance is explicitly opt-in via `--one-fetch-cloudflare` or
+`--one-fetch-supabase`; it requires a clean sibling one-fetch v0.1.2 checkout,
+logged-in CLIs, and permission to create and delete temporary synthetic resources.
+It never uses media-center. Receipts under `artifacts/one-fetch-e2e` are sanitized.
 
 Load `apps/extension/.output/chrome-mv3-dev` from `chrome://extensions`. Open
 the standalone workbench from the extension action, or open DevTools and select
@@ -68,13 +74,14 @@ the xPanel tab.
 xPanel has no telemetry and operates no relay service. Browser requests go
 directly to destinations chosen by the user. A Remote request is sent only
 after the user explicitly selects and trusts their own relay profile; its URL,
-headers, credentials, and body pass through that service. Background execution
+headers, credentials, and body pass through that service. The service operator
+controls its audit retention and provider logging. Background execution
 does not schedule or invent requests: the service worker and offscreen document
 only continue work the user started, and alarms only remove expired local
 execution data. See
-[Relay deployment](apps/relay-cloudflare/README.md), [Privacy](docs/privacy.md),
+[one-fetch integration and limitations](docs/one-fetch.md), [Privacy](docs/privacy.md),
 [Chrome Web Store submission kit](docs/chrome-web-store/submission.md),
-[Permissions](docs/permissions.md), and the [2.1 migration notes](docs/migration-2.1.md).
+[Permissions](docs/permissions.md), and the [3.0 migration notes](docs/migration-3.0.md).
 
 GitHub Actions does not upload, submit, or publish a Chrome Web Store update.
 After the reviewed commit reaches `main` and release checks pass, a maintainer

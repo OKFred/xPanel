@@ -1,6 +1,6 @@
 # xPanel Privacy Policy
 
-Effective date: 2026-09-06
+Effective date: 2026-09-22 (3.0.0 release draft)
 
 xPanel processes request data only to provide the API-client features that the
 user explicitly invokes. xPanel does not transmit request data to the developer
@@ -45,23 +45,32 @@ are used only to remove expired local execution data; they do not trigger
 network requests. Closing Chrome ends the execution context; an unfinished run
 is later marked interrupted and is not replayed automatically.
 
-Remote Relay is optional and self-hosted. A Remote request is sent only through
-the named Relay profile the user explicitly selects. Before the first send in a
-Chrome session, xPanel shows the target origin, Relay host, and data categories
+one-fetch is optional and self-hosted. A Remote request is sent only through
+the named service profile the user explicitly selects. Before the first send in a
+Chrome session, xPanel shows the target origin, service host, and data categories
 that will leave the device. The request URL, headers, credentials, files, and
-body then pass through that service to the destination. The relay token is kept
+body then pass through that service to the destination. The execution token is kept
 in browser session storage by default; local plaintext storage requires a
-separate risk confirmation. Relay profiles, tokens, and trust decisions are not
+separate risk confirmation. Profiles, user deny rules, tokens, and trust decisions are not
 included in requests, collections, or exports.
 
-The bundled Cloudflare template disables application observability and does not
-use KV, D1, R2, or Cache. A relay operator still controls their deployment and
-Cloudflare account, so users should trust that operator before sending secrets.
-Remote Relay is not an anonymity service: Cloudflare, the Relay operator, and
-the destination may observe network metadata including the originating client
-IP.
+The one-fetch operator controls its accounts, target policies, audit records,
+and infrastructure. Its application audit may retain request metadata such as
+path/query and redacted ordinary headers. Provider logs may also include the
+outer request URL. Consult that operator's privacy and retention policy before
+sending confidential data. Remote is not an anonymity service: the provider,
+operator and destination may observe network metadata, including client IP.
+Only explicit Cookie headers are sent in Remote mode; xPanel never reads or
+forwards the Chrome cookie jar. Connection tests retrieve public capabilities
+without sending the execution token or contacting an arbitrary target.
 Returned `Set-Cookie` values are displayed and can be copied, but are never
 written to Chrome's cookie jar.
+
+Local response details (source verification, configuration version, timing,
+integrity and diagnostic body) expire and are cleared together with the response.
+They do not contain the execution token and are not part of collection exports.
+Old Relay profiles and their previously saved credentials are retained locally
+but disabled until the user explicitly deletes them; xPanel does not reuse them.
 
 ## User control
 
