@@ -20,6 +20,10 @@ import { runHarFlow } from "./har-flow.mjs";
 import { runLargeResponseFlow } from "./large-response-flow.mjs";
 import { runLocalizationFlow } from "./localization-flow.mjs";
 import { runRemoteFlow } from "./remote-flow.mjs";
+import { startOneFetchNodeFixture } from "./one-fetch-node-runtime.mjs";
+import { grantTestHostAccess } from "./extension-permissions.mjs";
+import { runRemoteBackgroundFlow } from "./remote-background-flow.mjs";
+import { startOneFetchCloudflareFixture } from "./one-fetch-cloudflare-runtime.mjs";
 import {
   generatePromoTile,
   generateStoreScreenshots,
@@ -42,6 +46,9 @@ export async function runChromiumE2e(config = e2eConfig) {
   let storeWorkbenchTargetId;
   let chromeProcess;
   let profileRoot;
+  let oneFetchNode;
+  let oneFetchCloudflare;
+  const failures = [];
   const pageFailures = [];
   const fixture = fixtureServer();
 
@@ -49,6 +56,8 @@ export async function runChromiumE2e(config = e2eConfig) {
     invariant(existsSync(manifestPath), "Build the MV3 extension before E2E.");
     const fixturePort = await listen(fixture);
     const fixtureOrigin = `http://127.0.0.1:${fixturePort}`;
+    if (process.argv.includes("--one-fetch-node"))
+      oneFetchNode = await startOneFetchNodeFixture(workspaceRoot);
     const inspectedStartUrl =
       "data:text/html,%3Ctitle%3ExPanel-E2E%3C%2Ftitle%3Efixture";
     const debugPort = await availablePort();
@@ -149,7 +158,19 @@ export async function runChromiumE2e(config = e2eConfig) {
     await runLargeResponseFlow(panelClient, fixtureOrigin);
     await runBrowserFlow(panelClient, fixtureOrigin);
     await runHarFlow(panelClient, inspectedClient);
-    const remoteChecked = await runRemoteFlow(panelClient, config);
+    if (process.argv.includes("--one-fetch-cloudflare"))
+      oneFetchCloudflare = await startOneFetchCloudflareFixture(
+        workspaceRoot,
+        extensionOrigin,
+      );
+    const remoteConfig = oneFetchCloudflare ?? oneFetchNode ?? config;
+    if (remoteConfig.remoteControlUrl && remoteConfig.remoteGatewayUrl) {
+      await grantTestHostAccess(browserClient, debugPort, panelUrl.host, [
+        remoteConfig.remoteControlUrl,
+        remoteConfig.remoteGatewayUrl,
+      ]);
+    }
+    const remoteChecked = await runRemoteFlow(panelClient, remoteConfig);
     const background = await runBackgroundWorkbenchFlow({
       browser: browserClient,
       debugPort,
@@ -159,6 +180,14 @@ export async function runChromiumE2e(config = e2eConfig) {
       fixtureOrigin,
       panel: panelClient,
     });
+    if (remoteConfig.remoteFixtureKind === "xpanel-synthetic-v1")
+      await runRemoteBackgroundFlow({
+        browser: browserClient,
+        debugPort,
+        extensionOrigin,
+        failures: pageFailures,
+        origin: new URL(remoteConfig.remoteTargetUrl).origin,
+      });
     if (captureStoreAssets) {
       const standalonePage = await openPageTarget(
         browserClient,
@@ -196,9 +225,17 @@ export async function runChromiumE2e(config = e2eConfig) {
     assertNoPageFailures(pageFailures);
 
     process.stdout.write(
-      `Chromium MV3 E2E passed: method combobox, 318 KiB virtual response, DevTools panel, standalone recovery/cancel (${background.cancelLatencyMs.toFixed(1)} ms)${background.serviceWorkerTerminated ? ", service worker termination" : ""}, bilingual UI, Browser streaming/cancel, HAR import/select/persist${remoteChecked ? ", Remote Relay" : ""}${captureStoreAssets ? ", store assets" : ""}.\n`,
+      `Chromium MV3 E2E passed: method combobox, 318 KiB virtual response, DevTools panel, standalone recovery/cancel (${background.cancelLatencyMs.toFixed(1)} ms)${background.serviceWorkerTerminated ? ", service worker termination" : ""}, bilingual UI, Browser streaming/cancel, HAR import/select/persist${remoteChecked ? ", one-fetch" : ""}${captureStoreAssets ? ", store assets" : ""}.\n`,
     );
+  } catch (error) {
+    failures.push(error);
   } finally {
+    try {
+      await oneFetchNode?.cleanup();
+      await oneFetchCloudflare?.cleanup();
+    } catch (error) {
+      failures.push(error);
+    }
     await new Promise((resolveClosed) => fixture.close(resolveClosed));
     panelClient?.close();
     inspectedClient?.close();
@@ -247,4 +284,10 @@ export async function runChromiumE2e(config = e2eConfig) {
       }
     }
   }
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1)
+    throw new AggregateError(
+      failures,
+      "E2E and resource cleanup both require attention.",
+    );
 }
