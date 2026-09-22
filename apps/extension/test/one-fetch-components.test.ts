@@ -90,7 +90,7 @@ describe("one-fetch disclosures and deny-rule editor", () => {
       props: { capabilities: capabilities() },
       global,
     });
-    expect(wrapper.text()).toContain("node · 0.1.1");
+    expect(wrapper.text()).toContain("node · 0.1.2");
     expect(wrapper.text()).toContain("fixture-1");
     expect(wrapper.text()).toContain("2026-09-22");
     expect(wrapper.text()).toContain("oneFetchCapabilityNotice");

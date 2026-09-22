@@ -116,11 +116,14 @@ export async function openRemoteResponse(
       fetchOptions: {
         redirect: request.options.redirect,
         timeoutMs: request.options.timeoutMs,
-        ...(capabilities.provider === "supabase"
-          ? { adapter: { supabaseAcceptMutations: true } }
-          : capabilities.provider === "cloudflare"
-            ? { adapter: { cloudflareAcceptMutations: true } }
-            : {}),
+        adapter: {
+          browserResponse: "envelope-v1",
+          ...(capabilities.provider === "supabase"
+            ? { supabaseAcceptMutations: true }
+            : capabilities.provider === "cloudflare"
+              ? { cloudflareAcceptMutations: true }
+              : {}),
+        },
       },
       userDenyRules: target.profile.userDenyRules,
       requestId: request.id,

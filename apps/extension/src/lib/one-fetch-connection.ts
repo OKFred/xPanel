@@ -130,5 +130,17 @@ export async function testRelayConnection(
   if (capabilities.transports.http?.state !== "stable") {
     throw new Error("The service does not advertise stable HTTP support.");
   }
+  if (
+    !capabilities.fetchOptions.some(
+      (option) =>
+        option.option === "adapter.browserResponse" &&
+        option.fidelity === "translated" &&
+        option.acceptedValues?.includes("envelope-v1"),
+    )
+  ) {
+    throw new Error(
+      "This service lacks the browser response envelope required by xPanel. Upgrade one-fetch to 0.1.2 or later with envelope-v1 support.",
+    );
+  }
   return capabilities;
 }

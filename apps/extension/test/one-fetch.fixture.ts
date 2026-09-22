@@ -14,7 +14,7 @@ export const consent = {
   instanceId: "fixture",
   pairId: "fixture-pair",
   configVersion: "fixture-1",
-  buildVersion: "0.1.1",
+  buildVersion: "0.1.2",
 };
 export function profile(id = crypto.randomUUID()) {
   return oneFetchProfileV1Schema.parse({
@@ -31,7 +31,7 @@ export function capabilities(): OneFetchCapabilitiesV1 {
     protocolVersion: 1,
     instanceId: consent.instanceId,
     provider: "node",
-    buildVersion: "0.1.1",
+    buildVersion: "0.1.2",
     controlGatewayPairId: consent.pairId,
     configVersion: consent.configVersion,
     configUpdatedAt: "2026-09-22T00:00:00Z",
@@ -53,6 +53,11 @@ export function capabilities(): OneFetchCapabilitiesV1 {
     fetchOptions: [
       { option: "redirect", fidelity: "translated" },
       { option: "timeoutMs", fidelity: "exact" },
+      {
+        option: "adapter.browserResponse",
+        fidelity: "translated",
+        acceptedValues: ["envelope-v1"],
+      },
     ],
     headerMutations: [],
     audit: { state: "healthy" },
@@ -72,6 +77,7 @@ export async function signedResponse(
     requestId: request.requestId,
     nonce: request.nonce,
     outcome: "target" as const,
+    responseMode: "browser-envelope-v1" as const,
     target: {
       kind: "http" as const,
       status: 200,
@@ -91,7 +97,7 @@ export async function signedResponse(
     signingToken,
   );
   return new Response(body, {
-    status: unsigned.target?.kind === "http" ? unsigned.target.status : 502,
+    status: 200,
     headers: {
       "One-Fetch-Response": encodeResponseMetadata(signed),
       "Content-Type": "text/plain",

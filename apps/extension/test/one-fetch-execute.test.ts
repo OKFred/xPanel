@@ -76,6 +76,7 @@ describe("one-fetch HTTP execution", () => {
         meta.targetHeaders.filter((h) => h.name === "X-Repeat"),
       ).toHaveLength(2);
       expect(meta.targetOrigin).toBe("https://target.example");
+      expect(meta.fetchOptions.adapter?.browserResponse).toBe("envelope-v1");
       return signedResponse(init);
     });
     expect((await executeRemote(request, remoteTarget())).body.content).toBe(
@@ -105,8 +106,14 @@ describe("one-fetch HTTP execution", () => {
           },
         }),
       );
-      const response = await executeRemote(request, remoteTarget());
+      const response = await openRemoteResponse(request, remoteTarget());
       expect(response.status).toBe(status);
+      expect(response.remoteDetails).toMatchObject({
+        source: "target",
+        outerStatus: 200,
+      });
+      await new Response(response.stream).text();
+      await response.finalizeRemote!();
     },
   );
   it("preserves separate Set-Cookie values and target Server-Timing without applying cookies", async () => {
