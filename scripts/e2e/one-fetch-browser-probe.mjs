@@ -286,7 +286,8 @@ async function browserProbe(input) {
           result.response.status === 200;
         if (classification.source === "target") {
           // A streaming vendor may strip Content-Length. Headers are already
-          // committed then; require a bounded failed stream AND final report.
+          // committed then; a CDN may turn its reset into clean EOF. Require
+          // bounded bytes AND a partial terminal report with the exact cause.
           let received = 0;
           let interrupted = false;
           const reader = result.response.body.getReader();
@@ -307,7 +308,6 @@ async function browserProbe(input) {
           }
           const report = await finalReport(classification.metadata);
           check.passed =
-            interrupted &&
             received <= 20 * 1024 * 1024 &&
             result.response.status === 200 &&
             classification.metadata.responseMode === "browser-envelope-v1" &&
@@ -320,6 +320,8 @@ async function browserProbe(input) {
             : "missing-final-report";
           check.integrity = "not-verified";
           check.reportOutcome = report?.outcome ?? "unavailable";
+          check.reportBodyComplete = report?.bodyComplete;
+          check.reportHasDigest = Boolean(report?.bodySha256);
           check.interrupted = interrupted;
           check.bytesReceived = received;
         } else await result.response.body?.cancel();
