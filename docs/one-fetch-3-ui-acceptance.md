@@ -9,7 +9,9 @@ permission to merge, submit to the Chrome Web Store or publish the extension.
   All 18 public release files match the reviewed manifest/checksums; provenance
   was verified separately. See [release evidence](one-fetch-browser-0.1.2-acceptance.md).
 - Type checking, lint, dependency-source tests and all unit/component suites;
-  extension tests include 202 cases. Browser envelope negotiation fails closed,
+  extension tests include 193 cases after retiring nine legacy-only cases;
+  contracts/format-conversion/tooling suites add 44/19/11 cases.
+  Browser envelope negotiation fails closed,
   and signed target statuses are not confused with outer HTTP 200.
 - Actual Node-backed Chromium workbench: target 201/302/404/503, policy error,
   repeated Set-Cookie, target timing, 20 MiB digest, overflow/partial protection,
@@ -35,7 +37,7 @@ permission to merge, submit to the Chrome Web Store or publish the extension.
   disappear; screenshots are not retouched. Browser E2E passed again during
   capture, including focus/console checks and background Stop (19.0 ms).
 
-## Hosted UI gates still open
+## Three-platform UI sign-off
 
 The three-platform official-client probes passed before publication, but they
 do not substitute for full xPanel UI acceptance with the released dependencies.
@@ -49,14 +51,20 @@ termination, Popup recovery and cross-window cancellation. Cleanup verified
 the temporary project, fixture and local credentials absent. Cloudflare's
 post-fix full repeat also passed in `xp3-6076305e3d84`, including explicit overflow
 and partial rejection, previous-body retention and the pre-subscribed observer's
-cross-window Stop. Cleanup is recorded independently below. Supabase is being
-repeated against the same hardened runtime before retirement of the old Relay.
+cross-window Stop. The hardened Supabase repeat passed in
+`xpanel-three-11a0a0104686` with the same coverage, including explicit overflow
+and partial failures and prior-success preservation. All three successful
+environments were deleted and checked absent, including local credentials.
 
 The hardened 23-file MV3 runtime inventory SHA-256 is
 `382d7795c51ab07841452d44ec2a139450fdd4818b95bb2e6f108782acc69eee`.
-It hashes sorted `[relativePath, byteLength, sha256]` JSON entries. Node and the
-new Cloudflare pass used these exact bytes. This is an unpacked runtime digest,
+It hashes sorted `[relativePath, byteLength, sha256]` JSON entries. All three
+passes used these exact bytes. Removing the legacy Relay implementation/build
+jobs and rebuilding did not change any of these runtime files. The post-removal
+Chromium upgrade test also passed again. This is an unpacked runtime digest,
 not a final main ZIP digest or permission to publish.
+
+## Historical attempts and cleanup follow-ups
 
 - Cloudflare run `xp3-dfe8ab1bcba1` failed at synthetic fixture readiness (404).
   Its cloud resources and local credential directory were removed and verified.
@@ -73,9 +81,9 @@ not a final main ZIP digest or permission to publish.
 - The test harness now waits for public Control routes before entering the
   locked verifier, uses a bounded read-only workers.dev propagation window and
   records the failing stage without arbitrary response/error contents.
-- Repeat Cloudflare and Supabase UI acceptance after cleanup, including the
-  remaining upload/multipart/timeout coverage. Retire the old Relay template
-  and build tasks only after migration acceptance passes.
+- Subsequent full repeats covered upload/multipart/timeout. The old template,
+  unused executor helpers and build jobs have now been retired; Git preserves
+  their history and the read-only legacy profile migration remains supported.
 
 ### Follow-up hosted attempts (23 September)
 
@@ -133,8 +141,8 @@ not a final main ZIP digest or permission to publish.
   with abortable backoff instead of three near-immediate attempts. Regression
   tests cover delayed partial reports, unavailable reports, cancellation during
   backoff and persisted success classification. All temporary resources and
-  credentials were deleted and absence verified. All adapters will be repeated
-  on the hardened runtime; this attempt is not a passed acceptance.
+  credentials were deleted and absence verified. All adapters subsequently
+  passed on the hardened runtime; this attempt remains failed.
 - `xp3-6076305e3d84`: the full hardened Cloudflare run passed; guarded cleanup
   verified both Workers, D1, synthetic fixture and local credentials absent.
 - `xpanel-three-76dde0aa7e45`: the Supabase repeat stopped before UI acceptance
@@ -143,9 +151,30 @@ not a final main ZIP digest or permission to publish.
   removed and checked absent. Fixture probes now retry only read-only 404/5xx
   responses, never a successful but non-truncated response, and expose only the
   status code when the advertised length is wrong. This attempt did not pass.
+- `xpanel-three-11a0a0104686`: full hardened Supabase UI passed, including
+  closed-workbench completion, final digest and pre-subscribed cross-window
+  Stop. Cleanup verified the temporary project, fixture and credentials absent.
 
 Failed runs and their cleanup follow-ups are not evidence of passed acceptance.
 
+## Review package and remaining approvals
+
+- Review build at `4b76a59494f6d080e0d4ed3fd6cb30633195b7a5`:
+  `xpanelextension-3.0.0-chrome.zip`, 352,246 bytes, 23 entries.
+  SHA-256: `01316d6adb5dedefd95949a0ba8d4bac189ee90028b06ba1363ce57b45dfbf1a`.
+  Every ZIP entry matches the accepted runtime above; no duplicate or excluded
+  private-key/environment paths. This is not the final main Store package.
+- Production CycloneDX SBOM: 76 components, including all three official
+  one-fetch 0.1.2 distributions and SHA-512 integrity; commit/lockfile-bound.
+  Production dependency audit has zero known vulnerabilities.
+- Full local `pnpm check` and branch CI passed after retirement. No changed
+  implementation/test file exceeds the 1,000-line hard limit.
+- One older failed attempt's local directory
+  `xpanel-one-fetch-cloudflare-4eaOsH` still needs maintainer deletion and an
+  absence check; that attempt's cloud resources are already absent.
+- PR merge requires explicit approval. Rebuild the final ZIP/SBOM on main, then
+  obtain a separate Store upload/submission confirmation with deferred publishing.
+
 No media-center restore, retained public Gateway, xPanel merge or Store
-submission was performed. Final main ZIP/SBOM and cloud UI acceptance remain
-release gates, not implied by these checks.
+submission was performed. These approvals and final main artifacts remain
+release gates, not implied by the passed technical checks.

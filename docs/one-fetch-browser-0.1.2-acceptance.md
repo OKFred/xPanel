@@ -95,6 +95,6 @@ absence verified. Cloud UI and upgrade acceptance are still separate gates.
 - [0.1.2 Preview](https://github.com/OKFred/one-fetch/releases/tag/v0.1.2) was
   published on 22 September from this commit with the 18 unchanged review files.
   xPanel pins the new Release URLs and SHA-512 integrity. v0.1.1 is unchanged.
-- Run the full xPanel UI/Offscreen/upgrade suite with the new dependency before
-  retiring the legacy Relay build. xPanel merge and Store submission remain
-  separate approval gates.
+- The full xPanel UI/Offscreen/upgrade suite and legacy Relay retirement are
+  recorded in [the current UI acceptance evidence](one-fetch-3-ui-acceptance.md).
+  xPanel merge and Store submission remain separate approval gates.
