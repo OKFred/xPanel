@@ -31,15 +31,18 @@ session trust. Account management remains outside the extension.
   identity mismatch is an intermediary response, not automatically a CF fault.
 - Body integrity is separate. A complete final report and matching SHA-256 are
   required for “Verified”. Missing reports or digests remain “Not verified”.
-  Partial, failed or mismatched results cannot overwrite the last success.
+  Partial, failed, mismatched or unverified bodies are retained as diagnostics;
+  they cannot overwrite the last verified success.
 - The explicitly negotiated browser envelope uses outer HTTP 200 while keeping
   the true target status signed. This preserves manual 3xx results in Chromium.
   Older services without `envelope-v1` support are blocked with an upgrade hint.
 - All three 0.1.2 adapters can supply a body digest. A clean EOF or outer 200 alone
   is insufficient: an oversized/partial final report still fails verification.
   No immutable release has been overwritten.
-- Final report queries retry at most three times, with five seconds per attempt,
-  inside the request's overall timeout and cancellation deadline.
+- Final report queries make at most six attempts, with five seconds per attempt
+  and bounded backoff to allow the service's final storage commit. Waiting is
+  cancellable and stays inside the request's overall timeout. Rejected execution
+  credentials are not retried.
 
 Target Headers and outer service Headers are separate. Multiple Set-Cookie
 values remain separate entries and are never installed in Chrome. Remote sends

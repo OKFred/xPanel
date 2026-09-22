@@ -87,12 +87,12 @@ export async function completeStreamedExecution(
     state:
       input.response.remoteDetails &&
       (input.response.remoteDetails.source !== "target" ||
-        input.response.remoteDetails.integrity === "failed")
+        input.response.remoteDetails.integrity !== "verified")
         ? "failed"
         : "succeeded",
     ...(input.response.remoteDetails &&
     (input.response.remoteDetails.source !== "target" ||
-      input.response.remoteDetails.integrity === "failed")
+      input.response.remoteDetails.integrity !== "verified")
       ? {
           error: {
             code:

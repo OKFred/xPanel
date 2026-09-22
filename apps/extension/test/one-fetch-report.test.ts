@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExecutionReportV1 } from "@one-fetch/protocol";
 import type { OneFetchResponseDetailsV1 } from "@xpanel/contracts";
 import {
@@ -43,6 +43,10 @@ const finalize = (signal = new AbortController().signal) =>
     503,
   );
 beforeEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 describe("one-fetch final report verification", () => {
   it("binds a browser envelope to signed target status, not outer HTTP 200", async () => {
@@ -146,15 +150,57 @@ describe("one-fetch final report verification", () => {
     expect((await finalize()).integrity).toBe("failed");
   });
   it("bounds retries and explicitly marks unavailable reports unverified", async () => {
+    vi.useFakeTimers();
     const fetch = vi.fn(
       async () => new Response("unavailable", { status: 404 }),
     );
     vi.stubGlobal("fetch", fetch);
-    expect(await finalize()).toMatchObject({
+    const pending = finalize();
+    await vi.runAllTimersAsync();
+    expect(await pending).toMatchObject({
       integrity: "unverified",
       reason: "report-unavailable",
     });
-    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(fetch).toHaveBeenCalledTimes(6);
+  });
+  it("waits for a delayed partial report instead of promoting an early 404", async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn(async () =>
+      Response.json({
+        ...report,
+        outcome: "partial",
+        bodyComplete: false,
+      }),
+    );
+    for (let attempt = 0; attempt < 4; attempt += 1)
+      fetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
+    vi.stubGlobal("fetch", fetch);
+    const pending = finalize();
+    await vi.runAllTimersAsync();
+    expect(await pending).toMatchObject({
+      integrity: "failed",
+      reason: "report-partial",
+    });
+    expect(fetch).toHaveBeenCalledTimes(5);
+  });
+  it("stops immediately during report backoff without issuing another fetch", async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    const fetch = vi.fn(async () => new Response(null, { status: 404 }));
+    vi.stubGlobal("fetch", fetch);
+    const pending = finalize(controller.signal);
+    const rejected = expect(pending).rejects.toThrow("Request cancelled");
+    await vi.advanceTimersByTimeAsync(10);
+    controller.abort(new DOMException("Request cancelled", "AbortError"));
+    await rejected;
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it("does not retry a rejected execution credential", async () => {
+    const fetch = vi.fn(async () => new Response(null, { status: 401 }));
+    vi.stubGlobal("fetch", fetch);
+    expect((await finalize()).integrity).toBe("unverified");
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
   it("does not invent integrity verification when the report has no digest", async () => {
     const withoutDigest = { ...report };

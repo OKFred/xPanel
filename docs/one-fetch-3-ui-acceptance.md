@@ -116,6 +116,15 @@ post-fix full repeat remains open.
   integrity. The assertion now uses the explicit diagnostic toggle and waits
   for the previous verified body. Cloud resources and local credentials were
   deleted and absence verified; the original run is not marked as passed.
+- `xp3-a5e4bef46fc9`: a streamed oversized response ended early while its final
+  report was unavailable. The UI correctly said body integrity was unverified,
+  but still promoted that body to the latest success. The extension now keeps
+  unverified bodies as diagnostics, and report lookup uses six bounded attempts
+  with abortable backoff instead of three near-immediate attempts. Regression
+  tests cover delayed partial reports, unavailable reports, cancellation during
+  backoff and persisted success classification. All temporary resources and
+  credentials were deleted and absence verified. All adapters will be repeated
+  on the hardened runtime; this attempt is not a passed acceptance.
 
 Failed runs and their cleanup follow-ups are not evidence of passed acceptance.
 

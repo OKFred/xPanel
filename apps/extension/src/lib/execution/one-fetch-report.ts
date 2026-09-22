@@ -1,9 +1,38 @@
-import { OneFetchControlClient } from "@one-fetch/client";
+import { OneFetchControlClient, OneFetchControlError } from "@one-fetch/client";
 import type {
   OneFetchProfileV1,
   OneFetchResponseDetailsV1,
 } from "@xpanel/contracts";
 import { controlFetch } from "../one-fetch-connection";
+
+// Reports are committed after the response stream ends. Three near-immediate
+// 404s can all precede a remote storage commit. Cap retries and honor Stop even
+// while backing off; the execution's overall deadline remains authoritative.
+const REPORT_RETRY_DELAYS_MS = [250, 500, 1_000, 2_000, 2_000];
+
+async function waitForRetry(
+  delayMs: number,
+  signal: AbortSignal,
+): Promise<void> {
+  signal.throwIfAborted();
+  await new Promise<void>((resolve, reject) => {
+    const abort = (): void => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", abort);
+      const reason: unknown = signal.reason;
+      reject(
+        reason instanceof Error
+          ? reason
+          : new DOMException("Request cancelled.", "AbortError"),
+      );
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", abort);
+      resolve();
+    }, delayMs);
+    signal.addEventListener("abort", abort, { once: true });
+  });
+}
 
 /** Short, bounded verification. Report failure must not become fake success. */
 export async function finalizeRemoteReport(
@@ -21,12 +50,16 @@ export async function finalizeRemoteReport(
     controlUrl: profile.controlUrl,
     fetch: controlFetch,
   });
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (
+    let attempt = 0;
+    attempt <= REPORT_RETRY_DELAYS_MS.length;
+    attempt += 1
+  ) {
     signal.throwIfAborted();
     try {
       const report = await client.getExecutionReport(details.reportId, token, {
         // Cross-region Control cold starts can exceed two seconds. Still bounded
-        // by three attempts and the execution's overall timeout/cancel signal.
+        // by six attempts and the execution's overall timeout/cancel signal.
         signal: AbortSignal.any([signal, AbortSignal.timeout(5_000)]),
       });
       if (
@@ -61,10 +94,17 @@ export async function finalizeRemoteReport(
         ...(report.problem ? { problem: report.problem } : {}),
         ...(!complete ? { reason: `report-${report.outcome}` } : {}),
       };
-    } catch {
+    } catch (error) {
       signal.throwIfAborted();
-      if (attempt < 2)
-        await new Promise<void>((resolve) => setTimeout(resolve, 250));
+      if (
+        error instanceof OneFetchControlError &&
+        error.status < 500 &&
+        error.status !== 404 &&
+        error.status !== 429
+      )
+        break;
+      const delay = REPORT_RETRY_DELAYS_MS[attempt];
+      if (delay !== undefined) await waitForRetry(delay, signal);
     }
   }
   return { ...details, integrity: "unverified", reason: "report-unavailable" };

@@ -71,7 +71,7 @@ const documentMode = computed<"pretty" | "raw">(() =>
           v-if="response"
           :data-ok="
             (!remoteDetails || remoteDetails.source === 'target') &&
-            remoteDetails?.integrity !== 'failed' &&
+            (!remoteDetails || remoteDetails.integrity === 'verified') &&
             response.status >= 200 &&
             response.status < 400
           "
