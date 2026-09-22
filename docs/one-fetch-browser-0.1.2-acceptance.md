@@ -40,12 +40,32 @@ failure; follow-up verified cloud resource absence, but its separate local
 credential directory still requires user deletion. No media-center restore was
 performed and no public Gateway is retained.
 
+## Downloaded review artifacts
+
+Review run `35733088736` produced a clean main build of `056380ecbfc4`.
+The exact 18-file inventory, manifest, SHA-256/SHA-512 lists and safe archive paths
+passed local verification. All 16 provenance subjects passed verification with
+the exact repository, `release-review.yml` signer, source commit and main ref;
+self-hosted runners were disallowed.
+
+The downloaded Node distributions also passed HTTP/authentication/audit checks:
+
+| Mode                                         | Platform       | Receipt SHA-256                                                    |
+| -------------------------------------------- | -------------- | ------------------------------------------------------------------ |
+| Portable archive                             | AMD64          | `d9b94dd566881ba648c2b6ac0611880cd7dfa0269ba9af538ea7aeba263d96ce` |
+| OCI                                          | AMD64          | `c9a4ae09f6698a7b7123a005c3bce63958443718849282ae1e3f9365d47186a4` |
+| OCI                                          | Emulated ARM64 | `12f8ec5687beed85f3b22f9ea0933ac78ecb4ed72a8a182227d30ed5f8ff4fad` |
+| Installed archive + isolated backup recovery | AMD64          | `9456c8554987f9ae64e04accb3ca5a374047eb88ceb8db2ecc4da0332eeb4218` |
+
+These four new owned containers were removed and their absence verified. Older
+unrelated 0.1.0 containers were not modified. This is not a native ARM64 hardware
+test or a repeat of every historical cross-version deployment rehearsal.
+
 ## Remaining release/integration gates
 
 - The final main CI and CodeQL passed. Review bundle run
   [35733088736](https://github.com/OKFred/one-fetch/actions/runs/35733088736)
-  succeeded; downloaded artifacts still require local provenance and packaged
-  runtime verification before publication.
+  succeeded; local provenance and packaged runtime verification passed as above.
 - Finish the earlier local credential cleanup and record its absence.
 - Publish a new immutable 0.1.2 Preview, then pin xPanel to those exact Release
   URLs and lockfile integrity. Never replace v0.1.1 assets or its tag.
