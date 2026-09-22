@@ -9,7 +9,7 @@ permission to merge, submit to the Chrome Web Store or publish the extension.
   All 18 public release files match the reviewed manifest/checksums; provenance
   was verified separately. See [release evidence](one-fetch-browser-0.1.2-acceptance.md).
 - Type checking, lint, dependency-source tests and all unit/component suites;
-  extension tests include 195 cases. Browser envelope negotiation fails closed,
+  extension tests include 202 cases. Browser envelope negotiation fails closed,
   and signed target statuses are not confused with outer HTTP 200.
 - Actual Node-backed Chromium workbench: target 201/302/404/503, policy error,
   repeated Set-Cookie, target timing, 20 MiB digest, overflow/partial protection,
@@ -17,8 +17,9 @@ permission to merge, submit to the Chrome Web Store or publish the extension.
 - Node UI also verifies exact UTF-8 JSON, repeated/encoded query, a selected
   binary file, multipart text/file and a one-second timeout retaining the last
   result. The latest repeat passed after adding cancellable capability-preflight
-  progress and live cross-window execution adoption; Remote Stop acknowledgement
-  was 62.0 ms.
+  progress, live cross-window execution adoption and uncertain-body isolation;
+  Remote Stop acknowledgement was 61.6 ms. The second window subscribed before
+  the new request started, and the owned container was removed and checked absent.
 - Production dependency audit passed after pinning YAML 2.8.3 and fflate 0.8.3.
   Bounded regression tests exercise deeply nested YAML and malformed ZIP64.
 - Release packaging now requires a production CycloneDX dependency inventory
@@ -46,7 +47,16 @@ status-source separation, cookies, timing, 20 MiB/+1, an independently verified
 wire truncation, timeout, Stop, closed-workbench completion, service-worker
 termination, Popup recovery and cross-window cancellation. Cleanup verified
 the temporary project, fixture and local credentials absent. Cloudflare's
-post-fix full repeat remains open.
+post-fix full repeat also passed in `xp3-6076305e3d84`, including explicit overflow
+and partial rejection, previous-body retention and the pre-subscribed observer's
+cross-window Stop. Cleanup is recorded independently below. Supabase is being
+repeated against the same hardened runtime before retirement of the old Relay.
+
+The hardened 23-file MV3 runtime inventory SHA-256 is
+`382d7795c51ab07841452d44ec2a139450fdd4818b95bb2e6f108782acc69eee`.
+It hashes sorted `[relativePath, byteLength, sha256]` JSON entries. Node and the
+new Cloudflare pass used these exact bytes. This is an unpacked runtime digest,
+not a final main ZIP digest or permission to publish.
 
 - Cloudflare run `xp3-dfe8ab1bcba1` failed at synthetic fixture readiness (404).
   Its cloud resources and local credential directory were removed and verified.
