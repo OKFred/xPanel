@@ -84,7 +84,27 @@ export async function completeStreamedExecution(
   });
   const summary = executionSummaryV1Schema.parse({
     ...current.summary,
-    state: "succeeded",
+    state:
+      input.response.remoteDetails &&
+      (input.response.remoteDetails.source !== "target" ||
+        input.response.remoteDetails.integrity !== "verified")
+        ? "failed"
+        : "succeeded",
+    ...(input.response.remoteDetails &&
+    (input.response.remoteDetails.source !== "target" ||
+      input.response.remoteDetails.integrity !== "verified")
+      ? {
+          error: {
+            code:
+              input.response.remoteDetails.problem?.code ??
+              input.response.remoteDetails.reason ??
+              "unverified_response",
+            message: input.response.remoteDetails.problem
+              ? `${input.response.remoteDetails.problem.code} (${input.response.remoteDetails.problem.stage})`
+              : "The remote response is not a complete verified target result. Open diagnostics for details.",
+          },
+        }
+      : {}),
     revision: current.summary.revision + 1,
     progress: {
       phase: "complete",

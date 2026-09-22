@@ -1,12 +1,13 @@
 import {
   EXECUTION_PROTOCOL_VERSION,
   executionCommandResultV1Schema,
-  remoteRelayProfileV1Schema,
+  oneFetchProfileV1Schema,
   requestSpecV1Schema,
   type ExecutionCommandV1,
   type ExecutionEventV1,
   type ExecutionSummaryV1,
-  type RemoteRelayProfileV1,
+  type OneFetchProfileV1,
+  type OneFetchConsentV1,
   type RequestSpecV1,
   type ResultRetentionV1,
 } from "@xpanel/contracts";
@@ -29,7 +30,7 @@ import {
   controlEnvelope,
   executionEventEnvelopeSchema,
 } from "./execution-messages";
-import { getRelayToken } from "./remote-profiles";
+import { relayPermissionOrigins } from "./one-fetch-profiles";
 import { executionSessionId } from "./execution-session";
 import {
   DEFAULT_RESPONSE_LIMIT_BYTES,
@@ -54,7 +55,12 @@ export class StorageCapacityError extends Error {
 
 export type BackgroundExecutionTarget =
   | { kind: "browser" }
-  | { kind: "remote"; profile: RemoteRelayProfileV1 };
+  | {
+      kind: "remote";
+      profile: OneFetchProfileV1;
+      consent: OneFetchConsentV1;
+      token: string;
+    };
 
 export interface StartBackgroundExecutionInput {
   request: RequestSpecV1;
@@ -87,7 +93,7 @@ function permissionPattern(
   const url =
     target.kind === "browser"
       ? new URL(request.url)
-      : new URL(target.profile.baseUrl);
+      : new URL(target.profile.gatewayUrl);
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error("Background requests require an HTTP or HTTPS URL.");
   }
@@ -99,7 +105,12 @@ export async function ensureExecutionHostPermission(
   request: RequestSpecV1,
   alreadyGranted = false,
 ): Promise<void> {
-  const permissions = { origins: [permissionPattern(target, request)] };
+  const permissions = {
+    origins:
+      target.kind === "remote"
+        ? relayPermissionOrigins(target.profile)
+        : [permissionPattern(target, request)],
+  };
   const granted = alreadyGranted
     ? await chrome.permissions.contains(permissions)
     : await chrome.permissions.request(permissions);
@@ -204,7 +215,9 @@ export async function startBackgroundExecution(
       ? target
       : {
           kind: "remote" as const,
-          profile: remoteRelayProfileV1Schema.parse(target.profile),
+          profile: oneFetchProfileV1Schema.parse(target.profile),
+          consent: target.consent,
+          token: target.token,
         };
   assertSupported(validatedTarget, request);
   const boundFiles = boundFilesForRequest(request);
@@ -219,7 +232,8 @@ export async function startBackgroundExecution(
     validatedTarget.kind === "remote"
       ? {
           profile: validatedTarget.profile,
-          token: await getRelayToken(validatedTarget.profile),
+          token: validatedTarget.token,
+          consent: validatedTarget.consent,
         }
       : undefined;
   if (remoteContext && !remoteContext.token) {
@@ -264,6 +278,7 @@ export async function startBackgroundExecution(
           remoteContext: {
             profile: remoteContext.profile,
             token: remoteContext.token,
+            consent: remoteContext.consent,
           },
         }
       : {}),

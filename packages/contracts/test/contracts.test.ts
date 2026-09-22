@@ -457,10 +457,17 @@ describe("background execution V1", () => {
             schemaVersion: 1,
             id: "relay-1",
             name: "Private relay",
-            baseUrl: "https://relay.example.test",
+            controlUrl: "https://control.example.test",
+            gatewayUrl: "https://relay.example.test",
             tokenStorage: "session",
           },
           token: "ephemeral-token",
+          consent: {
+            instanceId: "instance",
+            pairId: "pair",
+            configVersion: "config",
+            buildVersion: "0.1.1",
+          },
         },
       }).success,
     ).toBe(true);

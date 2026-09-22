@@ -1,10 +1,21 @@
-import { computed, nextTick, ref, shallowRef, type Ref } from "vue";
+import {
+  computed,
+  nextTick,
+  onScopeDispose,
+  ref,
+  shallowRef,
+  watch,
+  type Ref,
+} from "vue";
 
 import {
   requestSpecV1Schema,
   type ExecutionWarning,
-  type RemoteRelayProfileV1,
+  type OneFetchProfileV1,
+  type OneFetchConsentV1,
+  type OneFetchCapabilitiesV1,
   type RequestSpecV1,
+  type ExecutionProgressV1,
 } from "@xpanel/contracts";
 
 import {
@@ -16,7 +27,9 @@ import {
   getRelayToken,
   isRelayTrusted,
   trustRelayForSession,
-} from "../lib/remote-profiles";
+  testRelayConnection,
+  consentIdentity,
+} from "../lib/one-fetch-profiles";
 import type { BackgroundExecutionTarget } from "../lib/execution-client";
 
 interface BrowserFilteredResult {
@@ -32,10 +45,10 @@ interface ExecutionFlowOptions {
   errorMessage: Ref<string>;
   autoFilterBrowserHeaders: Ref<boolean>;
   executorSelection: Ref<string>;
-  relayProfiles: Ref<RemoteRelayProfileV1[]>;
-  selectedRelayProfile: Ref<RemoteRelayProfileV1 | undefined>;
+  relayProfiles: Ref<OneFetchProfileV1[]>;
+  selectedRelayProfile: Ref<OneFetchProfileV1 | undefined>;
   openRelayManager: () => Promise<void>;
-  editRelayProfile: (profile: RemoteRelayProfileV1) => void;
+  editRelayProfile: (profile: OneFetchProfileV1) => void;
   run: (input: {
     request: RequestSpecV1;
     target: BackgroundExecutionTarget;
@@ -50,14 +63,41 @@ export function useRequestExecutionFlow(options: ExecutionFlowOptions) {
   const remoteConsentBusy = ref(false);
   const remoteConsentError = ref("");
   const remoteTrustSession = ref(false);
+  const executionCapabilities = shallowRef<OneFetchCapabilitiesV1 | null>(null);
+  watch(options.executorSelection, () => {
+    executionCapabilities.value = null;
+  });
   const pendingRemoteSend = shallowRef<{
     request: RequestSpecV1;
-    profile: RemoteRelayProfileV1;
+    profile: OneFetchProfileV1;
     token: string;
+    consent: OneFetchConsentV1;
   } | null>(null);
   const browserCompatibilityOpen = ref(false);
   const pendingBrowserRequest = shallowRef<RequestSpecV1 | null>(null);
   const browserCompatibilityReasons = ref<string[]>([]);
+  const checkingRemote = ref(false);
+  const preflightElapsed = ref(0);
+  let preflightController: AbortController | undefined;
+  let preflightClock: ReturnType<typeof setInterval> | undefined;
+  const preflightProgress = computed<ExecutionProgressV1 | null>(() =>
+    checkingRemote.value
+      ? {
+          phase: "preparing",
+          loadedBytes: 0,
+          elapsedMs: preflightElapsed.value,
+        }
+      : null,
+  );
+  function cancelPreflight(): void {
+    preflightController?.abort(
+      new DOMException("Request cancelled.", "AbortError"),
+    );
+  }
+  onScopeDispose(() => {
+    cancelPreflight();
+    clearInterval(preflightClock);
+  });
 
   const remoteConsentTarget = computed(() => {
     try {
@@ -68,9 +108,9 @@ export function useRequestExecutionFlow(options: ExecutionFlowOptions) {
   });
   const remoteConsentRelay = computed(() => {
     try {
-      return new URL(pendingRemoteSend.value?.profile.baseUrl ?? "").host;
+      return new URL(pendingRemoteSend.value?.profile.gatewayUrl ?? "").host;
     } catch {
-      return pendingRemoteSend.value?.profile.baseUrl ?? "";
+      return pendingRemoteSend.value?.profile.gatewayUrl ?? "";
     }
   });
   const browserFilterableHeaderCount = computed(() => {
@@ -124,7 +164,8 @@ export function useRequestExecutionFlow(options: ExecutionFlowOptions) {
   }
 
   async function send(): Promise<void> {
-    if (options.busy.value) return;
+    if (options.busy.value || checkingRemote.value || remoteConsentOpen.value)
+      return;
     options.errorMessage.value = "";
     options.notice.value = "";
     if (!options.current.value.url.trim()) {
@@ -161,26 +202,49 @@ export function useRequestExecutionFlow(options: ExecutionFlowOptions) {
       options.errorMessage.value = options.t("noRelayProfiles");
       return;
     }
+    checkingRemote.value = true;
+    const controller = new AbortController();
+    preflightController = controller;
+    preflightElapsed.value = 0;
+    const startedAt = performance.now();
+    preflightClock = setInterval(() => {
+      preflightElapsed.value = performance.now() - startedAt;
+    }, 100);
     try {
       await ensureRelayPermission(profile);
+      controller.signal.throwIfAborted();
       const token = await getRelayToken(profile);
+      controller.signal.throwIfAborted();
       if (!token) {
         options.errorMessage.value = options.t("relayTokenRequired");
         await options.openRelayManager();
         options.editRelayProfile(profile);
         return;
       }
-      if (!(await isRelayTrusted(profile, token))) {
-        pendingRemoteSend.value = { request, profile, token };
+      executionCapabilities.value = await testRelayConnection(profile, token, {
+        force: true,
+        permissionAlreadyGranted: true,
+        signal: controller.signal,
+      });
+      controller.signal.throwIfAborted();
+      const consent = consentIdentity(executionCapabilities.value);
+      const trusted = await isRelayTrusted(profile, token, consent);
+      controller.signal.throwIfAborted();
+      if (!trusted) {
+        pendingRemoteSend.value = { request, profile, token, consent };
         remoteTrustSession.value = false;
         remoteConsentError.value = "";
         remoteConsentOpen.value = true;
         return;
       }
-      await run(request, { kind: "remote", profile });
+      await run(request, { kind: "remote", profile, consent, token });
     } catch (error) {
       options.errorMessage.value =
         error instanceof Error ? error.message : String(error);
+    } finally {
+      checkingRemote.value = false;
+      preflightController = undefined;
+      clearInterval(preflightClock);
     }
   }
 
@@ -226,13 +290,19 @@ export function useRequestExecutionFlow(options: ExecutionFlowOptions) {
     remoteConsentError.value = "";
     try {
       if (remoteTrustSession.value) {
-        await trustRelayForSession(pending.profile, pending.token);
+        await trustRelayForSession(
+          pending.profile,
+          pending.token,
+          pending.consent,
+        );
       }
       remoteConsentOpen.value = false;
       pendingRemoteSend.value = null;
       await run(pending.request, {
         kind: "remote",
         profile: pending.profile,
+        consent: pending.consent,
+        token: pending.token,
       });
     } catch (error) {
       remoteConsentError.value =
@@ -251,6 +321,9 @@ export function useRequestExecutionFlow(options: ExecutionFlowOptions) {
   }
 
   return {
+    checkingRemote,
+    preflightProgress,
+    cancelPreflight,
     browserCompatibilityOpen,
     browserCompatibilityReasons,
     browserFilterableHeaderCount,
@@ -265,6 +338,7 @@ export function useRequestExecutionFlow(options: ExecutionFlowOptions) {
     remoteConsentOpen,
     remoteConsentRelay,
     remoteConsentTarget,
+    executionCapabilities,
     remoteTrustSession,
     send,
   };

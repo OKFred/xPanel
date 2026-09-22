@@ -1,23 +1,29 @@
-# Chrome Web Store submission kit for xPanel 2.1.0
+# Chrome Web Store submission kit for xPanel 3.0.0
 
 This document contains the proposed material and release checklist for updating
 the existing item `diaemdialoooebdennhpgnmobnjabohm`. It does not authorize
 upload, submission, or publication; all three remain manual
 developer-dashboard actions.
 
-## Yellow Argon resubmission
+## Prior Yellow Argon rejection
 
 The 7 September 2026 review rejected only the localized listing descriptions
-for excessive format keywords (`Yellow Argon`). Keep the already uploaded
-2.1.0 package, edit both descriptions using the copy below, and resubmit the
-draft without appealing. Do not upload the unchanged ZIP again or increment the
-extension version for this metadata-only correction.
+for excessive format keywords (`Yellow Argon`). That historical 2.1.0 rejection
+does not establish today's dashboard state. Recheck the current listing and
+version before preparing this new 3.0.0 update. Keep the concise localized
+descriptions below and never restore the rejected keyword lists.
+
+On 23 September 2026, the maintainer confirmed the current Store version is
+**2.1.0, published**. The browser automation interface could not read the
+protected developer-console page, so this is maintainer-confirmed status, not
+an automated dashboard check. The planned update is **3.0.0**; any separate
+draft/review state must still be checked immediately before upload/submission.
 
 ## Publishing mode
 
 Use [deferred publishing](https://developer.chrome.com/docs/webstore/update#deferred-publishing)
 for this update. In the review-confirmation dialog, clear the option that
-publishes automatically after approval. A successful review should leave 2.1.0
+publishes automatically after approval. A successful review should leave 3.0.0
 staged until a maintainer inspects it and explicitly publishes it. Chrome Web
 Store allows up to 30 days to publish an approved staged submission; after that
 it returns to draft and must be reviewed again.
@@ -53,7 +59,7 @@ standalone extension page and in Chrome DevTools. Browser mode sends requests
 directly from the extension after you approve the target origin. Exact-origin
 approval is the default; Request Options also offers an explicit one-time
 all-HTTP/HTTPS grant for users who regularly switch API domains. An optional
-Remote Relay profile can replay requests that Browser Fetch cannot faithfully
+one-fetch service profile can replay requests that Browser Fetch cannot faithfully
 express, but xPanel never selects a relay or sends data remotely without your
 explicit choice and confirmation.
 
@@ -61,8 +67,8 @@ Key features:
 
 - Build HTTP requests with parameters, authentication, headers, and common
   body types.
-- Inspect response content and metadata, including redirects and returned
-  cookies.
+- Inspect response content, returned cookies, timing, and whether a result came
+  from the target, the configured service, or an unverified intermediary.
 - Bring requests in from common developer-tool exports and API documents, then
   export reusable collections.
 - Save collections and favorites locally, format JSON, copy results quickly,
@@ -74,8 +80,9 @@ Key features:
   cleanup. Manual retention requires an additional sensitive-data warning.
 - Use a 60-second default timeout with visible request phases and real download
   progress when the response size is known.
-- Optionally connect to a relay that you deploy and trust. xPanel provides no
-  public proxy and operates no backend.
+- Optionally configure a service that you deploy and trust. Remote mode needs
+  permission for its Control/Gateway origins, not for each destination. xPanel
+  provides no public proxy and operates no backend.
 
 xPanel contains no analytics, advertising, account system, or telemetry.
 Persistent request saves and exports are sanitized unless you explicitly
@@ -84,31 +91,33 @@ the execution you started.
 
 Version 2.0 replaced the former Manifest V2 localhost CORS modification with a
 Manifest V3 implementation and user-controlled optional host access. Version
-2.1.0 adds the standalone workbench and extension-managed background execution.
+2.1 added the standalone workbench and background execution. Version 3.0 connects
+to one-fetch services and separates response-source and body-integrity checks.
+Unavailable verification or timing is explicitly labeled, never assumed.
 
 ## Chinese (Simplified) listing
 
 ### Summary
 
-xPanel 是可独立打开、也可在 Chrome DevTools 中使用的本地优先 API 工作台，支持安全导入与可选的自托管 Relay。
+xPanel 是可独立打开、也可在 Chrome DevTools 中使用的本地优先 API 工作台，支持安全导入与可选的自托管服务。
 
 ### Detailed description
 
-xPanel 既提供独立扩展页面，也保留 Chrome DevTools 内的 API 请求与响应工作台。Browser 模式会在你批准目标站点后直接从扩展发起请求；默认逐域批准，也可以在请求选项中主动一次授权全部 HTTP/HTTPS 站点，并随时清除授权恢复逐域询问。对于 Browser Fetch 无法准确表达的请求，可以显式选择自己部署并信任的 Remote Relay；xPanel 不会自动切换执行器，也不会在未经确认时把数据发送给 Relay。
+xPanel 既提供独立扩展页面，也保留 Chrome DevTools 内的 API 请求与响应工作台。Browser 模式会在你批准目标站点后直接从扩展发起请求；默认逐域批准，也可以在请求选项中主动一次授权全部 HTTP/HTTPS 站点，并随时清除授权恢复逐域询问。对于 Browser Fetch 无法准确表达的请求，可以显式选择自己部署并信任的 one-fetch 服务；xPanel 不会自动切换执行器，也不会在未经确认时把数据发送给远程服务。
 
 主要功能：
 
 - 构建包含参数、认证、请求头和常见正文类型的 HTTP 请求。
-- 检查响应内容与元数据，包括重定向和返回的 Cookie。
+- 检查响应内容、返回的 Cookie 和耗时，区分目标响应、服务错误与来源未验证的中间层响应。
 - 从常见开发工具导出内容和接口文档中导入请求，并导出为可复用集合。
 - 在本地保存集合和收藏，快速美化 JSON、复制结果并中止请求。
 - 独立页面或 DevTools 面板关闭后，仍可继续完成用户主动发起的请求；重新打开工作台即可读取临时本地结果。默认保留 10 分钟，也可选择 1 小时、当前 Chrome 会话或手动清理；手动保留会再次提示敏感数据风险。
 - 默认超时 60 秒，显示真实请求阶段；响应大小已知时显示下载百分比。
-- 可选连接由用户自行部署并信任的 Relay；xPanel 不提供公共代理，也不运营后端。
+- 可选连接由用户自行部署并信任的服务。远程模式只申请 Control/Gateway 站点权限，无需逐个授权目标域名；xPanel 不提供公共代理，也不运营后端。
 
 xPanel 不包含统计分析、广告、账号系统或遥测。敏感值默认仅保留在会话中，导出默认脱敏，只有用户明确选择时才包含敏感数据。
 
-2.0 版以 Manifest V3 和由用户控制的可选站点授权，替代旧版 Manifest V2 的 localhost CORS 修改功能；2.1.0 新增独立工作台和由扩展管理的后台执行。
+2.0 版以 Manifest V3 和由用户控制的可选站点授权，替代旧版 Manifest V2 的 localhost CORS 修改功能；2.1 版新增独立工作台和由扩展管理的后台执行。3.0 版接入 one-fetch 服务，分别展示响应来源与正文完整性；无法核验或获取的耗时会明确标注，不作推断。
 
 ## Privacy practices
 
@@ -130,9 +139,9 @@ extension page and inside Chrome DevTools.
 
 Select **No, I am not using remote code**.
 
-xPanel neither downloads nor evaluates executable code. Remote Relay exchanges
-strictly validated request and response data using the versioned Relay V1
-protocol. Imported Bash, PowerShell, and JavaScript text is parsed as static
+xPanel neither downloads nor evaluates executable code. one-fetch exchanges
+strictly validated request and response data using Protocol V1.
+Imported Bash, PowerShell, and JavaScript text is parsed as static
 data and is never executed.
 
 ### Data categories and use
@@ -156,7 +165,7 @@ to the xPanel developer.
 
 ## Reviewer instructions
 
-1. Install version 2.1.0 and open the standalone workbench from the extension
+1. Install version 3.0.0 and open the standalone workbench from the extension
    action. No DevTools window is required.
 2. In the default **Browser** executor, enter a public test API URL and click
    **Send**. Approve the exact origin when Chrome asks. No account or test
@@ -171,11 +180,16 @@ to the xPanel developer.
 5. Open Import and use a static cURL request. Then open Chrome DevTools, select
    the **xPanel** tab, and verify that Current Network HAR is available only
    there. Imported scripts are parsed and never executed.
-6. Open the executor's Relay manager to inspect optional Remote Relay profiles.
-   xPanel does not operate or bundle a Relay endpoint. Users must explicitly
-   configure a service they deploy and trust, select it, and confirm the data
-   disclosure before the first Remote send in each Chrome session. Browser
-   remains the default after restart.
+6. Open the service manager to inspect optional one-fetch profiles. A profile
+   requires separate Control/Gateway URLs and an execution token; no extension
+   account login is provided. Connection testing reads public capabilities and
+   does not test the token against an arbitrary destination. The first explicit
+   Remote send explains which data leaves the device. Only explicit Cookie is
+   sent; returned cookies are displayed, not installed. Browser is the default
+   after restart. xPanel provides no public endpoint or reviewer credential.
+7. Old Relay profiles are retained read-only and disabled; users may confirm
+   deletion. A signed target response is not automatically an integrity-verified
+   body. Missing reports/digests and unavailable timing are labeled honestly.
 
 ## Graphic assets
 
@@ -183,18 +197,19 @@ to the xPanel developer.
 - Chinese screenshots: [`assets/zh_CN`](assets/zh_CN)
 - Store icon and small promo tile: [`assets/global`](assets/global)
 
-Regenerate and review all localized screenshots from the unpacked 2.1.0 build
+Regenerate and review all localized screenshots from the unpacked 3.0.0 build
 before upload. Include the standalone workbench and the DevTools-only Network
 HAR distinction in the reviewed set. Screenshots are 1280x800, the promo tile
 is 440x280, and the store icon is 128x128.
 
 ## Final dashboard checklist
 
-- For the `Yellow Argon` metadata resubmission, keep the existing uploaded
-  2.1.0 package and confirm that neither rejected keyword list remains in the
-  localized descriptions.
-- Upload `xpanelextension-2.1.0-chrome.zip` only when creating the original
-  2.1.0 draft or when the dashboard no longer retains that package.
+- Recheck the current Store version and rejection/review state; neither rejected
+  keyword list may remain in either localized description.
+- Complete three-platform acceptance, approve the PR merge, and rebuild the
+  version-matched `xpanelextension-3.0.0-chrome.zip` from final `main`.
+- Ask for final submission confirmation. Do not upload a development-branch
+  review package as if it were the final main build.
 - Paste the localized listing copy and replace all outdated Manifest V2 images.
 - Upload the 128x128 icon, three screenshots per locale, and 440x280 promo tile.
 - Complete every Privacy practices field using the text above.

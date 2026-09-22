@@ -1,4 +1,7 @@
-import type { ExecutionSummaryV1 } from "@xpanel/contracts";
+import type {
+  ExecutionSummaryV1,
+  OneFetchResponseDetailsV1,
+} from "@xpanel/contracts";
 
 import {
   processorInputSchema,
@@ -78,7 +81,10 @@ function waitWithTimeout<T>(
 
 export interface ProcessorJob {
   push(chunk: Uint8Array, sequence: number): Promise<void>;
-  finish(durationMs: number): Promise<ExecutionSummaryV1>;
+  finish(
+    durationMs: number,
+    remoteDetails?: OneFetchResponseDetailsV1,
+  ): Promise<ExecutionSummaryV1>;
   cancel(): Promise<void>;
 }
 
@@ -178,13 +184,14 @@ export class ExecutionProcessorClient {
           throw error;
         }
       },
-      finish: async (durationMs) => {
+      finish: async (durationMs, remoteDetails) => {
         const current = this.requireJob(input.jobId, state);
         try {
           this.post(current.worker, {
             type: "processor.finish",
             jobId: input.jobId,
             durationMs,
+            ...(remoteDetails ? { remoteDetails } : {}),
           });
           return await this.waitForStage(
             input.jobId,

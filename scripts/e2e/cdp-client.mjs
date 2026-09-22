@@ -115,7 +115,11 @@ export async function capturePng(client, filePath, width, height) {
     deviceScaleFactor: 1,
     mobile: false,
   });
-  await new Promise((resolveWait) => setTimeout(resolveWait, 150));
+  // Attached DevTools can briefly re-enable its viewport-size overlay when
+  // emulation resizes the page. Let that browser UI fade before taking a real
+  // screenshot; do not retouch the captured workbench image.
+  await client.send("Overlay.setShowViewportSizeOnResize", { show: false });
+  await new Promise((resolveWait) => setTimeout(resolveWait, 2_000));
   const { data } = await client.send("Page.captureScreenshot", {
     format: "png",
     fromSurface: true,

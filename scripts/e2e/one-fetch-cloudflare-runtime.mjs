@@ -1,0 +1,306 @@
+// Explicit opt-in only. Reuse the immutable one-fetch deployment tools; never
+// modify an existing deployment or retain a public Gateway after acceptance.
+import { execFile } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { mkdtemp, rm, writeFile, mkdir, access } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
+import { invariant } from "./utils.mjs";
+import { verifyOneFetchSource } from "./one-fetch-source.mjs";
+import {
+  fixtureDeploymentRunner,
+  verifyTruncatedFixture,
+} from "./cloudflare-target-config.mjs";
+import {
+  waitForControlRoutes,
+  waitForGatewayRoute,
+} from "./service-readiness.mjs";
+
+const execute = promisify(execFile);
+const { OneFetchControlClient } = await import(
+  new URL(
+    "../../apps/extension/node_modules/@one-fetch/client/dist/index.js",
+    import.meta.url,
+  )
+);
+
+export async function startOneFetchCloudflareFixture(
+  workspaceRoot,
+  extensionOrigin,
+  review,
+) {
+  const root = resolve(
+    process.env.ONE_FETCH_SOURCE ?? join(workspaceRoot, "..", "one-fetch"),
+  );
+  const source = await verifyOneFetchSource(root, review);
+  const load = (path) => import(pathToFileURL(join(root, path)));
+  const deploy = await load("tools/deploy/cloudflare.mjs");
+  const fixtureTools = await load("tools/acceptance/cloudflare-fixture.mjs");
+  const runtime = await load("tools/deploy/cloudflare-runtime.mjs");
+  const { generateCloudflareSecrets } = await load(
+    "tools/deploy/generate-cloudflare-secrets.mjs",
+  );
+  const suffix = randomBytes(6).toString("hex");
+  const deploymentId = `xp3-${suffix}`;
+  const fixtureName = `one-fetch-fixture-${suffix}`;
+  const privateDirectory = await mkdtemp(
+    join(tmpdir(), "xpanel-one-fetch-cloudflare-"),
+  );
+  if (process.platform === "win32") {
+    const user = `${process.env.USERDOMAIN}\\${process.env.USERNAME}`;
+    await execute(
+      "icacls",
+      [privateDirectory, "/inheritance:r", "/grant:r", `${user}:(OI)(CI)F`],
+      { windowsHide: true },
+    );
+  }
+  let fixture;
+  let fixtureAttempted = false;
+  let control;
+  let credential;
+  let cleanupDone = false;
+  const values = new Map([
+    ["--deployment-id", deploymentId],
+    ["--build-id", source.version],
+    ["--expected-build", "none"],
+    ["--secrets-file", join(privateDirectory, "secrets.json")],
+    ["--xpanel-origins", extensionOrigin],
+    ["--admin-origins", extensionOrigin],
+  ]);
+  const receipt = {
+    schemaVersion: 1,
+    adapter: "cloudflare",
+    sourceCommit: source.commit,
+    sourceKind: source.sourceKind,
+    buildVersion: source.version,
+    deploymentId,
+    fixtureName,
+    createdAt: new Date().toISOString(),
+    cleanupVerified: false,
+  };
+  const output = join(workspaceRoot, "artifacts", "one-fetch-e2e");
+  const record = async () => {
+    await mkdir(output, { recursive: true });
+    await writeFile(
+      join(output, `${deploymentId}.json`),
+      JSON.stringify(receipt, null, 2),
+    );
+  };
+  await record();
+  const cleanup = async () => {
+    if (cleanupDone) return;
+    if (credential && control) {
+      // Best effort; deleting the owned deployment below is authoritative.
+      try {
+        await control.revokeExecutionToken(credential.record.id);
+      } catch {
+        /* delete below */
+      }
+    }
+    const state = join(
+      root,
+      ".tools",
+      "cloudflare",
+      deploymentId,
+      "state.json",
+    );
+    const created = await access(state).then(
+      () => true,
+      () => false,
+    );
+    if (created)
+      await deploy.cleanupCloudflareDeployment(
+        new Map([
+          ["--deployment-id", deploymentId],
+          ["--confirm-id", deploymentId],
+        ]),
+      );
+    if (fixtureAttempted && (await runtime.workerExists(fixtureName)))
+      await fixtureTools.cleanupCloudflareFixture(fixtureName, fixtureName);
+    invariant(
+      !(await runtime.workerExists(fixtureName)),
+      "Fixture cleanup inventory is not empty.",
+    );
+    invariant(
+      dirname(resolve(privateDirectory)) === resolve(tmpdir()) &&
+        basename(privateDirectory).startsWith("xpanel-one-fetch-cloudflare-"),
+      "Refusing unexpected temporary credential directory cleanup.",
+    );
+    await rm(privateDirectory, { recursive: true });
+    receipt.cleanupVerified = true;
+    receipt.cleanedAt = new Date().toISOString();
+    await record();
+    cleanupDone = true;
+    process.stdout.write(
+      `Cloudflare temporary Workers/D1 removed and absence verified (${deploymentId}).\n`,
+    );
+  };
+  try {
+    receipt.stage = "plan";
+    const plan = await deploy.createCloudflareDeploymentPlan(values);
+    receipt.accountId = plan.accountId;
+    await record();
+    process.stdout.write(
+      `Cloudflare temporary deployment plan verified (${deploymentId}).\n`,
+    );
+    const { secrets } = await generateCloudflareSecrets(
+      values.get("--secrets-file"),
+    );
+    invariant(
+      !(await runtime.workerExists(fixtureName)),
+      "Fixture name is already owned.",
+    );
+    fixtureAttempted = true;
+    receipt.stage = "fixture-readiness";
+    await record();
+    // Retry only safe readiness GETs, never the resource-creation operation.
+    fixture = await fixtureTools.deployCloudflareFixture(fixtureName, {
+      runWrangler: await fixtureDeploymentRunner(
+        root,
+        privateDirectory,
+        runtime.runWrangler,
+      ),
+      // workers.dev routing can take longer than the fixture CLI's 9-second
+      // default window. Keep ten read-only probes, spaced five seconds apart.
+      wait: () => new Promise((resolveWait) => setTimeout(resolveWait, 5_000)),
+      fetch: async (url, init) => {
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            return await fetch(url, init);
+          } catch (error) {
+            if (attempt === 2) throw error;
+          }
+        }
+      },
+    });
+    await verifyTruncatedFixture(fixture.origin);
+    receipt.stage = "install";
+    await record();
+    const deployed = await deploy.applyCloudflareDeployment(values);
+    receipt.controlUrl = deployed.controlUrl;
+    receipt.gatewayUrl = deployed.gatewayUrl;
+    receipt.targetOrigin = fixture.origin;
+    await record();
+    receipt.stage = "control-readiness";
+    await record();
+    await waitForControlRoutes(deployed.controlUrl);
+    receipt.stage = "gateway-readiness";
+    await record();
+    await waitForGatewayRoute(deployed.gatewayUrl);
+    receipt.stage = "verify";
+    await record();
+    await deploy.verifyCloudflareDeployment(
+      new Map([
+        ["--deployment-id", deploymentId],
+        ["--expected-build", source.version],
+      ]),
+    );
+    receipt.stage = "synthetic-setup";
+    await record();
+    control = new OneFetchControlClient({ controlUrl: deployed.controlUrl });
+    await control.bootstrap({
+      schemaVersion: 1,
+      bootstrapSecret: secrets.BOOTSTRAP_SECRET,
+      username: "xpanel-synthetic",
+      password: randomBytes(36).toString("base64url"),
+    });
+    let config = await control.getConfiguration();
+    config = await control.updatePolicy(
+      {
+        schemaVersion: 1,
+        policy: {
+          schemaVersion: 1,
+          mode: "allowlist",
+          revision: config.policy.revision,
+          rules: [
+            {
+              id: "synthetic",
+              name: "Synthetic only",
+              action: "allow",
+              enabled: true,
+              match: {
+                transports: ["http"],
+                origins: [
+                  {
+                    operator: "exact",
+                    value: fixture.origin,
+                    caseSensitive: false,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+      config.version,
+    );
+    if (config.gatewayPaused)
+      await control.setGatewayPaused(
+        { schemaVersion: 1, paused: false },
+        config.version,
+      );
+    credential = await control.createExecutionToken({
+      schemaVersion: 1,
+      name: "xpanel-chromium-only",
+      scope: { transports: ["http"], origins: [fixture.origin], ports: [443] },
+      quota: {
+        requestsPerMinute: 300,
+        burst: 50,
+        concurrentHttp: 4,
+        concurrentTunnels: 0,
+        bytesPerDay: 1073741824,
+      },
+      expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+    });
+    process.stdout.write(
+      `Cloudflare one-fetch ${source.version} ready with a synthetic-only policy and short-lived token.\n`,
+    );
+    receipt.stage = "ui-acceptance";
+    await record();
+    return {
+      remoteControlUrl: deployed.controlUrl,
+      remoteGatewayUrl: deployed.gatewayUrl,
+      remoteToken: credential.token,
+      remoteTargetUrl: `${fixture.origin}/v1/echo?duplicate=one&duplicate=two`,
+      remoteExpectedMarker: "duplicate",
+      ...(source.version === "0.1.1"
+        ? { remoteIntegrity: "report-digest-unavailable" }
+        : {}),
+      remoteFixtureKind: "one-fetch-conformance",
+      recordAcceptance: async (passed) => {
+        receipt.acceptancePassed = passed;
+        receipt.acceptanceFinishedAt = new Date().toISOString();
+        await record();
+      },
+      cleanup,
+    };
+  } catch (error) {
+    receipt.failed = true;
+    // Only source locations and fixed error categories; never provider stdout,
+    // response bodies, command arguments, SQL, URLs or authentication values.
+    receipt.failure = {
+      category: error?.name === "TypeError" ? "network-or-type" : "operation",
+      locations:
+        String(error?.stack ?? "")
+          .match(/cloudflare[\w.-]*\.mjs:\d+:\d+/gu)
+          ?.slice(0, 4) ?? [],
+    };
+    await record();
+    // Preserve the original failing stage even when cleanup also requires
+    // recovery; never print arbitrary Control response/exception text.
+    const failure = new Error(
+      `Cloudflare fixture failed at ${receipt.stage}; inspect the ownership journal.`,
+    );
+    try {
+      await cleanup();
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [failure, cleanupError],
+        "Cloudflare fixture and cleanup both require attention.",
+      );
+    }
+    throw failure;
+  }
+}

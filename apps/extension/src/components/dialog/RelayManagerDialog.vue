@@ -10,32 +10,38 @@ import {
 } from "lucide-vue-next";
 
 import type {
-  RemoteCapabilitiesV1,
-  RemoteRelayProfileV1,
+  OneFetchCapabilitiesV1,
+  OneFetchProfileV1,
 } from "@xpanel/contracts";
 
 import AppDialog from "./AppDialog.vue";
+import OneFetchCapabilities from "../one-fetch/OneFetchCapabilities.vue";
+import UserDenyRulesEditor from "../one-fetch/UserDenyRulesEditor.vue";
 
-const draft = defineModel<RemoteRelayProfileV1>("draft", { required: true });
+const draft = defineModel<OneFetchProfileV1>("draft", { required: true });
 defineProps<{
-  profiles: RemoteRelayProfileV1[];
+  profiles: OneFetchProfileV1[];
+  legacyProfiles: Array<{ id: string; name: string; baseUrl: string }>;
+  rulesText: string;
   token: string;
   persistConfirmed: boolean;
   busy: boolean;
   error: string;
   notice: string;
-  capabilities: RemoteCapabilitiesV1 | null;
+  capabilities: OneFetchCapabilitiesV1 | null;
 }>();
 
 const emit = defineEmits<{
   close: [];
   create: [];
-  edit: [profile: RemoteRelayProfileV1];
-  remove: [profile: RemoteRelayProfileV1];
+  edit: [profile: OneFetchProfileV1];
+  remove: [profile: OneFetchProfileV1];
   test: [];
   save: [];
   "update:token": [value: string];
   "update:persistConfirmed": [value: boolean];
+  "update:rulesText": [value: string];
+  removeLegacy: [id: string];
 }>();
 </script>
 
@@ -48,7 +54,7 @@ const emit = defineEmits<{
   >
     <header>
       <div>
-        <span class="eyebrow">Relay V1</span>
+        <span class="eyebrow">one-fetch · Protocol V1</span>
         <h2 id="relay-manager-title">{{ $t("relayProfiles") }}</h2>
       </div>
       <button
@@ -91,7 +97,7 @@ const emit = defineEmits<{
             @click="emit('edit', profile)"
           >
             <strong>{{ profile.name }}</strong
-            ><span>{{ profile.baseUrl }}</span>
+            ><span>{{ profile.gatewayUrl }}</span>
           </button>
           <button
             class="icon-button delete-icon"
@@ -103,6 +109,19 @@ const emit = defineEmits<{
             <Trash2 :size="14" />
           </button>
         </div>
+        <section v-if="legacyProfiles.length" class="empty-note">
+          <strong>{{ $t("oneFetchLegacyDisabled") }}</strong>
+          <div v-for="profile in legacyProfiles" :key="profile.id">
+            <p>{{ profile.name }} · {{ profile.baseUrl }}</p>
+            <button
+              type="button"
+              :disabled="busy"
+              @click="emit('removeLegacy', profile.id)"
+            >
+              {{ $t("deleteRelayProfile") }}
+            </button>
+          </div>
+        </section>
       </aside>
       <div class="relay-profile-editor">
         <p class="empty-note">{{ $t("relayProfilesHint") }}</p>
@@ -118,15 +137,34 @@ const emit = defineEmits<{
             />
           </label>
           <label>
-            {{ $t("relayBaseUrl") }}
+            {{ $t("oneFetchControlUrl") }}
             <input
-              v-model="draft.baseUrl"
+              v-model="draft.controlUrl"
               class="field"
               inputmode="url"
               autocomplete="off"
-              placeholder="https://xpanel-relay.example.workers.dev"
+              placeholder="https://control.example.com"
               :disabled="busy"
             />
+          </label>
+          <label>
+            {{ $t("oneFetchGatewayUrl") }}
+            <input
+              v-model="draft.gatewayUrl"
+              class="field"
+              inputmode="url"
+              autocomplete="off"
+              placeholder="https://gateway.example.com"
+              :disabled="busy"
+            />
+          </label>
+          <label class="check-row">
+            <input
+              v-model="draft.allowLoopbackHttp"
+              type="checkbox"
+              :disabled="busy"
+            />
+            {{ $t("oneFetchLoopbackConsent") }}
           </label>
           <label>
             {{ $t("relayToken") }}
@@ -200,13 +238,19 @@ const emit = defineEmits<{
               <Save :size="14" /> {{ $t("saveRequest") }}
             </button>
           </div>
+          <UserDenyRulesEditor
+            :model-value="rulesText"
+            :disabled="busy"
+            @update:model-value="emit('update:rulesText', $event)"
+          />
           <p v-if="error" class="dialog-error" role="alert">{{ error }}</p>
           <p v-if="notice" class="relay-test-result" role="status">
             <Check :size="14" /> {{ notice }}
           </p>
-          <span v-if="capabilities" class="sr-only">
-            {{ capabilities.provider }} {{ capabilities.targetPolicy }}
-          </span>
+          <OneFetchCapabilities
+            v-if="capabilities"
+            :capabilities="capabilities"
+          />
         </div>
       </div>
     </div>

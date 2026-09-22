@@ -100,4 +100,48 @@ describe("execution completion payload ownership", () => {
       loadExecutionPayload(streamed.other.payloadHandle),
     ).resolves.toBeDefined();
   });
+
+  it.each(["verified", "failed", "unverified", "pending"] as const)(
+    "stores %s remote integrity without promoting uncertain bodies to success",
+    async (integrity) => {
+      const staged = await stageExecution(
+        { request: createDefaultRequest(), target: { kind: "browser" } },
+        "integrity-session",
+      );
+      const { body, ...metadata } = response(staged.summary.requestId);
+      const result = await completeStreamedExecution({
+        executionId: staged.summary.executionId,
+        payloadHandle: staged.payloadHandle,
+        response: {
+          ...metadata,
+          executor: "remote",
+          remoteDetails: {
+            schemaVersion: 1,
+            source: "target",
+            integrity,
+            outerStatus: 200,
+            outerHeaders: [],
+            mutations: [],
+            audit: "recorded",
+            ...(integrity === "unverified"
+              ? { reason: "report-unavailable" }
+              : {}),
+          },
+        },
+        body: {
+          kind: "stored",
+          encoding: body.encoding,
+          sizeBytes: body.sizeBytes,
+        },
+        blob: new Blob(["{}"]),
+      });
+      expect(result.state).toBe(
+        integrity === "verified" ? "succeeded" : "failed",
+      );
+      expect(result.responseHandle).toBeDefined();
+      if (integrity === "unverified")
+        expect(result.error?.code).toBe("report-unavailable");
+      expect(await loadExecutionPayload(staged.payloadHandle)).toBeUndefined();
+    },
+  );
 });

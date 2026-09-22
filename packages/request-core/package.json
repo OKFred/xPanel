@@ -1,6 +1,6 @@
 {
   "name": "@xpanel/request-core",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -22,7 +22,7 @@
   "dependencies": {
     "@xpanel/contracts": "workspace:*",
     "acorn": "8.15.0",
-    "yaml": "2.8.1"
+    "yaml": "2.8.3"
   },
   "devDependencies": {
     "typescript": "5.9.2",

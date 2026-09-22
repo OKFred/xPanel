@@ -2,15 +2,23 @@ packages:
   - apps/*
   - packages/*
 
+# pnpm 11 has no per-package exotic-subdependency exception. The readPackage
+# hook allows ONLY the three audited one-fetch Release URLs, rejecting all
+# other non-registry transitive sources. Frozen lockfiles pin their integrity.
+blockExoticSubdeps: false
+pnpmfile: .pnpmfile.cjs
+
 allowBuilds:
   "@tailwindcss/oxide": true
   esbuild: true
   vue-demi: true
-  workerd: true
 
 minimumReleaseAgeExclude:
-  - miniflare@5.20260831.0-alpha
-  - wrangler@4.128.0
+  # These are freshly published, independently attested, hash-pinned tarballs;
+  # there is deliberately no npm package metadata for them.
+  - "@one-fetch/client@0.1.2"
+  - "@one-fetch/core@0.1.2"
+  - "@one-fetch/protocol@0.1.2"
 
 onlyBuiltDependencies:
   - "@tailwindcss/oxide"

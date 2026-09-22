@@ -11,6 +11,7 @@ import { computed } from "vue";
 import type { ResponseRecordV1 } from "@xpanel/contracts";
 
 import ResponseDocumentViewer from "../response/ResponseDocumentViewer.vue";
+import OneFetchResponseDetails from "../one-fetch/OneFetchResponseDetails.vue";
 import type { StoredResponseMetadata } from "../../lib/execution-client";
 
 type ResponseTab = "pretty" | "raw" | "headers" | "timing";
@@ -24,6 +25,8 @@ const props = defineProps<{
   headersText: string;
   timingText: string;
   copied: string;
+  hasDiagnostic?: boolean;
+  showDiagnostic?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -33,10 +36,16 @@ const emit = defineEmits<{
   copyFull: [];
   downloadBody: [];
   viewerError: [message: string];
+  toggleDiagnostic: [];
 }>();
 
 const inlineBody = computed(() =>
   props.response?.body.kind === "inline" ? props.response.body.content : null,
+);
+const remoteDetails = computed(() =>
+  props.response && "remoteDetails" in props.response
+    ? props.response.remoteDetails
+    : undefined,
 );
 const documentSource = computed(
   () =>
@@ -60,9 +69,17 @@ const documentMode = computed<"pretty" | "raw">(() =>
         <span class="eyebrow">{{ $t("response") }}</span>
         <strong
           v-if="response"
-          :data-ok="response.status >= 200 && response.status < 400"
+          :data-ok="
+            (!remoteDetails || remoteDetails.source === 'target') &&
+            (!remoteDetails || remoteDetails.integrity === 'verified') &&
+            response.status >= 200 &&
+            response.status < 400
+          "
         >
-          {{ response.status }} {{ response.statusText }}
+          {{
+            response.status === 0 ? $t("oneFetchUnavailable") : response.status
+          }}
+          {{ response.statusText }}
         </strong>
         <span v-else>{{ $t("noResponse") }}</span>
       </div>
@@ -86,6 +103,18 @@ const documentMode = computed<"pretty" | "raw">(() =>
         {{ warning.message }}
       </li>
     </ul>
+    <button
+      v-if="hasDiagnostic"
+      type="button"
+      @click="emit('toggleDiagnostic')"
+    >
+      {{ $t(showDiagnostic ? "oneFetchLastSuccess" : "oneFetchDiagnostic") }}
+    </button>
+    <OneFetchResponseDetails
+      v-if="remoteDetails"
+      :details="remoteDetails"
+      :tab="tab"
+    />
     <nav class="tab-list response-tabs">
       <button
         v-for="item in ['pretty', 'raw', 'headers', 'timing'] as const"
@@ -141,7 +170,10 @@ const documentMode = computed<"pretty" | "raw">(() =>
         @error="emit('viewerError', $event)"
       />
       <pre v-else-if="response && tab === 'headers'">{{ headersText }}</pre>
-      <pre v-else-if="response && tab === 'timing'">{{ timingText }}</pre>
+      <pre v-else-if="response && tab === 'timing'"
+        >{{ remoteDetails ? `${$t("oneFetchClientTiming")}\n` : ""
+        }}{{ timingText }}</pre
+      >
       <div v-else class="response-empty">
         <Globe2 :size="30" /> {{ $t("sendHint") }}
       </div>

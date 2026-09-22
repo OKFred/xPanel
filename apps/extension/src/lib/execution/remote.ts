@@ -1,46 +1,57 @@
+import { OneFetchGatewayClient } from "@one-fetch/client";
+import extensionPackage from "../../../package.json";
 import {
-  REMOTE_MAX_REQUEST_BODY_BYTES,
-  REMOTE_MAX_RESPONSE_BODY_BYTES,
-  REMOTE_PROTOCOL_VERSION,
-  remoteRequestMetaV1Schema,
-  remoteResponseMetaV1Schema,
   requestSpecV1Schema,
   type RequestSpecV1,
   type ResponseRecordV1,
+  type OneFetchResponseDetailsV1,
 } from "@xpanel/contracts";
-
 import { boundFilesForRequest } from "../file-bindings";
 import {
-  invalidateRelayCapabilities,
-  normalizeRelayBaseUrl,
+  assertSameConsent,
+  controlFetch,
   testRelayConnection,
-} from "../remote-profiles";
+} from "../one-fetch-connection";
 import {
   beginExecution,
   finishExecution,
   normalizeExecutionError,
   reportProgress,
 } from "./active";
-import { requestUrl, resolveMaximumResponseBytes, warning } from "./common";
+import { enabled, resolveMaximumResponseBytes, warning } from "./common";
 import { materializeResponse } from "./materialize";
 import { materializeRemoteBody } from "./remote-body";
 import { assertRemoteSupported } from "./remote-headers";
-import {
-  decodeMetadata,
-  encodeMetadata,
-  remoteFailure,
-} from "./remote-protocol";
 import { createManagedResponseStream } from "./response-stream";
+import {
+  diagnosticResponse,
+  finalizeRemoteReport,
+  safeOuterHeaders,
+} from "./one-fetch-report";
 import type {
   ExecuteOptionsV1,
   ExecuteTargetV1,
   ExecutionResponseStreamV1,
 } from "./types";
 
-function remoteExecuteUrl(
-  profile: Extract<ExecuteTargetV1, { kind: "remote" }>["profile"],
-): URL {
-  return new URL(`${normalizeRelayBaseUrl(profile.baseUrl)}/v1/execute`);
+/** Adding editor query pairs must not re-encode the URL's existing query. */
+export function oneFetchTargetUrl(request: RequestSpecV1): string {
+  const url = new URL(request.url);
+  if (!["http:", "https:"].includes(url.protocol))
+    throw new Error("HTTP targets only.");
+  if (url.hash)
+    throw new Error(
+      "Target URL fragments are not sent over HTTP. Remove the fragment first.",
+    );
+  let value = url.href;
+  const pairs = enabled(request.query).map(
+    ({ name, value }) => [name, value] as const,
+  );
+  if (request.auth.kind === "api-key" && request.auth.location === "query")
+    pairs.push([request.auth.name, request.auth.value]);
+  for (const [name, content] of pairs)
+    value += `${value.includes("?") ? "&" : "?"}${encodeURIComponent(name)}=${encodeURIComponent(content)}`;
+  return value;
 }
 
 export async function openRemoteResponse(
@@ -51,190 +62,202 @@ export async function openRemoteResponse(
   const request = requestSpecV1Schema.parse(requestInput);
   assertRemoteSupported(request);
   boundFilesForRequest(request);
-  if (target.token.trim() === "") {
-    throw new Error("A Remote relay token is required.");
-  }
-  const requestedMaximumResponseBytes = resolveMaximumResponseBytes(
-    options.maximumResponseBytes,
-  );
+  if (!target.token.trim()) throw new Error("An execution token is required.");
   const execution = beginExecution(
     request.id,
     request.options.timeoutMs,
     options,
   );
-  const { controller } = execution;
+  const { signal } = execution.controller;
   const startedAt = new Date().toISOString();
   const start = performance.now();
-
   try {
-    reportProgress(execution, "preparing", 0);
     reportProgress(execution, "requesting-permission", 0);
     const capabilities = await testRelayConnection(
       target.profile,
       target.token,
       {
-        signal: controller.signal,
+        signal,
         permissionPreflighted: options.relayPermissionPreflighted === true,
         permissionAlreadyGranted:
           options.relayPermissionAlreadyGranted === true,
       },
     );
-    if (controller.signal.aborted) {
-      throw new DOMException("Request cancelled.", "AbortError");
-    }
-    const url = requestUrl(request);
-    if (
-      capabilities.targetPolicy === "public-https" &&
-      url.protocol !== "https:"
-    ) {
-      throw new Error("This Remote relay only accepts public HTTPS targets.");
-    }
+    assertSameConsent(target.consent, capabilities);
+    if (request.options.timeoutMs > capabilities.limits.timeoutMs)
+      throw new Error("Request timeout exceeds service capabilities.");
     const body = await materializeRemoteBody(request);
-    if (controller.signal.aborted) {
-      throw new DOMException("Request cancelled.", "AbortError");
-    }
-    if (
-      body.bodySizeBytes > capabilities.maxRequestBodyBytes ||
-      body.bodySizeBytes > REMOTE_MAX_REQUEST_BODY_BYTES
-    ) {
-      throw new Error("Request body exceeds the 20 MiB Remote limit.");
-    }
-    const metadata = remoteRequestMetaV1Schema.parse({
-      protocolVersion: REMOTE_PROTOCOL_VERSION,
-      requestId: request.id,
-      method: request.method,
-      url: url.toString(),
-      headers: body.headers,
-      redirect: request.options.redirect,
-      timeoutMs: request.options.timeoutMs,
-      bodySizeBytes: body.bodySizeBytes,
-    });
-    const encodedMetadata = encodeMetadata(metadata);
-    if (
-      new TextEncoder().encode(JSON.stringify(metadata)).byteLength >
-      capabilities.maxMetadataBytes
-    ) {
-      throw new Error("Remote request metadata exceeds relay capabilities.");
-    }
-
-    reportProgress(
-      execution,
-      body.bodySizeBytes === 0 ? "waiting" : "uploading",
-      0,
-      body.bodySizeBytes === 0 ? undefined : body.bodySizeBytes,
-    );
-    const relayResponse = await fetch(remoteExecuteUrl(target.profile), {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${target.token}`,
-        "Content-Type": "application/octet-stream",
-        "X-XPanel-Protocol": String(REMOTE_PROTOCOL_VERSION),
-        "X-XPanel-Request": encodedMetadata,
+    signal.throwIfAborted();
+    if (body.bodySizeBytes > capabilities.limits.requestBodyBytes)
+      throw new Error("Request body exceeds service limit.");
+    const client = new OneFetchGatewayClient({
+      gatewayUrl: target.profile.gatewayUrl,
+      token: target.token,
+      capabilities: capabilities.fetchOptions,
+      client: { name: "xPanel", version: extensionPackage.version },
+      fetch: (input, init) =>
+        fetch(input, {
+          ...init,
+          credentials: "omit",
+          cache: "no-store",
+          referrerPolicy: "no-referrer",
+        }),
+      executionReports: {
+        controlUrl: target.profile.controlUrl,
+        fetch: controlFetch,
       },
-      ...(body.body === undefined ? {} : { body: body.body }),
-      redirect: "error",
-      cache: "no-store",
-      credentials: "omit",
-      signal: controller.signal,
     });
-    if (relayResponse.status !== 200) {
-      const failure = await remoteFailure(relayResponse);
-      if (
-        failure.code === "protocol_unsupported" ||
-        failure.code === "invalid_metadata"
-      ) {
-        await invalidateRelayCapabilities(target.profile, target.token);
-      }
-      throw failure;
-    }
-
-    const encodedResponseMetadata =
-      relayResponse.headers.get("X-XPanel-Response");
-    if (!encodedResponseMetadata) {
-      await invalidateRelayCapabilities(target.profile, target.token);
-      throw new Error("Remote relay omitted response metadata.");
-    }
-    let responseMetadata;
-    try {
-      responseMetadata = remoteResponseMetaV1Schema.parse(
-        decodeMetadata(encodedResponseMetadata),
-      );
-    } catch (error) {
-      await invalidateRelayCapabilities(target.profile, target.token);
-      throw error;
-    }
-    if (responseMetadata.requestId !== request.id) {
-      await invalidateRelayCapabilities(target.profile, target.token);
-      throw new Error("Remote relay returned a mismatched request ID.");
-    }
-
-    const maximumResponseBytes = Math.min(
-      requestedMaximumResponseBytes,
-      capabilities.maxResponseBodyBytes,
-      REMOTE_MAX_RESPONSE_BODY_BYTES,
-    );
-    const responseHeaders = responseMetadata.headers.map((header) => ({
-      ...header,
-      enabled: true,
-    }));
-    const warnings = [...body.warnings, ...responseMetadata.warnings];
-    if (
-      responseMetadata.headers.some(
-        (header) => header.name.toLowerCase() === "set-cookie",
-      )
-    ) {
+    const result = await client.executeHttp({
+      targetUrl: oneFetchTargetUrl(request),
+      method: request.method,
+      headers: body.headers,
+      ...(body.body === undefined ? {} : { body: body.body }),
+      bodySizeBytes: body.bodySizeBytes,
+      fetchOptions: {
+        redirect: request.options.redirect,
+        timeoutMs: request.options.timeoutMs,
+        adapter: {
+          browserResponse: "envelope-v1",
+          ...(capabilities.provider === "supabase"
+            ? { supabaseAcceptMutations: true }
+            : capabilities.provider === "cloudflare"
+              ? { cloudflareAcceptMutations: true }
+              : {}),
+        },
+      },
+      userDenyRules: target.profile.userDenyRules,
+      requestId: request.id,
+      signal,
+      onProgress: (progress) => {
+        if (
+          progress.phase === "preparing" ||
+          progress.phase === "uploading" ||
+          progress.phase === "waiting"
+        ) {
+          reportProgress(execution, progress.phase, 0, progress.totalBytes);
+        }
+      },
+    });
+    const { classification } = result;
+    const signed =
+      classification.source !== "intermediary"
+        ? classification.metadata
+        : undefined;
+    const targetResponse =
+      classification.source === "target" &&
+      classification.target.kind === "http"
+        ? classification.target
+        : undefined;
+    const details: OneFetchResponseDetailsV1 = {
+      schemaVersion: 1,
+      source:
+        classification.source === "relay"
+          ? "relay-error"
+          : classification.source,
+      outerStatus: result.response.status,
+      outerHeaders: safeOuterHeaders(result.response.headers),
+      mutations: signed?.mutations ?? [],
+      audit: signed?.audit.state ?? "unknown",
+      integrity: targetResponse ? "pending" : "unverified",
+      ...(signed
+        ? { configVersion: signed.configVersionUsed, timing: signed.timing }
+        : {}),
+      ...(signed?.reportId ? { reportId: signed.reportId } : {}),
+      ...(classification.source === "intermediary"
+        ? {
+            reason:
+              result.response.type === "opaqueredirect"
+                ? "browser-opaque-redirect"
+                : classification.reason,
+          }
+        : {}),
+      ...(classification.source === "relay"
+        ? { problem: classification.error }
+        : {}),
+    };
+    const headers = targetResponse
+      ? [
+          ...targetResponse.headers.filter(
+            (h) => h.name.toLowerCase() !== "set-cookie",
+          ),
+          ...targetResponse.setCookie.map((value) => ({
+            name: "Set-Cookie",
+            value,
+          })),
+        ]
+      : details.outerHeaders;
+    const warnings = [
+      ...body.warnings,
+      ...details.mutations.map((m) =>
+        warning("vendor-header-mutation", `${m.name}: ${m.detail}`),
+      ),
+    ];
+    if (targetResponse?.setCookie.length)
       warnings.push(
         warning(
           "remote-cookies-not-applied",
-          "Set-Cookie values are shown in the response but were not applied to Chrome cookies.",
-          "headers",
+          "Set-Cookie is displayed only; Chrome cookies were not changed.",
         ),
       );
-    }
-    const timings = {
-      startedAt,
-      durationMs: performance.now() - start,
-      requestMs: responseMetadata.upstreamDurationMs,
-    };
+    if (!targetResponse)
+      warnings.push(
+        warning(
+          "diagnostic-response",
+          "Not a verified target response. Diagnostic capture is limited to 1 MiB.",
+        ),
+      );
+    const maximumResponseBytes = targetResponse
+      ? Math.min(
+          resolveMaximumResponseBytes(options.maximumResponseBytes),
+          capabilities.limits.responseBodyBytes,
+          20 * 1024 * 1024,
+        )
+      : 1024 * 1024;
+    const timings = { startedAt, durationMs: performance.now() - start };
+    let loadedBytes = 0;
     const managed = createManagedResponseStream({
-      response: relayResponse,
+      response: targetResponse
+        ? result.response
+        : diagnosticResponse(result.response),
       execution,
       maximumBytes: maximumResponseBytes,
-      ...(responseMetadata.declaredBodySizeBytes === undefined
-        ? {}
-        : { declaredBytes: responseMetadata.declaredBodySizeBytes }),
-      limitMessage: "Response body exceeds the 20 MiB Remote limit.",
-      onFinalize: (loadedBytes, completed) => {
+      deferCompletion: true,
+      limitMessage: "Response body exceeds the configured service limit.",
+      onFinalize: (loaded) => {
+        loadedBytes = loaded;
         timings.durationMs = performance.now() - start;
-        if (
-          completed &&
-          responseMetadata.declaredBodySizeBytes !== undefined &&
-          responseMetadata.declaredBodySizeBytes !== loadedBytes
-        ) {
-          warnings.push(
-            warning(
-              "remote-body-size-mismatch",
-              `Relay declared ${responseMetadata.declaredBodySizeBytes} response bytes but sent ${loadedBytes}.`,
-              "body",
-            ),
-          );
-        }
       },
     });
     return {
       requestId: request.id,
       executor: "remote",
-      status: responseMetadata.status,
-      statusText: responseMetadata.statusText,
-      headers: responseHeaders,
+      status: targetResponse?.status ?? result.response.status,
+      statusText: targetResponse?.statusText ?? result.response.statusText,
+      headers: headers.map((h) => ({ ...h, enabled: true })),
       timings,
-      redirects: responseMetadata.redirects,
+      redirects: [],
       warnings,
       stream: managed.stream,
+      maximumResponseBytes,
+      remoteDetails: details,
       ...(managed.declaredLength === undefined
         ? {}
         : { declaredLength: managed.declaredLength }),
-      maximumResponseBytes,
+      finalizeRemote: async () => {
+        try {
+          return await finalizeRemoteReport(
+            details,
+            target.profile,
+            target.token,
+            request.id,
+            loadedBytes,
+            signal,
+            targetResponse?.status ?? result.response.status,
+          );
+        } finally {
+          finishExecution(execution);
+        }
+      },
     };
   } catch (error) {
     finishExecution(execution);

@@ -16,7 +16,11 @@ async function waitForExtensionTarget(debugPort, extensionOrigin, path) {
   }, `${path} target`);
 }
 
-async function terminateServiceWorker(browser, debugPort, extensionOrigin) {
+export async function terminateServiceWorker(
+  browser,
+  debugPort,
+  extensionOrigin,
+) {
   const entries = await targets(debugPort);
   const offscreen = entries.find((entry) =>
     entry.url.startsWith(extensionUrl(extensionOrigin, "offscreen.html")),
@@ -54,7 +58,7 @@ async function terminateServiceWorker(browser, debugPort, extensionOrigin) {
   return true;
 }
 
-async function openStandaloneFromPopup(
+export async function openStandaloneFromPopup(
   browser,
   debugPort,
   extensionOrigin,
@@ -72,7 +76,9 @@ async function openStandaloneFromPopup(
       status: document.querySelector(".popup-status")?.innerText,
       running: Boolean(document.querySelector(".popup-status .spin")),
     }))()`);
-    return snapshot.button && snapshot.status ? snapshot : undefined;
+    return snapshot.button && snapshot.status && snapshot.running
+      ? snapshot
+      : undefined;
   }, "popup execution status");
   invariant(
     popupStatus.running,

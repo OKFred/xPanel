@@ -2,6 +2,8 @@
 import { LoaderCircle, Play, X } from "lucide-vue-next";
 
 import AppDialog from "./AppDialog.vue";
+import type { OneFetchCapabilitiesV1 } from "@one-fetch/protocol";
+import OneFetchCapabilities from "../one-fetch/OneFetchCapabilities.vue";
 
 defineProps<{
   busy: boolean;
@@ -10,6 +12,7 @@ defineProps<{
   relay: string;
   baseUrl: string;
   trustSession: boolean;
+  capabilities?: OneFetchCapabilitiesV1 | null;
 }>();
 const emit = defineEmits<{
   close: [];
@@ -57,6 +60,9 @@ const emit = defineEmits<{
         <li>{{ $t("relayDataBody") }}</li>
       </ul>
       <p class="remote-cookie-note">{{ $t("remoteSetCookieNotice") }}</p>
+      <p>{{ $t("oneFetchExplicitCookies") }}</p>
+      <p>{{ $t("oneFetchCapabilityNotice") }}</p>
+      <OneFetchCapabilities v-if="capabilities" :capabilities="capabilities" />
       <label class="check-row">
         <input
           :checked="trustSession"

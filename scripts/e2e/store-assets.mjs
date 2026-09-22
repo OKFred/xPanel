@@ -148,8 +148,9 @@ export async function generateStoreScreenshots(
     "Relay manager for store screenshot",
   );
   await fillFirstInputs(workbench, [
-    "Private Cloudflare Relay",
-    "https://xpanel-relay.example.workers.dev",
+    "My one-fetch service",
+    "https://control.example.com",
+    "https://gateway.example.com",
   ]);
   await capturePng(
     workbench,

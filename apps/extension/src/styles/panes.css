@@ -20,7 +20,17 @@
 }
 
 .response-pane {
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.response-pane > :not(.response-content) {
+  flex-shrink: 0;
+}
+
+.response-pane > .response-content {
+  flex: 1 1 0;
 }
 
 .response-warning-list {

@@ -35,6 +35,26 @@ export async function materializeResponse(
   response: ExecutionResponseStreamV1,
 ): Promise<ResponseRecordV1> {
   const bytes = await collectBytes(response.stream);
+  const details = await response.finalizeRemote?.();
+  if (
+    details &&
+    (details.source !== "target" || details.integrity === "failed")
+  ) {
+    throw new Error(
+      details.problem?.code ?? details.reason ?? "Unverified remote response",
+    );
+  }
+  if (details?.bodySha256) {
+    const actual = [
+      ...new Uint8Array(
+        await crypto.subtle.digest("SHA-256", new Uint8Array(bytes)),
+      ),
+    ]
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    if (actual !== details.bodySha256)
+      throw new Error("Remote response body digest mismatch");
+  }
   const mediaType =
     response.headers
       .find((header) => header.name.toLowerCase() === "content-type")

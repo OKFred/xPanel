@@ -4,7 +4,7 @@ import { join, relative, resolve } from "node:path";
 const workspaceRoot = resolve(import.meta.dirname, "..");
 const baselinePath = join(
   workspaceRoot,
-  "scripts/fixtures/extension-update-baseline-2.0.json",
+  "scripts/fixtures/extension-update-baseline-2.1.json",
 );
 const manifestPath = process.env.XPANEL_UPGRADE_MANIFEST_PATH
   ? resolve(process.env.XPANEL_UPGRADE_MANIFEST_PATH)
@@ -38,7 +38,14 @@ async function workspacePackagePaths() {
     for (const entry of await readdir(join(workspaceRoot, root), {
       withFileTypes: true,
     })) {
-      if (entry.isDirectory()) paths.push(`${root}/${entry.name}/package.json`);
+      // Ignore leftover local cache directories that are no longer packages.
+      if (
+        entry.isDirectory() &&
+        (await readdir(join(workspaceRoot, root, entry.name))).includes(
+          "package.json",
+        )
+      )
+        paths.push(`${root}/${entry.name}/package.json`);
     }
   }
   return paths;
@@ -136,12 +143,12 @@ const currentOptionalHosts = sortedUnique(
 
 invariant(
   JSON.stringify(currentOptional) === JSON.stringify(previousOptional),
-  "Optional API permissions changed from the reviewed 2.0.x baseline.",
+  "Optional API permissions changed from the reviewed 2.1.0 baseline.",
 );
 invariant(
   JSON.stringify(currentOptionalHosts) ===
     JSON.stringify(previousOptionalHosts),
-  "Optional host permissions changed from the reviewed 2.0.x baseline.",
+  "Optional host permissions changed from the reviewed 2.1.0 baseline.",
 );
 invariant(
   sortedUnique(manifest.host_permissions, "Current required host permissions")

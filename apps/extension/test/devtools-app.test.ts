@@ -26,7 +26,7 @@ vi.mock(
   async () => (await import("./devtools-app.harness")).backgroundExecution,
 );
 vi.mock(
-  "../src/lib/remote-profiles",
+  "../src/lib/one-fetch-profiles",
   async () => (await import("./devtools-app.harness")).remoteProfiles,
 );
 
