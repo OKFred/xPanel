@@ -79,6 +79,8 @@ const target = createServer(async (request, response) => {
       path: request.url,
       bytes: data.byteLength,
       body: data.byteLength < 4096 ? data.toString("utf8") : "omitted",
+      bodyBase64: data.byteLength < 4096 ? data.toString("base64") : "omitted",
+      contentType: request.headers["content-type"] ?? "",
       explicitCookie: request.headers.cookie ?? "",
       authorization: request.headers.authorization ?? "",
     }),

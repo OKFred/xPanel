@@ -2,6 +2,7 @@ import { clickTextScript, setInput } from "./panel-actions.mjs";
 import { invariant, waitFor } from "./utils.mjs";
 import { runRemoteResultChecks } from "./remote-result-checks.mjs";
 import { runRemoteConformanceFlow } from "./remote-conformance-flow.mjs";
+import { runRemotePayloadFlow } from "./remote-payload-flow.mjs";
 
 export async function runRemoteFlow(
   panel,
@@ -169,6 +170,14 @@ export async function runRemoteFlow(
     "verified one-fetch result",
     10_000,
   );
+  if (
+    ["xpanel-synthetic-v1", "one-fetch-conformance"].includes(remoteFixtureKind)
+  )
+    await runRemotePayloadFlow(
+      panel,
+      new URL(remoteTargetUrl).origin,
+      remoteFixtureKind === "one-fetch-conformance",
+    );
   if (remoteFixtureKind === "xpanel-synthetic-v1")
     await runRemoteResultChecks(panel, new URL(remoteTargetUrl).origin);
   if (remoteFixtureKind === "one-fetch-conformance")
