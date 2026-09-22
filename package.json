@@ -27,7 +27,7 @@
     "lint": "pnpm build:packages && eslint .",
     "release:prepare": "pnpm check && pnpm e2e:chromium && pnpm e2e:upgrade && pnpm --filter @xpanel/extension zip && node scripts/prepare-release.mjs",
     "test": "pnpm build:packages && pnpm -r --if-present test && pnpm test:tooling",
-    "test:tooling": "node --test scripts/dependency-policy.test.mjs scripts/e2e/service-readiness.test.mjs",
+    "test:tooling": "node --test scripts/dependency-policy.test.mjs scripts/import-dependency-security.test.mjs scripts/e2e/service-readiness.test.mjs",
     "test:watch": "vitest",
     "typecheck": "pnpm build:packages && pnpm -r --if-present typecheck"
   },
@@ -37,7 +37,7 @@
     "eslint": "9.35.0",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-vue": "10.4.0",
-    "fflate": "0.8.2",
+    "fflate": "0.8.3",
     "prettier": "3.6.2",
     "sharp": "0.35.2",
     "typescript": "5.9.2",
