@@ -209,7 +209,18 @@ export async function startOneFetchSupabaseFixture(
       "Synthetic Worker name already exists.",
     );
     fixtureAttempted = true;
-    const fixture = await fixtureTools.deployCloudflareFixture(fixtureName);
+    const fixture = await fixtureTools.deployCloudflareFixture(fixtureName, {
+      // Readiness GETs are safe to retry; resource creation is never retried.
+      fetch: async (url, init) => {
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            return await fetch(url, init);
+          } catch (error) {
+            if (attempt === 2) throw error;
+          }
+        }
+      },
+    });
     const environment = new Map(
       (await readFile(envFile, "utf8"))
         .trim()

@@ -82,6 +82,12 @@ try {
     $taskState.projectRef = $taskCreated.id; Save-TaskState
   } else {
     $taskOwned = @($taskProjects | Where-Object { $_.id -eq $taskState.projectRef -and $_.name -eq $ProjectName -and $_.organization_id -eq $taskState.organizationId })
+    # Listing can lag a successful creation acknowledgement. Readiness may wait;
+    # key access and deletion still require exact current inventory ownership.
+    if ($Action -eq 'ready' -and $taskOwned.Count -eq 0) {
+      @{ status='AWAITING_INVENTORY'; projectRef=$taskState.projectRef } | ConvertTo-Json
+      return
+    }
     if ($taskOwned.Count -ne 1) { throw 'Exact temporary project ownership not established' }
     $taskState.status = $taskOwned[0].status
     if ($Action -eq 'key') {

@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, dirname, basename } from "node:path";
@@ -127,6 +128,7 @@ try {
     gatewayUrl: runtime.remoteGatewayUrl,
     token: runtime.remoteToken,
     targetOrigin: new URL(runtime.remoteTargetUrl).origin,
+    expectedVersion: source.version,
   };
   // Tokens stay in the disposable browser memory, never receipts, logs or screenshots.
   const results = await page.client.evaluate(
@@ -165,8 +167,12 @@ try {
   const directory = join(workspace, "artifacts/one-fetch-e2e");
   await mkdir(directory, { recursive: true });
   await writeFile(
-    join(directory, `browser-${adapter}-${commit.slice(0, 12)}.json`),
+    join(
+      directory,
+      `browser-${adapter}-${commit.slice(0, 12)}-${randomUUID()}.json`,
+    ),
     JSON.stringify(receipt, null, 2),
+    { flag: "wx" },
   );
   console.log(JSON.stringify(receipt));
 }
@@ -186,6 +192,8 @@ async function browserProbe(input) {
     fetch: serviceFetch,
   });
   const capabilities = await control.getCapabilities();
+  if (capabilities.buildVersion !== input.expectedVersion)
+    throw new Error("Service build version differs from the reviewed source.");
   const client = new OneFetchGatewayClient({
     gatewayUrl: input.gatewayUrl,
     token: input.token,
@@ -193,6 +201,27 @@ async function browserProbe(input) {
     fetch: serviceFetch,
     executionReports: { controlUrl: input.controlUrl, fetch: serviceFetch },
   });
+  async function finalReport(metadata) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        const report = await control.getExecutionReport(
+          metadata.reportId,
+          input.token,
+          {
+            signal: globalThis.AbortSignal.timeout(5000),
+          },
+        );
+        if (
+          report.requestId !== metadata.requestId ||
+          report.reportId !== metadata.reportId
+        )
+          throw new Error("report-identity");
+        return report;
+      } catch {
+        await new Promise((done) => setTimeout(done, 250));
+      }
+    }
+  }
   const results = [];
   for (const path of [
     "/status/201",
@@ -225,6 +254,12 @@ async function browserProbe(input) {
       });
       const classification = result.classification;
       check.source = classification.source;
+      check.outerStatus = result.response.status;
+      if (
+        classification.source === "target" &&
+        classification.target.kind === "http"
+      )
+        check.targetStatus = classification.target.status;
       if (classification.source === "relay")
         check.code = classification.error.code;
       if (path === "/bytes/20971521") {
@@ -232,7 +267,43 @@ async function browserProbe(input) {
           classification.source === "relay" &&
           classification.error.code === "response_too_large" &&
           result.response.status === 200;
-        await result.response.body?.cancel();
+        if (classification.source === "target") {
+          // A streaming vendor may strip Content-Length. Headers are already
+          // committed then; require a bounded failed stream AND final report.
+          let received = 0;
+          let interrupted = false;
+          const reader = result.response.body.getReader();
+          try {
+            while (true) {
+              const item = await reader.read();
+              if (item.done) break;
+              received += item.value.byteLength;
+              if (received > 20 * 1024 * 1024) {
+                await reader.cancel();
+                break;
+              }
+            }
+          } catch {
+            interrupted = true;
+          } finally {
+            reader.releaseLock();
+          }
+          const report = await finalReport(classification.metadata);
+          check.passed =
+            interrupted &&
+            received <= 20 * 1024 * 1024 &&
+            result.response.status === 200 &&
+            classification.metadata.responseMode === "browser-envelope-v1" &&
+            report?.outcome === "partial" &&
+            !report.bodyComplete &&
+            !report.bodySha256 &&
+            report.problem?.code === "response_too_large";
+          check.code = report?.problem?.code ?? "missing-final-report";
+          check.integrity = "not-verified";
+          check.reportOutcome = report?.outcome ?? "unavailable";
+          check.interrupted = interrupted;
+          check.bytesReceived = received;
+        } else await result.response.body?.cancel();
       } else {
         if (
           classification.source !== "target" ||
@@ -273,19 +344,7 @@ async function browserProbe(input) {
         ]
           .map((byte) => byte.toString(16).padStart(2, "0"))
           .join("");
-        let report;
-        for (let attempt = 0; attempt < 5; attempt++) {
-          try {
-            report = await control.getExecutionReport(
-              classification.metadata.reportId,
-              input.token,
-              { signal: globalThis.AbortSignal.timeout(5000) },
-            );
-            break;
-          } catch {
-            await new Promise((done) => setTimeout(done, 250));
-          }
-        }
+        const report = await finalReport(classification.metadata);
         check.passed =
           report?.status === status &&
           report?.outcome === "completed" &&
