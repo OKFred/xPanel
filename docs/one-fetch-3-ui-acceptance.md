@@ -125,7 +125,8 @@ not a final main ZIP digest or permission to publish.
   returned 200. After confirming the helper stopped and the exact deployment
   owner/revision, guarded cleanup deleted both Workers and D1. The synthetic
   fixture was separately deleted and absence verified. The original failed
-  receipt is unchanged; local credential deletion requires user confirmation.
+  receipt is unchanged. The maintainer subsequently deleted the local credential
+  directory, and a read-only absence check passed on 23 September.
   Readiness now requires three consecutive successful public-route probes,
   including a regression test for intermittent provider responses.
 - `xp3-94b9348ffc1c`: passed setup, payload/status/timing and 20 MiB cases;
@@ -169,12 +170,15 @@ Failed runs and their cleanup follow-ups are not evidence of passed acceptance.
   Production dependency audit has zero known vulnerabilities.
 - Full local `pnpm check` and branch CI passed after retirement. No changed
   implementation/test file exceeds the 1,000-line hard limit.
-- One older failed attempt's local directory
-  `xpanel-one-fetch-cloudflare-4eaOsH` still needs maintainer deletion and an
-  absence check; that attempt's cloud resources are already absent.
-- PR merge requires explicit approval. Rebuild the final ZIP/SBOM on main, then
-  obtain a separate Store upload/submission confirmation with deferred publishing.
+- The maintainer deleted the older failed attempt's local directory
+  `xpanel-one-fetch-cloudflare-4eaOsH`; a read-only check on 23 September confirmed
+  it absent. Its cloud resources were already verified absent. No known temporary
+  acceptance credentials remain.
+- The maintainer explicitly approved a non-squash PR merge and final main
+  ZIP/SBOM generation after CI and cleanup verification. Store upload, submission
+  and publication are excluded from this authorization. Rebuild on main, then
+  obtain separate Store upload/submission confirmation with deferred publishing.
 
-No media-center restore, retained public Gateway, xPanel merge or Store
-submission was performed. These approvals and final main artifacts remain
-release gates, not implied by the passed technical checks.
+At this pre-merge checkpoint, no media-center restore, retained public Gateway,
+xPanel merge or Store submission was performed. Final main artifacts and
+separate Store approval remain release gates, not implied by technical checks.
