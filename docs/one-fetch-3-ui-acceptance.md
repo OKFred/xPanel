@@ -39,6 +39,15 @@ permission to merge, submit to the Chrome Web Store or publish the extension.
 The three-platform official-client probes passed before publication, but they
 do not substitute for full xPanel UI acceptance with the released dependencies.
 
+Supabase full Chromium UI acceptance subsequently passed in
+`xpanel-three-dbb9427172cb`, using the published 0.1.2 adapter and real MV3
+workbench. Coverage includes selected files/multipart, exact query and JSON,
+status-source separation, cookies, timing, 20 MiB/+1, an independently verified
+wire truncation, timeout, Stop, closed-workbench completion, service-worker
+termination, Popup recovery and cross-window cancellation. Cleanup verified
+the temporary project, fixture and local credentials absent. Cloudflare's
+post-fix full repeat remains open.
+
 - Cloudflare run `xp3-dfe8ab1bcba1` failed at synthetic fixture readiness (404).
   Its cloud resources and local credential directory were removed and verified.
 - Run `xp3-88d9f25e6b50` reached installed services, then Control verification

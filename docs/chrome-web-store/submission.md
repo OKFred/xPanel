@@ -13,6 +13,12 @@ does not establish today's dashboard state. Recheck the current listing and
 version before preparing this new 3.0.0 update. Keep the concise localized
 descriptions below and never restore the rejected keyword lists.
 
+On 23 September 2026, the maintainer confirmed the current Store version is
+**2.1.0, published**. The browser automation interface could not read the
+protected developer-console page, so this is maintainer-confirmed status, not
+an automated dashboard check. The planned update is **3.0.0**; any separate
+draft/review state must still be checked immediately before upload/submission.
+
 ## Publishing mode
 
 Use [deferred publishing](https://developer.chrome.com/docs/webstore/update#deferred-publishing)
