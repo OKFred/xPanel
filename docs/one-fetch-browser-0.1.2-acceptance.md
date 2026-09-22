@@ -36,8 +36,9 @@ Receipts are local under `artifacts/one-fetch-e2e`; hashes below are SHA-256.
 
 Each final run verified removal of its owned temporary runtime and local
 credentials. One earlier Cloudflare run had a transient cleanup inventory auth
-failure; follow-up verified cloud resource absence, but its separate local
-credential directory still requires user deletion. No media-center restore was
+failure; follow-up verified cloud resource absence. The user removed its separate
+local credential directory; a read-only existence check on 22 September confirmed
+it is absent. The original failed cleanup receipt was not rewritten. No media-center restore was
 performed and no public Gateway is retained.
 
 ## Downloaded review artifacts
@@ -61,14 +62,39 @@ These four new owned containers were removed and their absence verified. Older
 unrelated 0.1.0 containers were not modified. This is not a native ARM64 hardware
 test or a repeat of every historical cross-version deployment rehearsal.
 
+## Published release verification
+
+The public release contains the same 18 files. Anonymous downloads of all files
+passed manifest and SHA-256/SHA-512 checks after publication; the annotated tag
+resolves to the exact source commit above. GitHub API metadata required the
+already-authenticated CLI account because the shared anonymous API quota returned 403. Artifact downloads themselves were anonymous. The original rate-limited
+attempt is retained as incomplete, not relabelled.
+
+Public-download receipt SHA-256:
+`2a30b229d74c7b6f230d3218253741620acd9045421a9f6e331e7b8c919c99fb`.
+Provenance was verified separately against the unchanged review artifacts; the
+public-download verifier does not claim to verify provenance itself.
+
+## xPanel Node UI acceptance after publication
+
+With the published 0.1.2 client/core/protocol and Node archive, actual xPanel
+Chromium interaction passed target 201/302/404/503, policy errors, repeated
+Set-Cookie, Server-Timing, complete 20 MiB, oversized/partial rejection and Stop
+(62.0 ms). Browser, DevTools HAR, 318 KiB virtual viewer, bilingual UI and
+standalone recovery also passed. Offscreen finished after all workbenches closed
+and the service worker was terminated; Popup recovery, final digest verification
+and cross-interface Stop passed. The owned Docker container was removed and its
+absence verified. Cloud UI and upgrade acceptance are still separate gates.
+
 ## Remaining release/integration gates
 
 - The final main CI and CodeQL passed. Review bundle run
   [35733088736](https://github.com/OKFred/one-fetch/actions/runs/35733088736)
   succeeded; local provenance and packaged runtime verification passed as above.
-- Finish the earlier local credential cleanup and record its absence.
-- Publish a new immutable 0.1.2 Preview, then pin xPanel to those exact Release
-  URLs and lockfile integrity. Never replace v0.1.1 assets or its tag.
+- Earlier local credential cleanup is complete and absence verified.
+- [0.1.2 Preview](https://github.com/OKFred/one-fetch/releases/tag/v0.1.2) was
+  published on 22 September from this commit with the 18 unchanged review files.
+  xPanel pins the new Release URLs and SHA-512 integrity. v0.1.1 is unchanged.
 - Run the full xPanel UI/Offscreen/upgrade suite with the new dependency before
   retiring the legacy Relay build. xPanel merge and Store submission remain
   separate approval gates.

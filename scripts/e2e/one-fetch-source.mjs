@@ -6,8 +6,8 @@ import { invariant } from "./utils.mjs";
 
 const execute = promisify(execFile);
 const published = {
-  commit: "b8e8b3558bca6236e92b7c18db167759da9cc43c",
-  version: "0.1.1",
+  commit: "056380ecbfc48cedea82096a86196a29261395b4",
+  version: "0.1.2",
 };
 
 /** Candidate probes must name an exact clean commit; normal E2E stays Release-only. */

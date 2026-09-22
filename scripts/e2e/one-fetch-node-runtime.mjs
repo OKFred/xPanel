@@ -17,9 +17,9 @@ const execute = promisify(execFile);
 const image =
   "node:24.20.0-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e";
 const archiveHash =
-  "128e24ecce8b15b481db3d7e8c67c5e8225562076f4182bbd634c758394865ad";
+  "d02189d7e22d433056f6e9d7e7c4cf81280617e301a9f81bc0bb9ee767bfc56b";
 const archiveUrl =
-  "https://github.com/OKFred/one-fetch/releases/download/v0.1.1/one-fetch-node-0.1.1.tar.gz";
+  "https://github.com/OKFred/one-fetch/releases/download/v0.1.2/one-fetch-node-0.1.2.tar.gz";
 const ownerLabel = "xpanel.one-fetch-e2e";
 async function docker(args) {
   try {
@@ -39,7 +39,7 @@ async function docker(args) {
 export async function startOneFetchNodeFixture(workspaceRoot) {
   const directory = resolve(workspaceRoot, "artifacts", "one-fetch-e2e");
   await mkdir(directory, { recursive: true });
-  const archive = resolve(directory, "one-fetch-node-0.1.1.tar.gz");
+  const archive = resolve(directory, "one-fetch-node-0.1.2.tar.gz");
   let bytes;
   try {
     bytes = await readFile(archive);
@@ -211,7 +211,7 @@ export async function startOneFetchNodeFixture(workspaceRoot) {
       expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
     });
     process.stdout.write(
-      "one-fetch Node 24.20.0 fixture ready from verified v0.1.1 archive (loopback only).\n",
+      "one-fetch Node 24.20.0 fixture ready from verified v0.1.2 archive (loopback only).\n",
     );
     return {
       remoteFixtureKind: "xpanel-synthetic-v1",

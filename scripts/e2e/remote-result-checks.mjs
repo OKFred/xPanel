@@ -45,15 +45,17 @@ export async function settle(panel, predicate, label) {
   }
 }
 export async function runRemoteResultChecks(panel, origin) {
-  await send(panel, `${origin}/status/503`);
-  await settle(
-    panel,
-    (s) =>
-      s.source === "target" &&
-      s.status.startsWith("503") &&
-      /Body integrity\s*:\s*Verified\b/u.test(s.detail),
-    "verified target 503",
-  );
+  for (const status of [201, 302, 404, 503]) {
+    await send(panel, `${origin}/status/${status}`);
+    await settle(
+      panel,
+      (s) =>
+        s.source === "target" &&
+        s.status.startsWith(String(status)) &&
+        /Body integrity\s*:\s*Verified\b/u.test(s.detail),
+      `verified target ${status}`,
+    );
+  }
   await panel.evaluate(
     clickTextScript("Headers", "document.querySelector('.response-tabs')"),
   );
@@ -137,6 +139,6 @@ export async function runRemoteResultChecks(panel, origin) {
     `Remote Stop acknowledgement exceeded 250 ms: ${elapsed.toFixed(1)}`,
   );
   process.stdout.write(
-    `Remote result checks passed: signed target 503, policy error, duplicate cookies, timing, partial, 20 MiB boundary, Stop (${elapsed.toFixed(1)} ms).\n`,
+    `Remote result checks passed: signed targets 201/302/404/503, policy error, duplicate cookies, timing, partial, 20 MiB boundary, Stop (${elapsed.toFixed(1)} ms).\n`,
   );
 }
