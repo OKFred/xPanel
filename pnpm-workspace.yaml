@@ -15,6 +15,11 @@ allowBuilds:
   workerd: true
 
 minimumReleaseAgeExclude:
+  # These are freshly published, independently attested, hash-pinned tarballs;
+  # there is deliberately no npm package metadata for them.
+  - "@one-fetch/client@0.1.1"
+  - "@one-fetch/core@0.1.1"
+  - "@one-fetch/protocol@0.1.1"
   - miniflare@5.20260831.0-alpha
   - wrangler@4.128.0
 

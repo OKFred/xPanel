@@ -36,4 +36,29 @@ function readPackage(pkg) {
   return pkg;
 }
 
-module.exports = { hooks: { readPackage } };
+const integrity = {
+  client:
+    "sha512-MgruitV82ehl6oC6vNL1IbN7daZPQfG1inItr2JQ9IwBs0rzGDloKY1O8xRgP4Nt07+Aa8khHvd9+86YPqOBGA==",
+  protocol:
+    "sha512-nAnynTp0I5y7CRor0aPHAeOLF29hBHoYqJKvUuUGWKspwy+ybTO6lDe5eqUijmIuIQJr1DWdsP31DoFUDOGTPQ==",
+  core: "sha512-CBikVSbbiINdDJIiH+r2NmqalA9OwXxhjcUESao1ZJ/pOC7pJa/vwc9/mMKcDEFcKDs2fNPGLmuBoL7SWva0FA==",
+};
+
+function afterAllResolved(lockfile) {
+  for (const [key, entry] of Object.entries(lockfile.packages ?? {})) {
+    for (const [name, url] of approved) {
+      if (key !== `${name}@${url}`) continue;
+      const expected = integrity[name.split("/")[1]];
+      if (
+        entry.resolution?.tarball !== url ||
+        (entry.resolution.integrity && entry.resolution.integrity !== expected)
+      ) {
+        throw new Error(`one-fetch release integrity changed: ${name}`);
+      }
+      entry.resolution.integrity = expected;
+    }
+  }
+  return lockfile;
+}
+
+module.exports = { hooks: { readPackage, afterAllResolved } };
