@@ -6,8 +6,6 @@ const root = resolve(import.meta.dirname, "..");
 const sourceRoots = [
   "apps/extension/entrypoints",
   "apps/extension/src",
-  "apps/relay-cloudflare/scripts",
-  "apps/relay-cloudflare/src",
   "packages/contracts/src",
   "packages/request-core/src",
 ];
@@ -40,6 +38,10 @@ const forbiddenSourcePatterns = [
   ["webRequest interception", /chrome\.webRequest/u],
   ["Native Messaging connection", /\bconnectNative\s*\(/u],
   ["nativeMessaging permission", /["']nativeMessaging["']/u],
+  [
+    "legacy Relay transport",
+    /["'](?:X-XPanel-(?:Request|Response)|\/v1\/execute)["']/iu,
+  ],
 ];
 
 const failures = [];
@@ -87,88 +89,14 @@ for (const [locale, standaloneMarker] of [
   }
 }
 
-const relaySourceRoot = join(root, "apps/relay-cloudflare/src");
-for (const file of walk(relaySourceRoot)) {
-  const source = readFileSync(file, "utf8");
-  if (/\bconsole\s*\./u.test(source)) {
-    failures.push(`${relative(root, file)} logs from the Relay Worker`);
-  }
-  if (/\bcaches\s*\./u.test(source)) {
-    failures.push(`${relative(root, file)} uses the Cloudflare cache API`);
-  }
-}
-
-const relayConfigPath = join(root, "apps/relay-cloudflare/wrangler.jsonc");
-if (!existsSync(relayConfigPath)) {
-  failures.push("Cloudflare Relay wrangler.jsonc is missing");
-} else {
-  const relayConfig = readFileSync(relayConfigPath, "utf8");
-  const requiredRelayConfigPatterns = [
-    ["compatibility date", /"compatibility_date"\s*:\s*"2026-09-02"/u],
-    ["request cancellation flag", /"enable_request_signal"/u],
-    ["strict public fetch routing", /"global_fetch_strictly_public"/u],
-    ["Node compatibility opt-out", /"no_nodejs_compat"/u],
-    [
-      "required token digest secret",
-      /"required"\s*:\s*\[\s*"RELAY_TOKEN_SHA256"\s*\]/u,
-    ],
-    ["disabled metrics", /"send_metrics"\s*:\s*false/u],
-    [
-      "disabled observability",
-      /"observability"\s*:\s*\{\s*"enabled"\s*:\s*false/u,
-    ],
-    ["default allowlist policy", /"TARGET_POLICY"\s*:\s*"allowlist"/u],
-    ["empty default allowlist", /"ALLOWED_TARGET_ORIGINS"\s*:\s*""/u],
-    ["empty default Relay aliases", /"RELAY_SELF_ORIGINS"\s*:\s*""/u],
-  ];
-  for (const [label, pattern] of requiredRelayConfigPatterns) {
-    if (!pattern.test(relayConfig)) {
-      failures.push(`Cloudflare Relay config is missing ${label}`);
-    }
-  }
-  if (/"nodejs_compat"/u.test(relayConfig)) {
-    failures.push("Cloudflare Relay config enables Node compatibility");
-  }
-}
-
-const lifecyclePath = join(
-  root,
-  "apps/relay-cloudflare/scripts/online-lifecycle.mjs",
-);
-const lifecycleLibraryPath = join(
-  root,
-  "apps/relay-cloudflare/scripts/online-lifecycle-lib.mjs",
-);
-if (!existsSync(lifecyclePath) || !existsSync(lifecycleLibraryPath)) {
-  failures.push("guarded Cloudflare online lifecycle runner is missing");
-} else {
-  const lifecycle = readFileSync(lifecyclePath, "utf8");
-  const lifecycleLibrary = readFileSync(lifecycleLibraryPath, "utf8");
-  const requiredLifecyclePatterns = [
-    ["shell-free child processes", /shell:\s*false/u, lifecycle],
-    ["strict Relay deployment", /"--strict"/u, lifecycle],
-    ["cryptographically random Fixture name", /randomBytes\(6\)/u, lifecycle],
-    [
-      "CI refusal",
-      /Online lifecycle acceptance is disabled in CI/u,
-      lifecycleLibrary,
-    ],
-    [
-      "explicit online confirmation",
-      /I_UNDERSTAND_THIS_DEPLOYS_AND_DELETES_WORKERS/u,
-      lifecycleLibrary,
-    ],
-    ["empty allowlist precondition", /empty allowlist/u, lifecycleLibrary],
-    ["pre-deployment token handshake", /preflightRelay/u, lifecycleLibrary],
-  ];
-  for (const [label, pattern, source] of requiredLifecyclePatterns) {
-    if (!pattern.test(source)) {
-      failures.push(`Cloudflare lifecycle runner is missing ${label}`);
-    }
-  }
-  if (/shell:\s*true/u.test(lifecycle)) {
-    failures.push("Cloudflare lifecycle runner enables shell execution");
-  }
+// The retired Relay is recoverable from Git, but must never ship or build.
+for (const retired of [
+  "apps/relay-cloudflare/package.json",
+  "apps/extension/src/lib/remote-profiles.ts",
+  "apps/extension/src/lib/execution/remote-protocol.ts",
+]) {
+  if (existsSync(join(root, retired)))
+    failures.push(`Retired Relay implementation remains: ${retired}`);
 }
 
 const trackedNames = execFileSync(

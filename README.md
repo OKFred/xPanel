@@ -39,7 +39,6 @@ safe import/export, and the virtual response viewer.
 
 ```text
 apps/extension       WXT + Vue 3 + shadcn-vue/Tailwind MV3 extension
-apps/relay-cloudflare Retired template awaiting three-platform migration sign-off
 packages/contracts   Runtime-validated request and response schemas
 packages/request-core Safe request format converters
 legacy/              Archived xPanel 1.1.1 MV2 source (not built)

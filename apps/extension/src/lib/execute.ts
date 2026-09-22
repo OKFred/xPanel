@@ -20,7 +20,6 @@ export type {
 } from "./execution/browser-headers";
 export { executeRemote } from "./execution/remote";
 export { remoteUnsupportedReasons } from "./execution/remote-headers";
-export { RemoteExecutionError } from "./execution/remote-protocol";
 export type {
   ExecuteOptionsV1,
   ExecuteTargetV1,

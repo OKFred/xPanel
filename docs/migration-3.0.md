@@ -19,7 +19,11 @@ tokens. Offscreen executions can outlive a workbench; closing Chrome or updating
 the extension cannot resume a live network connection, so unfinished executions
 become orphaned and are not automatically replayed.
 
+The old Relay template, executor helpers and build tasks have been retired;
+their source remains recoverable from Git history. Collection schemas and the
+read-only legacy profile migration are retained.
+
 Before Store submission, complete all three real-adapter Chromium acceptance
-checks, remove the retired Relay template/build tasks, merge only after explicit
-approval and rebuild from final main. Submission and deferred publishing require
+checks, merge only after explicit approval and rebuild from final main.
+Submission and deferred publishing require
 a separate confirmation; development artifacts are not Store releases.

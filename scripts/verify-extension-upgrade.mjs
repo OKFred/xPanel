@@ -38,9 +38,13 @@ async function workspacePackagePaths() {
     for (const entry of await readdir(join(workspaceRoot, root), {
       withFileTypes: true,
     })) {
-      // The retired Relay template remains only until three-platform migration
-      // acceptance; it is not part of the 3.0 extension version train.
-      if (entry.isDirectory() && entry.name !== "relay-cloudflare")
+      // Ignore leftover local cache directories that are no longer packages.
+      if (
+        entry.isDirectory() &&
+        (await readdir(join(workspaceRoot, root, entry.name))).includes(
+          "package.json",
+        )
+      )
         paths.push(`${root}/${entry.name}/package.json`);
     }
   }

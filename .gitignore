@@ -13,6 +13,9 @@ coverage/
 artifacts/
 *.log
 
+# Retired Relay local caches/credentials are not part of xPanel 3 sources.
+apps/relay-cloudflare/
+
 .env
 .env.*
 !.env.example

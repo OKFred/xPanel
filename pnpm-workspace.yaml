@@ -12,7 +12,6 @@ allowBuilds:
   "@tailwindcss/oxide": true
   esbuild: true
   vue-demi: true
-  workerd: true
 
 minimumReleaseAgeExclude:
   # These are freshly published, independently attested, hash-pinned tarballs;
@@ -20,8 +19,6 @@ minimumReleaseAgeExclude:
   - "@one-fetch/client@0.1.2"
   - "@one-fetch/core@0.1.2"
   - "@one-fetch/protocol@0.1.2"
-  - miniflare@5.20260831.0-alpha
-  - wrangler@4.128.0
 
 onlyBuiltDependencies:
   - "@tailwindcss/oxide"
