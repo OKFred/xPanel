@@ -7,9 +7,9 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { invariant } from "./utils.mjs";
 import { deploymentDiagnostic } from "./deployment-diagnostic.mjs";
+import { verifyOneFetchSource } from "./one-fetch-source.mjs";
 
 const execute = promisify(execFile);
-const commit = "b8e8b3558bca6236e92b7c18db167759da9cc43c";
 const { OneFetchControlClient } = await import(
   new URL(
     "../../apps/extension/node_modules/@one-fetch/client/dist/index.js",
@@ -20,6 +20,7 @@ const { OneFetchControlClient } = await import(
 export async function startOneFetchSupabaseFixture(
   workspaceRoot,
   extensionOrigin,
+  review,
 ) {
   invariant(
     process.platform === "win32",
@@ -28,16 +29,8 @@ export async function startOneFetchSupabaseFixture(
   const root = resolve(
     process.env.ONE_FETCH_SOURCE ?? join(workspaceRoot, "..", "one-fetch"),
   );
-  const git = async (args) =>
-    (
-      await execute("git", args, { cwd: root, windowsHide: true })
-    ).stdout.trim();
-  invariant(
-    (await git(["rev-parse", "HEAD"])) === commit &&
-      (await git(["rev-parse", "v0.1.1^{commit}"])) === commit &&
-      !(await git(["status", "--porcelain", "--untracked-files=no"])),
-    "Supabase requires the clean reviewed v0.1.1 checkout.",
-  );
+  const source = await verifyOneFetchSource(root, review);
+  const commit = source.commit;
   const load = (path) => import(pathToFileURL(join(root, path)));
   const fixtureTools = await load("tools/acceptance/cloudflare-fixture.mjs");
   const cf = await load("tools/deploy/cloudflare-runtime.mjs");
@@ -88,6 +81,8 @@ export async function startOneFetchSupabaseFixture(
     schemaVersion: 1,
     adapter: "supabase",
     commit,
+    sourceKind: source.sourceKind,
+    buildVersion: source.version,
     name,
     fixtureName,
     createdAt: new Date().toISOString(),
@@ -171,7 +166,7 @@ export async function startOneFetchSupabaseFixture(
       { windowsHide: true },
     );
     process.stdout.write(
-      "Supabase v0.1.1 guarded install running (empty-schema check and deployment CAS).\n",
+      `Supabase v${source.version} guarded install running (empty-schema check and deployment CAS).\n`,
     );
     try {
       await execute(

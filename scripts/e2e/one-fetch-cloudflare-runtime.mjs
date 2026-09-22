@@ -8,9 +8,9 @@ import { basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { invariant } from "./utils.mjs";
+import { verifyOneFetchSource } from "./one-fetch-source.mjs";
 
 const execute = promisify(execFile);
-const sourceCommit = "b8e8b3558bca6236e92b7c18db167759da9cc43c";
 const { OneFetchControlClient } = await import(
   new URL(
     "../../apps/extension/node_modules/@one-fetch/client/dist/index.js",
@@ -21,23 +21,12 @@ const { OneFetchControlClient } = await import(
 export async function startOneFetchCloudflareFixture(
   workspaceRoot,
   extensionOrigin,
+  review,
 ) {
   const root = resolve(
     process.env.ONE_FETCH_SOURCE ?? join(workspaceRoot, "..", "one-fetch"),
   );
-  const git = async (args) =>
-    (
-      await execute("git", args, { cwd: root, windowsHide: true })
-    ).stdout.trim();
-  invariant(
-    (await git(["rev-parse", "HEAD"])) === sourceCommit &&
-      (await git(["rev-parse", "v0.1.1^{commit}"])) === sourceCommit,
-    "Cloudflare acceptance requires the reviewed one-fetch v0.1.1 checkout.",
-  );
-  invariant(
-    !(await git(["status", "--porcelain", "--untracked-files=no"])),
-    "Refusing to deploy a modified one-fetch checkout.",
-  );
+  const source = await verifyOneFetchSource(root, review);
   const load = (path) => import(pathToFileURL(join(root, path)));
   const deploy = await load("tools/deploy/cloudflare.mjs");
   const fixtureTools = await load("tools/acceptance/cloudflare-fixture.mjs");
@@ -66,7 +55,7 @@ export async function startOneFetchCloudflareFixture(
   let cleanupDone = false;
   const values = new Map([
     ["--deployment-id", deploymentId],
-    ["--build-id", "0.1.1"],
+    ["--build-id", source.version],
     ["--expected-build", "none"],
     ["--secrets-file", join(privateDirectory, "secrets.json")],
     ["--xpanel-origins", extensionOrigin],
@@ -75,7 +64,9 @@ export async function startOneFetchCloudflareFixture(
   const receipt = {
     schemaVersion: 1,
     adapter: "cloudflare",
-    sourceCommit,
+    sourceCommit: source.commit,
+    sourceKind: source.sourceKind,
+    buildVersion: source.version,
     deploymentId,
     fixtureName,
     createdAt: new Date().toISOString(),
@@ -173,7 +164,7 @@ export async function startOneFetchCloudflareFixture(
     await deploy.verifyCloudflareDeployment(
       new Map([
         ["--deployment-id", deploymentId],
-        ["--expected-build", "0.1.1"],
+        ["--expected-build", source.version],
       ]),
     );
     control = new OneFetchControlClient({ controlUrl: deployed.controlUrl });
@@ -232,7 +223,7 @@ export async function startOneFetchCloudflareFixture(
       expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
     });
     process.stdout.write(
-      "Cloudflare one-fetch 0.1.1 ready with a synthetic-only policy and short-lived token.\n",
+      `Cloudflare one-fetch ${source.version} ready with a synthetic-only policy and short-lived token.\n`,
     );
     return {
       remoteControlUrl: deployed.controlUrl,
@@ -240,7 +231,9 @@ export async function startOneFetchCloudflareFixture(
       remoteToken: credential.token,
       remoteTargetUrl: `${fixture.origin}/v1/echo?duplicate=one&duplicate=two`,
       remoteExpectedMarker: "duplicate",
-      remoteIntegrity: "report-digest-unavailable",
+      ...(source.version === "0.1.1"
+        ? { remoteIntegrity: "report-digest-unavailable" }
+        : {}),
       remoteFixtureKind: "one-fetch-conformance",
       recordAcceptance: async (passed) => {
         receipt.acceptancePassed = passed;

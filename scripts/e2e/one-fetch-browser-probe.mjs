@@ -1,0 +1,320 @@
+import { spawn } from "node:child_process";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve, dirname, basename } from "node:path";
+import { pathToFileURL } from "node:url";
+import { CdpClient, jsonEndpoint, openPageTarget } from "./cdp-client.mjs";
+import { findChromium, availablePort } from "./chromium.mjs";
+import { grantTestHostAccess } from "./extension-permissions.mjs";
+import { startOneFetchCloudflareFixture } from "./one-fetch-cloudflare-runtime.mjs";
+import { startOneFetchSupabaseFixture } from "./one-fetch-supabase-runtime.mjs";
+import { startReviewNode } from "./one-fetch-review-node.mjs";
+import { verifyOneFetchSource } from "./one-fetch-source.mjs";
+import { invariant, waitFor } from "./utils.mjs";
+
+const [adapter, commit] = process.argv.slice(2);
+invariant(
+  ["node", "cloudflare", "supabase"].includes(adapter),
+  "Choose node, cloudflare or supabase.",
+);
+const workspace = resolve(import.meta.dirname, "../..");
+const root = resolve(
+  process.env.ONE_FETCH_SOURCE ?? join(workspace, "..", "one-fetch"),
+);
+const source = await verifyOneFetchSource(root, { commit });
+const extensionRoot = join(workspace, "apps/extension/.output/chrome-mv3");
+const { build } = await import(
+  pathToFileURL(join(root, "node_modules/esbuild/lib/main.js"))
+);
+const bundle = await build({
+  stdin: {
+    contents:
+      'import { z } from "./packages/protocol/node_modules/zod/index.js"; z.config({ jitless: true }); export * from "./packages/client/dist/index.js";',
+    resolveDir: root,
+  },
+  bundle: true,
+  write: false,
+  format: "iife",
+  globalName: "OneFetchProbe",
+  platform: "browser",
+});
+const cspBootstrap = await build({
+  stdin: {
+    contents:
+      'import { z } from "./packages/protocol/node_modules/zod/index.js"; z.config({ jitless: true });',
+    resolveDir: root,
+  },
+  bundle: true,
+  write: false,
+  format: "iife",
+  platform: "browser",
+});
+const profile = await mkdtemp(join(tmpdir(), "one-fetch-browser-probe-"));
+const port = await availablePort();
+let processHandle, browser, page, runtime;
+const receipt = {
+  schemaVersion: 1,
+  adapter,
+  ...source,
+  startedAt: new Date().toISOString(),
+  checks: [],
+  passed: false,
+  cleanupVerified: false,
+};
+
+try {
+  processHandle = spawn(
+    await findChromium(),
+    [
+      "--headless=new",
+      "--no-first-run",
+      "--disable-background-networking",
+      "--disable-sync",
+      `--remote-debugging-port=${port}`,
+      `--user-data-dir=${profile}`,
+      `--load-extension=${extensionRoot}`,
+      `--disable-extensions-except=${extensionRoot}`,
+      "about:blank",
+    ],
+    { stdio: "ignore", windowsHide: true },
+  );
+  const version = await waitFor(
+    () => jsonEndpoint(port, "/json/version"),
+    "Browser probe startup",
+  );
+  browser = await new CdpClient(version.webSocketDebuggerUrl).open();
+  const inventory = await openPageTarget(browser, port, "chrome://extensions");
+  const installed = await inventory.client.evaluate(
+    "(async () => (await chrome.developerPrivate.getExtensionsInfo({includeDisabled:false,includeTerminated:false})).map(x=>({id:x.id,name:x.name,path:x.path})))()",
+  );
+  const extension = installed.find(
+    (item) => item.name === "xPanel" && resolve(item.path) === extensionRoot,
+  );
+  invariant(
+    extension,
+    "Loaded xPanel identity is missing from Chrome's extension inventory.",
+  );
+  inventory.client.close();
+  await browser.send("Target.closeTarget", { targetId: inventory.target.id });
+  const origin = `chrome-extension://${extension.id}`;
+  page = await openPageTarget(browser, port, `${origin}/workbench.html`);
+  await waitFor(
+    () => page.client.evaluate("Boolean(chrome.runtime?.id)"),
+    "Probe extension page",
+  );
+  const start =
+    adapter === "node"
+      ? () => startReviewNode(root, origin)
+      : adapter === "cloudflare"
+        ? () => startOneFetchCloudflareFixture(workspace, origin, { commit })
+        : () => startOneFetchSupabaseFixture(workspace, origin, { commit });
+  runtime = await start();
+  await grantTestHostAccess(browser, port, extension.id, [
+    runtime.remoteControlUrl,
+    runtime.remoteGatewayUrl,
+  ]);
+  const granted = await page.client.evaluate(
+    `Promise.race([chrome.permissions.request({ origins: ${JSON.stringify([...new Set([runtime.remoteControlUrl, runtime.remoteGatewayUrl].map((url) => `${new URL(url).origin}/*`))])} }), new Promise(resolve => setTimeout(() => resolve(false), 15000))])`,
+    { userGesture: true },
+  );
+  invariant(granted, "Actual optional host permission was not granted.");
+  // CDP evaluation can make Zod's one-time eval feature probe succeed even
+  // though later page callbacks use MV3 CSP. Disable JIT before schemas exist.
+  await page.client.evaluate(cspBootstrap.outputFiles[0].text);
+  await page.client.evaluate(bundle.outputFiles[0].text);
+  const input = {
+    controlUrl: runtime.remoteControlUrl,
+    gatewayUrl: runtime.remoteGatewayUrl,
+    token: runtime.remoteToken,
+    targetOrigin: new URL(runtime.remoteTargetUrl).origin,
+  };
+  // Tokens stay in the disposable browser memory, never receipts, logs or screenshots.
+  const results = await page.client.evaluate(
+    `(${browserProbe.toString()})(${JSON.stringify(input)})`,
+  );
+  receipt.checks = results;
+  receipt.passed = results.every((result) => result.passed);
+  await runtime.recordAcceptance?.(receipt.passed);
+  invariant(
+    receipt.passed,
+    "Browser envelope candidate acceptance failed; see redacted case results.",
+  );
+} finally {
+  page?.client.close();
+  if (browser) {
+    await browser.send("Browser.close").catch(() => undefined);
+    browser.close();
+  }
+  if (processHandle && processHandle.exitCode === null)
+    await new Promise((done) => {
+      processHandle.once("exit", done);
+      processHandle.kill();
+    });
+  try {
+    await runtime?.cleanup();
+  } finally {
+    invariant(
+      dirname(profile) === tmpdir() &&
+        basename(profile).startsWith("one-fetch-browser-probe-"),
+      "Unexpected Chromium profile cleanup path.",
+    );
+    await rm(profile, { recursive: true });
+  }
+  receipt.cleanupVerified = runtime !== undefined;
+  receipt.finishedAt = new Date().toISOString();
+  const directory = join(workspace, "artifacts/one-fetch-e2e");
+  await mkdir(directory, { recursive: true });
+  await writeFile(
+    join(directory, `browser-${adapter}-${commit.slice(0, 12)}.json`),
+    JSON.stringify(receipt, null, 2),
+  );
+  console.log(JSON.stringify(receipt));
+}
+
+async function browserProbe(input) {
+  const { OneFetchControlClient, OneFetchGatewayClient } =
+    globalThis.OneFetchProbe;
+  const serviceFetch = (url, init) =>
+    fetch(url, {
+      ...init,
+      credentials: "omit",
+      cache: "no-store",
+      referrerPolicy: "no-referrer",
+    });
+  const control = new OneFetchControlClient({
+    controlUrl: input.controlUrl,
+    fetch: serviceFetch,
+  });
+  const capabilities = await control.getCapabilities();
+  const client = new OneFetchGatewayClient({
+    gatewayUrl: input.gatewayUrl,
+    token: input.token,
+    capabilities: capabilities.fetchOptions,
+    fetch: serviceFetch,
+    executionReports: { controlUrl: input.controlUrl, fetch: serviceFetch },
+  });
+  const results = [];
+  for (const path of [
+    "/status/201",
+    "/status/302",
+    "/status/404",
+    "/status/503",
+    "/redirect",
+    "/set-cookie",
+    "/server-timing",
+    "/bytes/20971520",
+    "/bytes/20971521",
+  ]) {
+    const check = { case: path, passed: false };
+    try {
+      const result = await client.executeHttp({
+        method: "GET",
+        targetUrl: input.targetOrigin + path,
+        fetchOptions: {
+          redirect: "manual",
+          timeoutMs: 60_000,
+          adapter: {
+            browserResponse: "envelope-v1",
+            ...(capabilities.provider === "cloudflare"
+              ? { cloudflareAcceptMutations: true }
+              : capabilities.provider === "supabase"
+                ? { supabaseAcceptMutations: true }
+                : {}),
+          },
+        },
+      });
+      const classification = result.classification;
+      check.source = classification.source;
+      if (classification.source === "relay")
+        check.code = classification.error.code;
+      if (path === "/bytes/20971521") {
+        check.passed =
+          classification.source === "relay" &&
+          classification.error.code === "response_too_large" &&
+          result.response.status === 200;
+        await result.response.body?.cancel();
+      } else {
+        if (
+          classification.source !== "target" ||
+          classification.target.kind !== "http"
+        )
+          throw new Error("source");
+        const status = path.startsWith("/status/")
+          ? Number(path.slice(8))
+          : path === "/redirect"
+            ? 302
+            : 200;
+        if (
+          result.response.status !== 200 ||
+          classification.target.status !== status ||
+          classification.metadata.responseMode !== "browser-envelope-v1"
+        )
+          throw new Error("status-binding");
+        if (
+          result.response.headers.has("location") ||
+          result.response.headers.has("set-cookie")
+        )
+          throw new Error("outer-headers");
+        if (
+          path === "/set-cookie" &&
+          classification.target.setCookie.length !== 2
+        )
+          throw new Error("cookies");
+        if (
+          path === "/server-timing" &&
+          !classification.metadata.timing.serverTiming.some(
+            (entry) => entry.name === "db",
+          )
+        )
+          throw new Error("timing");
+        const body = await result.response.arrayBuffer();
+        const digest = [
+          ...new Uint8Array(await crypto.subtle.digest("SHA-256", body)),
+        ]
+          .map((byte) => byte.toString(16).padStart(2, "0"))
+          .join("");
+        let report;
+        for (let attempt = 0; attempt < 5; attempt++) {
+          try {
+            report = await control.getExecutionReport(
+              classification.metadata.reportId,
+              input.token,
+              { signal: globalThis.AbortSignal.timeout(5000) },
+            );
+            break;
+          } catch {
+            await new Promise((done) => setTimeout(done, 250));
+          }
+        }
+        check.passed =
+          report?.status === status &&
+          report?.outcome === "completed" &&
+          report?.bodyComplete &&
+          report?.responseBytes === body.byteLength &&
+          report?.bodySha256 === digest;
+        check.integrity = check.passed ? "verified" : "not-verified";
+      }
+    } catch (error) {
+      check.failure = "request-or-verification-failed";
+      check.errorName =
+        error instanceof TypeError
+          ? "TypeError"
+          : error?.name === "AbortError"
+            ? "AbortError"
+            : "Error";
+      if (
+        /^(source|status-binding|outer-headers|cookies|timing)$/u.test(
+          error?.message ?? "",
+        )
+      )
+        check.failure = error.message;
+      if (
+        error instanceof TypeError &&
+        /Gateway does not support|capabilities/u.test(error.message)
+      )
+        check.failure = "capability-mismatch";
+    }
+    results.push(check);
+  }
+  return results;
+}
