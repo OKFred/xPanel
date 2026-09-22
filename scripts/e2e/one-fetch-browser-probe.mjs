@@ -128,7 +128,7 @@ try {
     gatewayUrl: runtime.remoteGatewayUrl,
     token: runtime.remoteToken,
     targetOrigin: new URL(runtime.remoteTargetUrl).origin,
-    expectedVersion: source.version,
+    expectedVersion: runtime.remoteBuildVersion ?? source.version,
   };
   // Tokens stay in the disposable browser memory, never receipts, logs or screenshots.
   const results = await page.client.evaluate(

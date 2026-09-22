@@ -32,6 +32,10 @@ export async function startOneFetchSupabaseFixture(
   const source = await verifyOneFetchSource(root, review);
   const commit = source.commit;
   const load = (path) => import(pathToFileURL(join(root, path)));
+  const { buildId } = await load(
+    "adapters/supabase/scripts/deploy-support.mjs",
+  );
+  const expectedBuildVersion = buildId(source.version, source.commit);
   const fixtureTools = await load("tools/acceptance/cloudflare-fixture.mjs");
   const cf = await load("tools/deploy/cloudflare-runtime.mjs");
   const suffix = randomBytes(6).toString("hex");
@@ -82,7 +86,7 @@ export async function startOneFetchSupabaseFixture(
     adapter: "supabase",
     commit,
     sourceKind: source.sourceKind,
-    buildVersion: source.version,
+    buildVersion: expectedBuildVersion,
     name,
     fixtureName,
     createdAt: new Date().toISOString(),
@@ -233,6 +237,10 @@ export async function startOneFetchSupabaseFixture(
     const controlUrl = environment.get("ONE_FETCH_CONTROL_BASE_URL");
     const gatewayUrl = environment.get("ONE_FETCH_GATEWAY_BASE_URL");
     const control = new OneFetchControlClient({ controlUrl });
+    invariant(
+      (await control.getCapabilities()).buildVersion === expectedBuildVersion,
+      "Supabase build identity does not match the reviewed commit.",
+    );
     await control.bootstrap({
       schemaVersion: 1,
       bootstrapSecret: environment.get("ONE_FETCH_BOOTSTRAP_SECRET"),
@@ -296,6 +304,7 @@ export async function startOneFetchSupabaseFixture(
     );
     return {
       remoteControlUrl: controlUrl,
+      remoteBuildVersion: expectedBuildVersion,
       remoteGatewayUrl: gatewayUrl,
       remoteToken: credential.token,
       remoteTargetUrl: `${fixture.origin}/v1/echo?duplicate=one&duplicate=two`,
