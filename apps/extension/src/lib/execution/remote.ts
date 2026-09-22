@@ -249,6 +249,7 @@ export async function openRemoteResponse(
             request.id,
             loadedBytes,
             signal,
+            targetResponse?.status ?? result.response.status,
           );
         } finally {
           finishExecution(execution);

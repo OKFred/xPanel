@@ -13,6 +13,7 @@ export async function finalizeRemoteReport(
   requestId: string,
   loadedBytes: number,
   signal: AbortSignal,
+  expectedTargetStatus: number,
 ): Promise<OneFetchResponseDetailsV1> {
   if (details.source !== "target" || !details.reportId)
     return { ...details, integrity: "unverified" };
@@ -31,7 +32,7 @@ export async function finalizeRemoteReport(
       if (
         report.requestId !== requestId ||
         report.reportId !== details.reportId ||
-        report.status !== details.outerStatus
+        report.status !== expectedTargetStatus
       ) {
         return {
           ...details,

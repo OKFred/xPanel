@@ -40,10 +40,28 @@ const finalize = (signal = new AbortController().signal) =>
     "request-synthetic",
     2,
     signal,
+    503,
   );
 beforeEach(() => vi.restoreAllMocks());
 
 describe("one-fetch final report verification", () => {
+  it("binds a browser envelope to signed target status, not outer HTTP 200", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json(report)),
+    );
+    const result = await finalizeRemoteReport(
+      { ...details, outerStatus: 200 },
+      profile(),
+      token,
+      "request-synthetic",
+      2,
+      new AbortController().signal,
+      503,
+    );
+    expect(result.integrity).toBe("pending");
+    expect(result.bodySha256).toBe(report.bodySha256);
+  });
   it.each([204, 205, 304])(
     "preserves unsigned bodyless status %i",
     (status) => {
