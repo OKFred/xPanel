@@ -136,6 +136,7 @@ try {
   );
   receipt.checks = results;
   receipt.passed = results.every((result) => result.passed);
+  receipt.acceptancePassed = receipt.passed;
   await runtime.recordAcceptance?.(receipt.passed);
   invariant(
     receipt.passed,
@@ -152,17 +153,26 @@ try {
       processHandle.once("exit", done);
       processHandle.kill();
     });
+  let cleanupFailed = false;
   try {
     await runtime?.cleanup();
-  } finally {
+  } catch {
+    cleanupFailed = true;
+    receipt.cleanupFailure = "runtime-cleanup-failed";
+  }
+  try {
     invariant(
       dirname(profile) === tmpdir() &&
         basename(profile).startsWith("one-fetch-browser-probe-"),
       "Unexpected Chromium profile cleanup path.",
     );
     await rm(profile, { recursive: true });
+  } catch {
+    cleanupFailed = true;
+    receipt.profileCleanupFailure = "profile-cleanup-failed";
   }
-  receipt.cleanupVerified = runtime !== undefined;
+  receipt.cleanupVerified = runtime !== undefined && !cleanupFailed;
+  receipt.passed = receipt.passed && receipt.cleanupVerified;
   receipt.finishedAt = new Date().toISOString();
   const directory = join(workspace, "artifacts/one-fetch-e2e");
   await mkdir(directory, { recursive: true });
@@ -175,6 +185,10 @@ try {
     { flag: "wx" },
   );
   console.log(JSON.stringify(receipt));
+  invariant(
+    !cleanupFailed,
+    "Probe cleanup incomplete; inspect the owned runtime receipt. No cleanup retry was attempted.",
+  );
 }
 
 async function browserProbe(input) {
@@ -298,7 +312,9 @@ async function browserProbe(input) {
             !report.bodyComplete &&
             !report.bodySha256 &&
             report.problem?.code === "response_too_large";
-          check.code = report?.problem?.code ?? "missing-final-report";
+          check.code = report
+            ? (report.problem?.code ?? "report-cause-unavailable")
+            : "missing-final-report";
           check.integrity = "not-verified";
           check.reportOutcome = report?.outcome ?? "unavailable";
           check.interrupted = interrupted;
