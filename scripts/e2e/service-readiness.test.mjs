@@ -19,8 +19,8 @@ test("waits only on read-only public routes and retries propagation", async () =
       waits += 1;
     },
   });
-  assert.equal(calls, 6);
-  assert.equal(waits, 2);
+  assert.equal(calls, 10);
+  assert.equal(waits, 4);
 });
 
 test("Gateway readiness requires protocol response, sends no credentials or target", async () => {

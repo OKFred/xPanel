@@ -7,6 +7,7 @@ export async function waitForControlRoutes(controlUrl, dependencies = {}) {
     dependencies.wait ??
     (() => new Promise((resolveWait) => setTimeout(resolveWait, 5_000)));
   let ready = false;
+  let consecutive = 0;
   for (let attempt = 0; attempt < 10; attempt += 1) {
     try {
       const responses = await Promise.all(
@@ -21,7 +22,10 @@ export async function waitForControlRoutes(controlUrl, dependencies = {}) {
       );
       ready = responses.every((response) => response.ok);
       await Promise.all(responses.map((response) => response.body?.cancel()));
-      if (ready) return;
+      consecutive = ready ? consecutive + 1 : 0;
+      // New workers.dev routes can briefly alternate between application and
+      // provider responses. Require stable reads before acquiring verify's lock.
+      if (consecutive >= 3) return;
       // Authorization/configuration errors are not propagation delays.
       invariant(
         !responses.some((response) =>
@@ -30,12 +34,13 @@ export async function waitForControlRoutes(controlUrl, dependencies = {}) {
         "Control readiness rejected the unauthenticated public routes.",
       );
     } catch (error) {
+      consecutive = 0;
       if (!(error instanceof TypeError) || attempt === 9) throw error;
     }
     if (attempt < 9) await wait();
   }
   invariant(
-    ready,
+    consecutive >= 3,
     "Control public routes did not become ready within the bounded startup window.",
   );
 }
