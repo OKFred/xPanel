@@ -1,6 +1,8 @@
 import type {
   ExecutionProgressV1,
-  RemoteRelayProfileV1,
+  OneFetchProfileV1,
+  OneFetchConsentV1,
+  OneFetchResponseDetailsV1,
   ResponseRecordV1,
 } from "@xpanel/contracts";
 
@@ -8,8 +10,9 @@ export type ExecuteTargetV1 =
   | { kind: "browser" }
   | {
       kind: "remote";
-      profile: RemoteRelayProfileV1;
+      profile: OneFetchProfileV1;
       token: string;
+      consent: OneFetchConsentV1;
     };
 
 export interface ExecuteOptionsV1 {
@@ -26,4 +29,6 @@ export type ExecutionResponseStreamV1 = Omit<ResponseRecordV1, "body"> & {
   stream: ReadableStream<Uint8Array>;
   declaredLength?: number;
   maximumResponseBytes?: number;
+  remoteDetails?: OneFetchResponseDetailsV1;
+  finalizeRemote?: () => Promise<OneFetchResponseDetailsV1>;
 };

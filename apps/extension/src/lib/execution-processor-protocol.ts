@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   executionSummaryV1Schema,
   responseRecordV1Schema,
+  oneFetchResponseDetailsV1Schema,
 } from "@xpanel/contracts";
 
 import {
@@ -10,9 +11,11 @@ import {
   MIN_RESPONSE_LIMIT_BYTES,
 } from "./execution-storage";
 
-export const responseMetadataV1Schema = responseRecordV1Schema.omit({
-  body: true,
-});
+export const responseMetadataV1Schema = responseRecordV1Schema
+  .omit({
+    body: true,
+  })
+  .extend({ remoteDetails: oneFetchResponseDetailsV1Schema.optional() });
 
 export const processorBeginSchema = z
   .object({
@@ -45,6 +48,7 @@ export const processorFinishSchema = z
     type: z.literal("processor.finish"),
     jobId: z.string().min(1),
     durationMs: z.number().finite().nonnegative(),
+    remoteDetails: oneFetchResponseDetailsV1Schema.optional(),
   })
   .strict();
 

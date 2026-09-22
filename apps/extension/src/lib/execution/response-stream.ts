@@ -13,6 +13,7 @@ interface ManagedResponseStreamOptions {
   declaredBytes?: number;
   limitMessage: string;
   onFinalize?: (loadedBytes: number, completed: boolean) => void;
+  deferCompletion?: boolean;
 }
 
 export interface ManagedResponseStream {
@@ -58,10 +59,10 @@ export function createManagedResponseStream(
     finalized = true;
     reader?.releaseLock();
     onFinalize?.(loadedBytes, completed);
-    if (completed) {
+    if (completed && !options.deferCompletion) {
       reportProgress(execution, "complete", loadedBytes, loadedBytes);
     }
-    finishExecution(execution);
+    if (!completed || !options.deferCompletion) finishExecution(execution);
   };
 
   const stream = new ReadableStream<Uint8Array>({

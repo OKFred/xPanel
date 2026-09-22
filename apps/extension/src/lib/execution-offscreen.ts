@@ -345,6 +345,7 @@ export class OffscreenExecutionCoordinator {
           kind: "remote" as const,
           profile: remoteContext.profile,
           token: remoteContext.token,
+          consent: remoteContext.consent,
         };
       }
       const response = await executeRequestStream(request, {
@@ -374,6 +375,9 @@ export class OffscreenExecutionCoordinator {
           timings: response.timings,
           redirects: response.redirects,
           warnings: response.warnings,
+          ...(response.remoteDetails
+            ? { remoteDetails: response.remoteDetails }
+            : {}),
         },
         encoding: isTextMediaType(contentType) ? "utf8" : "base64",
         ...(contentType ? { mediaType: contentType } : {}),
@@ -402,7 +406,13 @@ export class OffscreenExecutionCoordinator {
       if (job.cancelRequested) {
         throw new DOMException("Request cancelled.", "AbortError");
       }
-      const summary = await processorJob.finish(response.timings.durationMs);
+      const remoteDetails = await response.finalizeRemote?.();
+      if (job.cancelRequested)
+        throw new DOMException("Request cancelled.", "AbortError");
+      const summary = await processorJob.finish(
+        response.timings.durationMs,
+        remoteDetails,
+      );
       job.terminal = true;
       await broadcast(summary);
     } catch (error) {

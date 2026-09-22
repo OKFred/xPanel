@@ -28,6 +28,11 @@ function isForbiddenRemoteHeader(name: string): boolean {
 
 export function remoteUnsupportedReasons(request: RequestSpecV1): string[] {
   const reasons: string[] = [];
+  if (
+    (request.method === "GET" || request.method === "HEAD") &&
+    request.body.kind !== "none"
+  )
+    reasons.push("a body on GET/HEAD");
   if (unsupportedRequestMethods.has(request.method)) {
     reasons.push(`${request.method} is not supported by the Remote relay`);
   }

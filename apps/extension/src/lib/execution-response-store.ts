@@ -2,6 +2,7 @@ import {
   responseRecordV1Schema,
   type ResponseBody,
   type ResponseRecordV1,
+  type OneFetchResponseDetailsV1,
 } from "@xpanel/contracts";
 
 import { database } from "./database";
@@ -12,7 +13,9 @@ import {
   type StoredResponseMetadata,
 } from "./execution-storage";
 
-export type ResponseMetadataV1 = Omit<ResponseRecordV1, "body">;
+export type ResponseMetadataV1 = Omit<ResponseRecordV1, "body"> & {
+  remoteDetails?: OneFetchResponseDetailsV1 | undefined;
+};
 export type StoredBodyDescriptor = Omit<ResponseBody, "kind" | "content"> & {
   kind: "stored";
 };

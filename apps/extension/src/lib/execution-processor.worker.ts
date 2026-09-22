@@ -78,6 +78,17 @@ async function finish(jobId: string, durationMs: number): Promise<void> {
   const sha256 = hex(
     await crypto.subtle.digest("SHA-256", await blob.arrayBuffer()),
   );
+  const remoteDetails = job.response.remoteDetails;
+  if (remoteDetails?.integrity === "pending") {
+    remoteDetails.integrity =
+      remoteDetails.bodySha256 === undefined
+        ? "unverified"
+        : remoteDetails.bodySha256 === sha256
+          ? "verified"
+          : "failed";
+    if (remoteDetails.integrity === "failed")
+      remoteDetails.reason = "body-digest-mismatch";
+  }
   let prettyBlob: Blob | undefined;
   let presentation:
     | { lineCount: number; maxLineLength: number; prettyAvailable: boolean }
@@ -218,6 +229,7 @@ function handleMessage(event: MessageEvent<unknown>): void {
     post({ type: "processor.cancelled", jobId: message.jobId });
     return;
   }
+  if (message.remoteDetails) job.response.remoteDetails = message.remoteDetails;
   void finish(message.jobId, message.durationMs).catch((error: unknown) => {
     jobs.delete(message.jobId);
     post({

@@ -6,6 +6,7 @@ import {
   requestSpecV1Schema,
   responseBodySchema,
   responseRecordV1Schema,
+  oneFetchResponseDetailsV1Schema,
   resultRetentionV1Schema,
   type ExecutionSummaryV1,
 } from "@xpanel/contracts";
@@ -81,6 +82,7 @@ export const storedResponseMetadataSchema = responseMetadataShape
     body: responseBodySchema.omit({ kind: true, content: true }).extend({
       kind: z.literal("stored"),
     }),
+    remoteDetails: oneFetchResponseDetailsV1Schema.optional(),
     presentation: z
       .object({
         lineCount: z.number().int().positive(),
