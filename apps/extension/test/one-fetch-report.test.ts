@@ -4,6 +4,7 @@ import type { OneFetchResponseDetailsV1 } from "@xpanel/contracts";
 import {
   finalizeRemoteReport,
   safeOuterHeaders,
+  diagnosticResponse,
 } from "../src/lib/execution/one-fetch-report";
 import { profile, token, fetchInputUrl } from "./one-fetch.fixture";
 
@@ -43,6 +44,26 @@ const finalize = (signal = new AbortController().signal) =>
 beforeEach(() => vi.restoreAllMocks());
 
 describe("one-fetch final report verification", () => {
+  it.each([204, 205, 304])(
+    "preserves unsigned bodyless status %i",
+    (status) => {
+      const response = new Response(null, { status });
+      expect(diagnosticResponse(response)).toBe(response);
+    },
+  );
+  it("bounds intermediary diagnostics and cancels excess bytes", async () => {
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("synthetic diagnostic"));
+      },
+      cancel,
+    });
+    const response = diagnosticResponse(new Response(body, { status: 502 }), 9);
+    expect(await response.text()).toBe("synthetic");
+    expect(response.status).toBe(502);
+    expect(cancel).toHaveBeenCalledOnce();
+  });
   it("fetches the report with the execution token and leaves SHA-256 verification to the body worker", async () => {
     vi.stubGlobal(
       "fetch",
@@ -124,7 +145,10 @@ describe("one-fetch final report verification", () => {
       "fetch",
       vi.fn(async () => Response.json(withoutDigest)),
     );
-    expect((await finalize()).integrity).toBe("unverified");
+    expect(await finalize()).toMatchObject({
+      integrity: "unverified",
+      reason: "report-digest-unavailable",
+    });
   });
   it("aborts report retrieval and filters protocol metadata and secrets from outer headers", async () => {
     const controller = new AbortController();

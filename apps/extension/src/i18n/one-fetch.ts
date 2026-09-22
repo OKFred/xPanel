@@ -26,6 +26,8 @@ export const oneFetchEN = {
   oneFetchIntegrity: "Body integrity",
   oneFetchVerified: "Verified",
   oneFetchUnverified: "Not verified",
+  oneFetchNoDigest:
+    "The service did not supply a body digest; signature verification does not prove body integrity.",
   oneFetchFailed: "Failed",
   oneFetchOuterHeaders: "Outer service headers",
   oneFetchGatewayTiming: "Gateway timing",
@@ -68,6 +70,7 @@ export const oneFetchZH: Record<keyof typeof oneFetchEN, string> = {
   oneFetchIntegrity: "正文完整性",
   oneFetchVerified: "已核验",
   oneFetchUnverified: "未核验",
+  oneFetchNoDigest: "服务未提供正文摘要；目标签名有效不代表正文完整性已核验。",
   oneFetchFailed: "失败",
   oneFetchOuterHeaders: "外层服务响应头",
   oneFetchGatewayTiming: "Gateway 阶段耗时",

@@ -24,7 +24,9 @@ export async function finalizeRemoteReport(
     signal.throwIfAborted();
     try {
       const report = await client.getExecutionReport(details.reportId, token, {
-        signal: AbortSignal.any([signal, AbortSignal.timeout(2_000)]),
+        // Cross-region Control cold starts can exceed two seconds. Still bounded
+        // by three attempts and the execution's overall timeout/cancel signal.
+        signal: AbortSignal.any([signal, AbortSignal.timeout(5_000)]),
       });
       if (
         report.requestId !== requestId ||
@@ -52,6 +54,9 @@ export async function finalizeRemoteReport(
             : "unverified"
           : "failed",
         ...(report.bodySha256 ? { bodySha256: report.bodySha256 } : {}),
+        ...(complete && !report.bodySha256
+          ? { reason: "report-digest-unavailable" }
+          : {}),
         ...(report.problem ? { problem: report.problem } : {}),
         ...(!complete ? { reason: `report-${report.outcome}` } : {}),
       };
@@ -83,6 +88,9 @@ export function diagnosticResponse(
   response: Response,
   maximum = 1024 * 1024,
 ): Response {
+  // Fetch forbids even an empty stream on these statuses. Preserve unsigned
+  // no-content responses as diagnostics instead of throwing while wrapping.
+  if (!response.body) return response;
   const reader = response.body?.getReader();
   let bytes = 0;
   const body = new ReadableStream<Uint8Array>({

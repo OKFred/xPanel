@@ -9,7 +9,7 @@ const phases = computed(() => {
   const reported = props.details.timing?.phases ?? [];
   return [
     ...reported,
-    ...["dns", "tcp", "tls", "ttfb", "download"]
+    ...["dns", "connect", "tls", "ttfb", "download"]
       .filter(
         (name) =>
           !reported.some(
@@ -56,7 +56,12 @@ const phases = computed(() => {
       {{ details.problem.code }} · {{ details.problem.stage }}:
       {{ details.problem.message }}
     </p>
-    <p v-if="details.reason">{{ details.reason }}</p>
+    <p v-if="details.reason">
+      <span v-if="details.reason === 'report-digest-unavailable'"
+        >{{ $t("oneFetchNoDigest") }}
+      </span>
+      {{ details.reason }}
+    </p>
     <details v-if="tab === 'headers'">
       <summary>
         {{ $t("oneFetchOuterHeaders") }} · HTTP {{ details.outerStatus }}
@@ -68,7 +73,8 @@ const phases = computed(() => {
     <template v-if="tab === 'timing'">
       <strong>{{ $t("oneFetchGatewayTiming") }}</strong>
       <div v-for="phase in phases" :key="`${phase.source}-${phase.name}`">
-        {{ phase.source }} / {{ phase.name }}:
+        {{ phase.source }} /
+        {{ phase.name === "connect" ? "tcp/connect" : phase.name }}:
         {{
           phase.durationMs === undefined
             ? $t("oneFetchUnavailable")
