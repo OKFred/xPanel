@@ -1,5 +1,6 @@
 // Scoped replacement for pnpm 11's all-or-nothing blockExoticSubdeps setting.
 // No downloaded manifest may introduce an arbitrary URL/git/file dependency.
+/* global module */
 const base = "https://github.com/OKFred/one-fetch/releases/download/v0.1.1/";
 const approved = new Map(
   ["client", "core", "protocol"].map((name) => [
@@ -9,17 +10,22 @@ const approved = new Map(
 );
 
 function readPackage(pkg) {
+  const workspacePackage =
+    pkg.name === "xpanel" || pkg.name?.startsWith("@xpanel/");
   for (const field of [
     "dependencies",
     "optionalDependencies",
     "peerDependencies",
+    // Published dev dependencies are not installed (and may self-link file:.).
+    ...(workspacePackage ? ["devDependencies"] : []),
   ]) {
     for (const [name, spec] of Object.entries(pkg[field] ?? {})) {
-      const registry =
-        /^(?:npm:)?(?:[@a-zA-Z0-9_.*~^<>=| +\-]+(?:\/[a-zA-Z0-9_.\-]+)?@)?[a-zA-Z0-9_.*~^<>=| +\-]+$/u.test(
+      const registry = /^[a-zA-Z0-9_.*~^<>=| +-]+$/u.test(spec);
+      const alias =
+        /^npm:(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+@[a-zA-Z0-9_.*~^<>=| +-]+$/u.test(
           spec,
-        ) && !spec.includes("/");
-      if (registry || spec.startsWith("npm:")) continue;
+        );
+      if (registry || alias) continue;
       if (
         spec.startsWith("workspace:") &&
         (pkg.name === "xpanel" || pkg.name?.startsWith("@xpanel/"))
