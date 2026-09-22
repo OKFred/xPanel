@@ -64,6 +64,12 @@ export async function runRemoteConformanceFlow(
   );
   await send(panel, `${origin}/truncated-fixed`);
   await settle(panel, (s) => s.error.length > 0, "cloud partial rejection");
+  if ((await result(panel)).source !== "target")
+    await panel.evaluate(clickTextScript("Show last successful response"));
+  invariant(
+    (await result(panel)).meta.includes("20971520 B"),
+    "Cloud partial response replaced the previous successful body.",
+  );
   await setInput(panel, ".url-input", `${origin}/delay/12000`);
   await panel.evaluate(clickTextScript("Send"), { userGesture: true });
   await waitFor(
