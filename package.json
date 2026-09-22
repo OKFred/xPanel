@@ -26,7 +26,8 @@
     "format:check": "prettier --check .",
     "lint": "pnpm build:packages && eslint .",
     "release:prepare": "pnpm check && pnpm e2e:chromium && pnpm e2e:upgrade && pnpm --filter @xpanel/extension zip && node scripts/prepare-release.mjs",
-    "test": "pnpm build:packages && pnpm -r --if-present test",
+    "test": "pnpm build:packages && pnpm -r --if-present test && pnpm test:tooling",
+    "test:tooling": "node --test scripts/dependency-policy.test.mjs scripts/e2e/service-readiness.test.mjs",
     "test:watch": "vitest",
     "typecheck": "pnpm build:packages && pnpm -r --if-present typecheck"
   },

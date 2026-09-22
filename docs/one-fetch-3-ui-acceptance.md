@@ -17,7 +17,12 @@ permission to merge, submit to the Chrome Web Store or publish the extension.
 - Actual 2.1.0 to 3.0.0 Chromium update: stable extension ID, no new permissions,
   enabled runtime, selectable collection/favorite, disabled and explicitly
   removable legacy profiles, preserved IndexedDB v2 and restart orphan recovery.
-- Static MV3/permissions/source/history audit and concise bilingual listing gate.
+- Full `pnpm check`, including static MV3/permissions/source/history audit,
+  production builds, asset dimensions and concise bilingual listing gate.
+- Six bilingual 1280x800 screenshots regenerated from the standalone workbench
+  and visually reviewed. Capture waits for Chrome's transient resize overlay to
+  disappear; screenshots are not retouched. Browser E2E passed again during
+  capture, including focus/console checks and background Stop (19.0 ms).
 
 ## Hosted UI gates still open
 
@@ -44,5 +49,5 @@ do not substitute for full xPanel UI acceptance with the released dependencies.
   and build tasks only after migration acceptance passes.
 
 No media-center restore, retained public Gateway, xPanel merge or Store
-submission was performed. Final main ZIP/SBOM and reviewed 1280x800 screenshots
-remain release gates, not implied by these checks.
+submission was performed. Final main ZIP/SBOM and cloud UI acceptance remain
+release gates, not implied by these checks.
