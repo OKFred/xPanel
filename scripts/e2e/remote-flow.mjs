@@ -1,6 +1,7 @@
 import { clickTextScript, setInput } from "./panel-actions.mjs";
 import { invariant, waitFor } from "./utils.mjs";
 import { runRemoteResultChecks } from "./remote-result-checks.mjs";
+import { runRemoteConformanceFlow } from "./remote-conformance-flow.mjs";
 
 export async function runRemoteFlow(
   panel,
@@ -11,6 +12,7 @@ export async function runRemoteFlow(
     remoteTargetUrl,
     remoteFixtureKind,
     remoteExpectedMarker = "remote-e2e-ok",
+    remoteIntegrity = "verified",
   },
 ) {
   if (
@@ -160,13 +162,21 @@ export async function runRemoteFlow(
   await waitFor(
     () =>
       panel.evaluate(
-        `/Body integrity\\s*:\\s*Verified\\b/.test(document.querySelector('.one-fetch-result[data-source="target"]')?.innerText ?? '')`,
+        remoteIntegrity === "verified"
+          ? `/Body integrity\\s*:\\s*Verified\\b/.test(document.querySelector('.one-fetch-result[data-source="target"]')?.innerText ?? '')`
+          : `document.querySelector('.one-fetch-result[data-source="target"]')?.innerText.includes('report-digest-unavailable')`,
       ),
     "verified one-fetch result",
     10_000,
   );
   if (remoteFixtureKind === "xpanel-synthetic-v1")
     await runRemoteResultChecks(panel, new URL(remoteTargetUrl).origin);
+  if (remoteFixtureKind === "one-fetch-conformance")
+    await runRemoteConformanceFlow(
+      panel,
+      new URL(remoteTargetUrl).origin,
+      remoteIntegrity,
+    );
   await panel.evaluate(
     `(() => { const select = document.querySelector('select.executor-select'); select.value = 'browser'; select.dispatchEvent(new Event('change', { bubbles: true })); })()`,
   );

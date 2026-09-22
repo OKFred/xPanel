@@ -24,6 +24,7 @@ import { startOneFetchNodeFixture } from "./one-fetch-node-runtime.mjs";
 import { grantTestHostAccess } from "./extension-permissions.mjs";
 import { runRemoteBackgroundFlow } from "./remote-background-flow.mjs";
 import { startOneFetchCloudflareFixture } from "./one-fetch-cloudflare-runtime.mjs";
+import { startOneFetchSupabaseFixture } from "./one-fetch-supabase-runtime.mjs";
 import {
   generatePromoTile,
   generateStoreScreenshots,
@@ -48,6 +49,7 @@ export async function runChromiumE2e(config = e2eConfig) {
   let profileRoot;
   let oneFetchNode;
   let oneFetchCloudflare;
+  let oneFetchSupabase;
   const failures = [];
   const pageFailures = [];
   const fixture = fixtureServer();
@@ -163,7 +165,13 @@ export async function runChromiumE2e(config = e2eConfig) {
         workspaceRoot,
         extensionOrigin,
       );
-    const remoteConfig = oneFetchCloudflare ?? oneFetchNode ?? config;
+    if (process.argv.includes("--one-fetch-supabase"))
+      oneFetchSupabase = await startOneFetchSupabaseFixture(
+        workspaceRoot,
+        extensionOrigin,
+      );
+    const remoteConfig =
+      oneFetchSupabase ?? oneFetchCloudflare ?? oneFetchNode ?? config;
     if (remoteConfig.remoteControlUrl && remoteConfig.remoteGatewayUrl) {
       await grantTestHostAccess(browserClient, debugPort, panelUrl.host, [
         remoteConfig.remoteControlUrl,
@@ -231,8 +239,11 @@ export async function runChromiumE2e(config = e2eConfig) {
     failures.push(error);
   } finally {
     try {
+      await oneFetchCloudflare?.recordAcceptance(failures.length === 0);
+      await oneFetchSupabase?.recordAcceptance(failures.length === 0);
       await oneFetchNode?.cleanup();
       await oneFetchCloudflare?.cleanup();
+      await oneFetchSupabase?.cleanup();
     } catch (error) {
       failures.push(error);
     }

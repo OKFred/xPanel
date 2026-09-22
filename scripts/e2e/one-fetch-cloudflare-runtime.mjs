@@ -41,6 +41,7 @@ export async function startOneFetchCloudflareFixture(
   const load = (path) => import(pathToFileURL(join(root, path)));
   const deploy = await load("tools/deploy/cloudflare.mjs");
   const fixtureTools = await load("tools/acceptance/cloudflare-fixture.mjs");
+  const runtime = await load("tools/deploy/cloudflare-runtime.mjs");
   const { generateCloudflareSecrets } = await load(
     "tools/deploy/generate-cloudflare-secrets.mjs",
   );
@@ -59,6 +60,7 @@ export async function startOneFetchCloudflareFixture(
     );
   }
   let fixture;
+  let fixtureAttempted = false;
   let control;
   let credential;
   let cleanupDone = false;
@@ -116,8 +118,12 @@ export async function startOneFetchCloudflareFixture(
           ["--confirm-id", deploymentId],
         ]),
       );
-    if (fixture)
+    if (fixtureAttempted && (await runtime.workerExists(fixtureName)))
       await fixtureTools.cleanupCloudflareFixture(fixtureName, fixtureName);
+    invariant(
+      !(await runtime.workerExists(fixtureName)),
+      "Fixture cleanup inventory is not empty.",
+    );
     invariant(
       dirname(resolve(privateDirectory)) === resolve(tmpdir()) &&
         basename(privateDirectory).startsWith("xpanel-one-fetch-cloudflare-"),
@@ -142,7 +148,23 @@ export async function startOneFetchCloudflareFixture(
     const { secrets } = await generateCloudflareSecrets(
       values.get("--secrets-file"),
     );
-    fixture = await fixtureTools.deployCloudflareFixture(fixtureName);
+    invariant(
+      !(await runtime.workerExists(fixtureName)),
+      "Fixture name is already owned.",
+    );
+    fixtureAttempted = true;
+    // Retry only safe readiness GETs, never the resource-creation operation.
+    fixture = await fixtureTools.deployCloudflareFixture(fixtureName, {
+      fetch: async (url, init) => {
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            return await fetch(url, init);
+          } catch (error) {
+            if (attempt === 2) throw error;
+          }
+        }
+      },
+    });
     const deployed = await deploy.applyCloudflareDeployment(values);
     receipt.controlUrl = deployed.controlUrl;
     receipt.gatewayUrl = deployed.gatewayUrl;
@@ -218,7 +240,13 @@ export async function startOneFetchCloudflareFixture(
       remoteToken: credential.token,
       remoteTargetUrl: `${fixture.origin}/v1/echo?duplicate=one&duplicate=two`,
       remoteExpectedMarker: "duplicate",
+      remoteIntegrity: "report-digest-unavailable",
       remoteFixtureKind: "one-fetch-conformance",
+      recordAcceptance: async (passed) => {
+        receipt.acceptancePassed = passed;
+        receipt.acceptanceFinishedAt = new Date().toISOString();
+        await record();
+      },
       cleanup,
     };
   } catch (error) {

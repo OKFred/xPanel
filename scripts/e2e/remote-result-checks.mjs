@@ -1,7 +1,7 @@
 import { clickTextScript, setInput } from "./panel-actions.mjs";
 import { invariant, waitFor } from "./utils.mjs";
 
-async function send(panel, url) {
+export async function send(panel, url) {
   await setInput(panel, ".url-input", url);
   await panel.evaluate(`(() => {
     const cycle = { started: false, finished: false }; globalThis.__xpanelRemoteCycle = cycle;
@@ -25,14 +25,14 @@ async function send(panel, url) {
     40_000,
   );
 }
-async function result(panel) {
+export async function result(panel) {
   return panel.evaluate(`({source: document.querySelector('.one-fetch-result')?.getAttribute('data-source'),
     detail: document.querySelector('.one-fetch-result')?.innerText ?? '',
     status: document.querySelector('.response-heading strong')?.innerText ?? '',
     error: document.querySelector('[data-error=true]')?.innerText ?? '',
     meta: document.querySelector('.response-meta')?.innerText ?? ''})`);
 }
-async function settle(panel, predicate, label) {
+export async function settle(panel, predicate, label) {
   try {
     return await waitFor(async () => {
       const state = await result(panel);
