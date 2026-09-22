@@ -68,13 +68,6 @@ export async function runRemoteBackgroundFlow({
       "remote background verified completion",
       30_000,
     );
-    await setInput(panel, ".url-input", slowUrl);
-    await panel.evaluate(clickTextScript("Send"), { userGesture: true });
-    await waitFor(
-      () =>
-        panel.evaluate("Boolean(document.querySelector('button.stop-button'))"),
-      "second remote execution",
-    );
     const observer = await openPageTarget(
       browser,
       debugPort,
@@ -82,6 +75,17 @@ export async function runRemoteBackgroundFlow({
     );
     await monitorPage(observer.client, "remote-background-cancel", failures);
     try {
+      // Subscribe before sending, so the test cannot pass merely because the
+      // second window's initial snapshot happened to include an active job.
+      await waitFor(
+        () =>
+          observer.client.evaluate(
+            "Boolean(document.querySelector('.response-meta'))",
+          ),
+        "idle observer restored the previous result",
+      );
+      await setInput(panel, ".url-input", slowUrl);
+      await panel.evaluate(clickTextScript("Send"), { userGesture: true });
       await waitFor(
         () =>
           observer.client.evaluate(
