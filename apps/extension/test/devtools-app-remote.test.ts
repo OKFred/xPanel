@@ -1,4 +1,4 @@
-import { consent as consentSnapshot } from "./one-fetch.fixture";
+import { capabilities, consent as consentSnapshot } from "./one-fetch.fixture";
 import { flushPromises } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { describe, expect, it, vi } from "vitest";
@@ -58,6 +58,39 @@ describe("Remote Relay selection and progress", () => {
     expect(remoteProfiles.setSessionExecutorSelection).toHaveBeenCalledWith(
       "browser",
     );
+    wrapper.unmount();
+  });
+
+  it("shows cancellable preparation and rejects a late capability result", async () => {
+    remoteProfiles.loadRelayProfiles.mockResolvedValue([profile]);
+    remoteProfiles.getSessionExecutorSelection.mockResolvedValue(profile.id);
+    remoteProfiles.getRelayToken.mockResolvedValue("synthetic-token");
+    let finish!: (value: ReturnType<typeof capabilities>) => void;
+    remoteProfiles.testRelayConnection.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const wrapper = await mountApp();
+    await wrapper
+      .get('input[aria-label="Request URL"]')
+      .setValue("https://api.example.com/synthetic");
+    await wrapper.get("button.send-button").trigger("click");
+    await flushPromises();
+    expect(
+      wrapper.get("[role=progressbar]").attributes("aria-label"),
+    ).toContain("Preparing");
+    expect(wrapper.find("button.send-button").exists()).toBe(false);
+    await wrapper.get("button.stop-button").trigger("click");
+    const call = remoteProfiles.testRelayConnection.mock.calls[0];
+    expect(call?.[2]?.signal?.aborted).toBe(true);
+    finish(capabilities());
+    await flushPromises();
+    expect(wrapper.get("[data-error=true]").text()).toContain("cancelled");
+    expect(execution.executeRequest).not.toHaveBeenCalled();
+    expect(wrapper.find("[role=alertdialog]").exists()).toBe(false);
+    expect(wrapper.find("button.send-button").exists()).toBe(true);
     wrapper.unmount();
   });
 

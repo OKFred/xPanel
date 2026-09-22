@@ -164,6 +164,9 @@ const {
   remoteConsentTarget,
   remoteTrustSession,
   executionCapabilities,
+  checkingRemote,
+  preflightProgress,
+  cancelPreflight,
   send,
 } = useRequestExecutionFlow({
   current,
@@ -179,6 +182,12 @@ const {
   run: runBackgroundExecution,
   t,
 });
+const sending = computed(() => busy.value || checkingRemote.value);
+const displayedProgress = computed(() =>
+  busy.value
+    ? executionProgress.value
+    : (preflightProgress.value ?? executionProgress.value),
+);
 const canImportCurrentHar = computed(
   () =>
     props.surface === "devtools" &&
@@ -200,7 +209,7 @@ const {
   responseTiming,
 } = useWorkbenchPresentation({
   notice,
-  progress: executionProgress,
+  progress: displayedProgress,
   response,
   t,
 });
@@ -291,7 +300,8 @@ onBeforeUnmount(() => {
 });
 
 function stop(): void {
-  void stopBackgroundExecution();
+  if (checkingRemote.value && !busy.value) cancelPreflight();
+  else void stopBackgroundExecution();
 }
 </script>
 
@@ -302,7 +312,7 @@ function stop(): void {
       :requests="requests"
       :favorites="favorites"
       :current-id="current.id"
-      :busy="busy"
+      :busy="sending"
       :delete-busy="deleteBusy"
       :surface="props.surface"
       :display-collection-name="displayCollectionName"
@@ -321,9 +331,9 @@ function stop(): void {
         :selected-collection-id="selectedCollectionId"
         :relay-profiles="relayProfiles"
         :executor-selection="executorSelection"
-        :busy="busy"
+        :busy="sending"
         :cancelling="cancelling"
-        :progress="executionProgress"
+        :progress="displayedProgress"
         :progress-percent="progressPercent"
         :progress-phase-label="progressPhaseLabel"
         :progress-detail="progressDetail"

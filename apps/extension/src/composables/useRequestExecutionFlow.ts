@@ -1,4 +1,12 @@
-import { computed, nextTick, ref, shallowRef, watch, type Ref } from "vue";
+import {
+  computed,
+  nextTick,
+  onScopeDispose,
+  ref,
+  shallowRef,
+  watch,
+  type Ref,
+} from "vue";
 
 import {
   requestSpecV1Schema,
@@ -7,6 +15,7 @@ import {
   type OneFetchConsentV1,
   type OneFetchCapabilitiesV1,
   type RequestSpecV1,
+  type ExecutionProgressV1,
 } from "@xpanel/contracts";
 
 import {
@@ -67,7 +76,28 @@ export function useRequestExecutionFlow(options: ExecutionFlowOptions) {
   const browserCompatibilityOpen = ref(false);
   const pendingBrowserRequest = shallowRef<RequestSpecV1 | null>(null);
   const browserCompatibilityReasons = ref<string[]>([]);
-  let checkingRemote = false;
+  const checkingRemote = ref(false);
+  const preflightElapsed = ref(0);
+  let preflightController: AbortController | undefined;
+  let preflightClock: ReturnType<typeof setInterval> | undefined;
+  const preflightProgress = computed<ExecutionProgressV1 | null>(() =>
+    checkingRemote.value
+      ? {
+          phase: "preparing",
+          loadedBytes: 0,
+          elapsedMs: preflightElapsed.value,
+        }
+      : null,
+  );
+  function cancelPreflight(): void {
+    preflightController?.abort(
+      new DOMException("Request cancelled.", "AbortError"),
+    );
+  }
+  onScopeDispose(() => {
+    cancelPreflight();
+    clearInterval(preflightClock);
+  });
 
   const remoteConsentTarget = computed(() => {
     try {
@@ -134,7 +164,8 @@ export function useRequestExecutionFlow(options: ExecutionFlowOptions) {
   }
 
   async function send(): Promise<void> {
-    if (options.busy.value || checkingRemote || remoteConsentOpen.value) return;
+    if (options.busy.value || checkingRemote.value || remoteConsentOpen.value)
+      return;
     options.errorMessage.value = "";
     options.notice.value = "";
     if (!options.current.value.url.trim()) {
@@ -171,10 +202,19 @@ export function useRequestExecutionFlow(options: ExecutionFlowOptions) {
       options.errorMessage.value = options.t("noRelayProfiles");
       return;
     }
-    checkingRemote = true;
+    checkingRemote.value = true;
+    const controller = new AbortController();
+    preflightController = controller;
+    preflightElapsed.value = 0;
+    const startedAt = performance.now();
+    preflightClock = setInterval(() => {
+      preflightElapsed.value = performance.now() - startedAt;
+    }, 100);
     try {
       await ensureRelayPermission(profile);
+      controller.signal.throwIfAborted();
       const token = await getRelayToken(profile);
+      controller.signal.throwIfAborted();
       if (!token) {
         options.errorMessage.value = options.t("relayTokenRequired");
         await options.openRelayManager();
@@ -184,9 +224,13 @@ export function useRequestExecutionFlow(options: ExecutionFlowOptions) {
       executionCapabilities.value = await testRelayConnection(profile, token, {
         force: true,
         permissionAlreadyGranted: true,
+        signal: controller.signal,
       });
+      controller.signal.throwIfAborted();
       const consent = consentIdentity(executionCapabilities.value);
-      if (!(await isRelayTrusted(profile, token, consent))) {
+      const trusted = await isRelayTrusted(profile, token, consent);
+      controller.signal.throwIfAborted();
+      if (!trusted) {
         pendingRemoteSend.value = { request, profile, token, consent };
         remoteTrustSession.value = false;
         remoteConsentError.value = "";
@@ -198,7 +242,9 @@ export function useRequestExecutionFlow(options: ExecutionFlowOptions) {
       options.errorMessage.value =
         error instanceof Error ? error.message : String(error);
     } finally {
-      checkingRemote = false;
+      checkingRemote.value = false;
+      preflightController = undefined;
+      clearInterval(preflightClock);
     }
   }
 
@@ -275,6 +321,9 @@ export function useRequestExecutionFlow(options: ExecutionFlowOptions) {
   }
 
   return {
+    checkingRemote,
+    preflightProgress,
+    cancelPreflight,
     browserCompatibilityOpen,
     browserCompatibilityReasons,
     browserFilterableHeaderCount,

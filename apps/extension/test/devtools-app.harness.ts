@@ -20,6 +20,7 @@ import type {
   StartBackgroundExecutionInput,
   StoredResponseMetadata,
 } from "../src/lib/execution-client";
+import type { testRelayConnection } from "../src/lib/one-fetch-connection";
 
 export const database = {
   loadWorkspace: vi.fn(async () => ({
@@ -102,7 +103,9 @@ export const remoteProfiles = {
   revokeRelayTrust: vi.fn(async () => undefined),
   saveRelayProfile: vi.fn(async (profile: OneFetchProfileV1) => profile),
   setSessionExecutorSelection: vi.fn(async () => undefined),
-  testRelayConnection: vi.fn(async () => capabilities()),
+  testRelayConnection: vi.fn<typeof testRelayConnection>(async () =>
+    capabilities(),
+  ),
   loadLegacyRelayProfiles: vi.fn(async () => []),
   deleteLegacyRelayProfile: vi.fn(async () => undefined),
   validateRelayProfile: (value: OneFetchProfileV1) =>
