@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDefaultRequest } from "@xpanel/contracts";
 
 import { executeBrowser } from "../src/lib/execute";
-import { testRelayConnection } from "../src/lib/remote-profiles";
+import { testRelayConnection } from "../src/lib/one-fetch-connection";
+import { capabilities, profile, token } from "./one-fetch.fixture";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -33,49 +34,25 @@ describe("offscreen permission preflight", () => {
     expect(response.body.content).toBe('{"ok":true}');
   });
 
-  it("loads Relay capabilities without chrome.permissions after preflight", async () => {
+  it("loads one-fetch capabilities without chrome.permissions after preflight", async () => {
     vi.stubGlobal("chrome", {});
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
         Promise.resolve(
-          new Response(
-            JSON.stringify({
-              protocolVersion: 1,
-              provider: "cloudflare",
-              targetPolicy: "allowlist",
-              maxMetadataBytes: 49_152,
-              maxRequestBodyBytes: 20_971_520,
-              maxResponseBodyBytes: 20_971_520,
-              features: {
-                explicitCookie: true,
-                responseSetCookie: true,
-                files: true,
-                multipart: true,
-                proxy: false,
-                customTls: false,
-                clientCertificate: false,
-              },
-            }),
-            { headers: { "content-type": "application/json" } },
-          ),
+          new Response(JSON.stringify(capabilities()), {
+            headers: { "content-type": "application/json" },
+          }),
         ),
       ),
     );
 
     await expect(
-      testRelayConnection(
-        {
-          schemaVersion: 1,
-          id: "offscreen-relay",
-          name: "Offscreen relay",
-          baseUrl: "https://relay.example.test",
-          tokenStorage: "session",
-        },
-        "secret-token",
-        { force: true, permissionPreflighted: true },
-      ),
-    ).resolves.toMatchObject({ provider: "cloudflare" });
+      testRelayConnection(profile(), token, { permissionPreflighted: true }),
+    ).resolves.toMatchObject({ provider: "node", buildVersion: "0.1.2" });
+    // Discovery is public: no execution credential accompanies this request.
+    const headers = new Headers(vi.mocked(fetch).mock.calls[0]?.[1]?.headers);
+    expect(headers.has("authorization")).toBe(false);
   });
 
   it("asks the service worker about an approved cross-origin redirect", async () => {
