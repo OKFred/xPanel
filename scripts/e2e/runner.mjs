@@ -17,6 +17,7 @@ import { e2eConfig } from "./config.mjs";
 import { assertNoPageFailures, monitorPage } from "./diagnostics.mjs";
 import { fixtureServer, listen } from "./fixture-server.mjs";
 import { runHarFlow } from "./har-flow.mjs";
+import { runExportFlow } from "./export-flow.mjs";
 import { runLargeResponseFlow } from "./large-response-flow.mjs";
 import { runLocalizationFlow } from "./localization-flow.mjs";
 import { runRemoteFlow } from "./remote-flow.mjs";
@@ -145,6 +146,7 @@ export async function runChromiumE2e(config = e2eConfig) {
     );
 
     await runLocalizationFlow(panelClient);
+    await runExportFlow(panelClient);
 
     await inspectedClient.send("Page.navigate", {
       url: `${fixtureOrigin}/page`,
