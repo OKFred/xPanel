@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createDefaultRequest, type ResponseRecordV1 } from "@xpanel/contracts";
+import type { ExportFormat } from "@xpanel/request-core";
 
 const database = vi.hoisted(() => ({
   loadWorkspace: vi.fn(async () => ({
@@ -56,6 +57,157 @@ function responseFor(requestId: string, content: string): ResponseRecordV1 {
 beforeEach(() => {
   setActivePinia(createPinia());
   vi.clearAllMocks();
+});
+
+describe("export validation and preview ownership", () => {
+  it("opens a blank draft with a local hint instead of a global URL exception", async () => {
+    const errorMessage = ref("");
+    const transfer = useRequestTransfer(errorMessage);
+    await transfer.openExport();
+    expect(transfer.exportOpen.value).toBe(true);
+    expect(errorMessage.value).toBe("");
+    expect(transfer.exportError.value).toBe("exportCurrentUrlMissing");
+    expect(transfer.exportText.value).toBe("");
+    expect(transfer.canExport.value).toBe(false);
+    const createElement = vi.spyOn(document, "createElement");
+    transfer.downloadExport();
+    expect(createElement).not.toHaveBeenCalled();
+    createElement.mockRestore();
+  });
+
+  it.each([
+    "example.com/api",
+    "/api/items",
+    "{{baseUrl}}/api",
+    "https://",
+    "file:///tmp/request",
+  ])(
+    "rejects an incomplete or non-HTTP address without exposing it: %s",
+    async (url) => {
+      const transfer = useRequestTransfer(ref(""));
+      useWorkbenchStore().current.url = url;
+      await transfer.prepareExport();
+      expect(transfer.exportError.value).toBe("exportCurrentUrlInvalid");
+      expect(transfer.canExport.value).toBe(false);
+    },
+  );
+
+  it.each<ExportFormat>([
+    "curl-bash",
+    "powershell",
+    "fetch-node",
+    "har",
+    "openapi",
+    "swagger",
+  ])(
+    "exports a valid request and clears the prior preview on failure: %s",
+    async (format) => {
+      const transfer = useRequestTransfer(ref(""));
+      const store = useWorkbenchStore();
+      transfer.exportFormat.value = format;
+      store.current.url = "https://api.example.com/export";
+      await transfer.prepareExport();
+      expect(transfer.exportError.value).toBe("");
+      expect(transfer.canExport.value).toBe(true);
+      expect(transfer.exportText.value).not.toBe("");
+      store.current.url = "https://";
+      await transfer.prepareExport();
+      expect(transfer.exportError.value).toBe("exportCurrentUrlInvalid");
+      expect(transfer.exportText.value).toBe("");
+      expect(transfer.canExport.value).toBe(false);
+    },
+  );
+
+  it("exports saved requests despite an empty current draft, without silently skipping invalid saved items", async () => {
+    const transfer = useRequestTransfer(ref(""));
+    const store = useWorkbenchStore();
+    store.requests = [
+      createDefaultRequest({ url: "https://example.com/saved" }),
+    ];
+    transfer.exportScope.value = "saved";
+    await transfer.prepareExport();
+    expect(transfer.canExport.value).toBe(true);
+    store.requests.push(createDefaultRequest());
+    await transfer.prepareExport();
+    expect(transfer.exportError.value).toBe("exportSavedUrlInvalid");
+    expect(transfer.exportText.value).toBe("");
+    expect(transfer.canExport.value).toBe(false);
+
+    transfer.exportFormat.value = "xpanel-collection";
+    await transfer.prepareExport();
+    expect(transfer.exportError.value).toBe("");
+    expect(transfer.canExport.value).toBe(true);
+    expect(JSON.parse(transfer.exportText.value)).toMatchObject({
+      requests: [{ url: "https://example.com/saved" }, { url: "" }],
+    });
+  });
+
+  it("reports an empty saved scope inside the export dialog", async () => {
+    const errorMessage = ref("");
+    const transfer = useRequestTransfer(errorMessage);
+    transfer.exportScope.value = "saved";
+    await transfer.prepareExport();
+    expect(transfer.exportError.value).toBe("noSavedRequests");
+    expect(errorMessage.value).toBe("");
+    expect(transfer.canExport.value).toBe(false);
+  });
+
+  it.each([false, true])(
+    "ignores an obsolete response lookup (reject=%s)",
+    async (reject) => {
+      let resolveResponses!: (value: ResponseRecordV1[]) => void;
+      let rejectResponses!: (error: Error) => void;
+      const pendingResponses = new Promise<ResponseRecordV1[]>(
+        (resolve, reject) => {
+          resolveResponses = resolve;
+          rejectResponses = reject;
+        },
+      );
+      const transfer = useRequestTransfer(ref(""), {
+        persistImportedResponses: async () => undefined,
+        loadResponses: () => pendingResponses,
+      });
+      useWorkbenchStore().current.url = "https://example.com/export";
+      transfer.exportFormat.value = "har";
+      const pendingExport = transfer.prepareExport();
+      expect(transfer.canExport.value).toBe(false);
+      transfer.exportFormat.value = "curl-bash";
+      await transfer.prepareExport();
+      const currentPreview = transfer.exportText.value;
+      if (reject) rejectResponses(new Error("Obsolete read failed"));
+      else resolveResponses([]);
+      await pendingExport;
+      expect(transfer.exportText.value).toBe(currentPreview);
+      expect(transfer.exportError.value).toBe("");
+      expect(transfer.canExport.value).toBe(true);
+    },
+  );
+
+  it("cannot restore sensitive data from an older export after reopening", async () => {
+    let resolveResponses!: (value: ResponseRecordV1[]) => void;
+    const transfer = useRequestTransfer(ref(""), {
+      persistImportedResponses: async () => undefined,
+      loadResponses: () =>
+        new Promise((resolve) => {
+          resolveResponses = resolve;
+        }),
+    });
+    const store = useWorkbenchStore();
+    store.current.url = "https://example.com/export";
+    store.current.headers = [
+      { name: "Authorization", value: "Bearer secret-canary", enabled: true },
+    ];
+    transfer.exportFormat.value = "har";
+    transfer.includeSensitiveExport.value = true;
+    const pendingExport = transfer.prepareExport();
+    transfer.exportFormat.value = "curl-bash";
+    await transfer.openExport();
+    resolveResponses([]);
+    await pendingExport;
+    expect(transfer.includeSensitiveExport.value).toBe(false);
+    expect(transfer.exportText.value).not.toContain("secret-canary");
+    expect(transfer.exportText.value).toContain("curl");
+  });
 });
 
 describe("request transfer response bridge", () => {

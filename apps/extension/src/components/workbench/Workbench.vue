@@ -83,9 +83,11 @@ const {
 } = executionWorkbench;
 const {
   apiDocumentEncoding,
+  canExport,
   changeSensitiveExport,
   detectedFormat,
   downloadExport,
+  exportError,
   exportFormat,
   exportOpen,
   exportScope,
@@ -496,10 +498,12 @@ function stop(): void {
       :include-sensitive="includeSensitiveExport"
       :warnings="exportWarnings"
       :copied="copied === 'export'"
+      :error="exportError"
+      :can-export="canExport"
       @close="exportOpen = false"
       @prepare="prepareExport"
       @sensitive="changeSensitiveExport"
-      @copy="copyText('export', exportText)"
+      @copy="canExport && copyText('export', exportText)"
       @download="downloadExport"
     />
   </main>

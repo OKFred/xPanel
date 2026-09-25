@@ -61,6 +61,74 @@ describe("request importing", () => {
   });
 });
 
+describe("export dialog validation", () => {
+  it("shows the empty-URL hint in the dialog, disables stale output, and allows collection backup", async () => {
+    const pinia = createPinia();
+    const wrapper = await mountApp(pinia);
+    const store = useWorkbenchStore(pinia);
+    store.current.url = "";
+    const openExport = wrapper
+      .findAll("button")
+      .find((button) => button.text().trim() === "Export");
+    if (!openExport) throw new Error("Expected Export button.");
+    await openExport.trigger("click");
+    await flushPromises();
+    const dialog = wrapper.get('[aria-label="Export requests"]');
+    expect(dialog.get('[role="alert"]').text()).toContain(
+      "The current request has no URL",
+    );
+    expect(wrapper.text()).not.toContain("Invalid URL");
+    expect(wrapper.find('.workspace [data-error="true"]').exists()).toBe(false);
+    for (const button of dialog.findAll("footer button")) {
+      expect(button.attributes("disabled")).toBeDefined();
+    }
+    await dialog.get("select").setValue("xpanel-collection");
+    await flushPromises();
+    expect(dialog.find('[role="alert"]').exists()).toBe(false);
+    expect(
+      (dialog.get("textarea").element as HTMLTextAreaElement).value,
+    ).toContain('"schemaVersion": 1');
+    expect(
+      dialog.get("footer .primary-button").attributes("disabled"),
+    ).toBeUndefined();
+
+    store.current.url = "https://example.com/valid";
+    await dialog.get("select").setValue("curl-bash");
+    await flushPromises();
+    expect(
+      (dialog.get("textarea").element as HTMLTextAreaElement).value,
+    ).toContain("https://example.com/valid");
+    store.current.url = "https://";
+    await dialog.get("select").setValue("fetch-node");
+    await flushPromises();
+    expect(dialog.get('[role="alert"]').text()).toContain(
+      "valid, complete HTTP(S) URL",
+    );
+    expect((dialog.get("textarea").element as HTMLTextAreaElement).value).toBe(
+      "",
+    );
+    expect(
+      dialog.get("footer .primary-button").attributes("disabled"),
+    ).toBeDefined();
+    wrapper.unmount();
+  });
+
+  it("localizes the empty-URL guidance in Chinese", async () => {
+    const wrapper = await mountApp();
+    await wrapper.get('button[aria-label="Switch language"]').trigger("click");
+    const openExport = wrapper
+      .findAll("button")
+      .find((button) => button.text().trim() === "导出");
+    if (!openExport) throw new Error("Expected localized Export button.");
+    await openExport.trigger("click");
+    await flushPromises();
+    expect(
+      wrapper.get('[aria-label="导出请求"] [role="alert"]').text(),
+    ).toContain("当前请求尚未填写 URL");
+    wrapper.unmount();
+  });
+});
+
 describe("saved item deletion", () => {
   const importedRequest = createDefaultRequest({
     id: "request-imported",

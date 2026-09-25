@@ -1,6 +1,6 @@
 {
   "name": "xpanel",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "private": true,
   "description": "A local-first Manifest V3 API workbench for standalone and Chrome DevTools use.",
   "license": "MIT",
@@ -17,7 +17,7 @@
     "assets:verify": "node scripts/verify-store-assets.mjs",
     "listing:verify": "node scripts/verify-store-listing.mjs",
     "e2e:chromium": "pnpm build:extension && node scripts/e2e-chromium.mjs",
-    "e2e:upgrade": "node scripts/e2e-extension-upgrade.mjs",
+    "e2e:upgrade": "node scripts/e2e-extension-upgrade.mjs && node scripts/e2e-extension-upgrade.mjs --baseline-3.0",
     "audit:static": "node scripts/static-audit.mjs",
     "audit:upgrade": "node scripts/verify-extension-upgrade.mjs && node --test scripts/verify-extension-upgrade.test.mjs",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm audit:upgrade && pnpm audit:static && pnpm assets:verify && pnpm listing:verify",

@@ -139,6 +139,12 @@ export const zhCN = {
     "已导入，但有 {count} 条警告。重新打开导入窗口即可查看。",
   externalRefTooLarge: "外部引用超过 5 MiB 导入上限。",
   noSavedRequests: "没有可导出的已保存请求。",
+  exportCurrentUrlMissing:
+    "当前请求尚未填写 URL。请填写完整的 HTTP(S) 地址、切换到“已保存请求”，或选择 xPanel collection 备份已保存的数据。",
+  exportCurrentUrlInvalid:
+    "当前请求需要有效、完整的 HTTP(S) 地址。请补全 http:// 或 https://，并替换地址中的主机变量后再导出此格式。",
+  exportSavedUrlInvalid:
+    "第 {index} 个已保存请求缺少有效、完整的 HTTP(S) 地址。请修正，或选择 xPanel collection 备份包含未完成请求的已保存数据。",
   unexpectedDocumentExport: "文档导出结果异常。",
   invalidSavedRecords:
     "已忽略 {count} 条无效的本机记录；如有数据缺失，请导入备份。",

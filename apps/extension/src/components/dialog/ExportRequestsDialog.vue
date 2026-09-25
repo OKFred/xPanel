@@ -14,6 +14,8 @@ defineProps<{
   text: string;
   warnings: string[];
   copied: boolean;
+  error: string;
+  canExport: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -124,6 +126,7 @@ const emit = defineEmits<{
         {{ $t("includeSensitive") }}
       </label>
     </div>
+    <p v-if="error" class="warning-list" role="alert">{{ error }}</p>
     <textarea
       :value="text"
       class="dialog-editor"
@@ -134,11 +137,21 @@ const emit = defineEmits<{
       <li v-for="warning in warnings" :key="warning">{{ warning }}</li>
     </ul>
     <footer>
-      <button class="ghost-button" type="button" @click="emit('copy')">
+      <button
+        class="ghost-button"
+        type="button"
+        :disabled="!canExport"
+        @click="emit('copy')"
+      >
         <Check v-if="copied" :size="15" />
         <Clipboard v-else :size="15" /> {{ $t("copy") }}
       </button>
-      <button class="primary-button" type="button" @click="emit('download')">
+      <button
+        class="primary-button"
+        type="button"
+        :disabled="!canExport"
+        @click="emit('download')"
+      >
         <Download :size="15" /> {{ $t("download") }}
       </button>
     </footer>

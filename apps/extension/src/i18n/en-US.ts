@@ -142,6 +142,12 @@ export const enUS = {
     "Imported with {count} warning(s). Reopen Import to review them.",
   externalRefTooLarge: "External reference exceeds the 5 MiB import limit.",
   noSavedRequests: "There are no saved requests to export.",
+  exportCurrentUrlMissing:
+    "The current request has no URL. Enter a complete HTTP(S) URL, choose Saved requests, or select xPanel collection to back up your saved data.",
+  exportCurrentUrlInvalid:
+    "The current request needs a valid, complete HTTP(S) URL. Include http:// or https:// and resolve any host variables before exporting this format.",
+  exportSavedUrlInvalid:
+    "Saved request #{index} needs a valid, complete HTTP(S) URL. Fix it or select xPanel collection to back up saved data including unfinished requests.",
   unexpectedDocumentExport: "Unexpected document export result.",
   invalidSavedRecords:
     "{count} invalid saved record(s) were ignored. Import a backup if data is missing.",
