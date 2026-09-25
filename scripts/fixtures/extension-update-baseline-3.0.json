@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "releaseLine": "3.0.0",
+  "chromiumBaselineCommit": "553f717dd11c3b0affa40aca610cb3a65c289bcb",
+  "chromiumBaselineVersion": "3.0.0",
+  "targetVersion": "3.0.1",
+  "requiredPermissions": ["alarms", "offscreen", "storage"],
+  "optionalPermissions": [],
+  "optionalHostPermissions": ["http://*/*", "https://*/*"],
+  "expectedAddedWarninglessPermissions": []
+}

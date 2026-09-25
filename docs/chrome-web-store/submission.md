@@ -1,4 +1,4 @@
-# Chrome Web Store submission kit for xPanel 3.0.0
+# Chrome Web Store submission kit for xPanel 3.0.1
 
 This document contains the proposed material and release checklist for updating
 the existing item `diaemdialoooebdennhpgnmobnjabohm`. It does not authorize
@@ -10,20 +10,22 @@ developer-dashboard actions.
 The 7 September 2026 review rejected only the localized listing descriptions
 for excessive format keywords (`Yellow Argon`). That historical 2.1.0 rejection
 does not establish today's dashboard state. Recheck the current listing and
-version before preparing this new 3.0.0 update. Keep the concise localized
+version before preparing this new 3.0.1 update. Keep the concise localized
 descriptions below and never restore the rejected keyword lists.
 
 On 23 September 2026, the maintainer confirmed the current Store version is
 **2.1.0, published**. The browser automation interface could not read the
 protected developer-console page, so this is maintainer-confirmed status, not
-an automated dashboard check. The planned update is **3.0.0**; any separate
+an automated dashboard check. The maintainer subsequently confirmed uploading
+the 3.0.0 ZIP; its review/publication status has not been independently checked.
+The planned export-fix update is **3.0.1**; any separate
 draft/review state must still be checked immediately before upload/submission.
 
 ## Publishing mode
 
 Use [deferred publishing](https://developer.chrome.com/docs/webstore/update#deferred-publishing)
 for this update. In the review-confirmation dialog, clear the option that
-publishes automatically after approval. A successful review should leave 3.0.0
+publishes automatically after approval. A successful review should leave 3.0.1
 staged until a maintainer inspects it and explicitly publishes it. Chrome Web
 Store allows up to 30 days to publish an approved staged submission; after that
 it returns to draft and must be reviewed again.
@@ -95,6 +97,9 @@ Manifest V3 implementation and user-controlled optional host access. Version
 to one-fetch services and separates response-source and body-integrity checks.
 Unavailable verification or timing is explicitly labeled, never assumed.
 
+Version 3.0.1 adds clear guidance for unfinished request addresses during export
+and prevents stale export previews from being copied or downloaded.
+
 ## Chinese (Simplified) listing
 
 ### Summary
@@ -118,6 +123,8 @@ xPanel 既提供独立扩展页面，也保留 Chrome DevTools 内的 API 请求
 xPanel 不包含统计分析、广告、账号系统或遥测。敏感值默认仅保留在会话中，导出默认脱敏，只有用户明确选择时才包含敏感数据。
 
 2.0 版以 Manifest V3 和由用户控制的可选站点授权，替代旧版 Manifest V2 的 localhost CORS 修改功能；2.1 版新增独立工作台和由扩展管理的后台执行。3.0 版接入 one-fetch 服务，分别展示响应来源与正文完整性；无法核验或获取的耗时会明确标注，不作推断。
+
+3.0.1 版改进未填写完整地址时的导出提示，并防止复制或下载过期的导出预览。
 
 ## Privacy practices
 
@@ -165,7 +172,7 @@ to the xPanel developer.
 
 ## Reviewer instructions
 
-1. Install version 3.0.0 and open the standalone workbench from the extension
+1. Install version 3.0.1 and open the standalone workbench from the extension
    action. No DevTools window is required.
 2. In the default **Browser** executor, enter a public test API URL and click
    **Send**. Approve the exact origin when Chrome asks. No account or test
@@ -190,6 +197,9 @@ to the xPanel developer.
 7. Old Relay profiles are retained read-only and disabled; users may confirm
    deletion. A signed target response is not automatically an integrity-verified
    body. Missing reports/digests and unavailable timing are labeled honestly.
+8. Open Export with an empty request URL. Guidance appears inside the dialog;
+   copy/download remain disabled until a valid export is ready. Switching to
+   collection backup still works without filling the current draft URL.
 
 ## Graphic assets
 
@@ -197,8 +207,9 @@ to the xPanel developer.
 - Chinese screenshots: [`assets/zh_CN`](assets/zh_CN)
 - Store icon and small promo tile: [`assets/global`](assets/global)
 
-Regenerate and review all localized screenshots from the unpacked 3.0.0 build
-before upload. Include the standalone workbench and the DevTools-only Network
+The reviewed 3.0.0 screenshots remain representative for this export-validation
+patch. Recheck them before upload; replace images if the depicted UI changes.
+Include the standalone workbench and the DevTools-only Network
 HAR distinction in the reviewed set. Screenshots are 1280x800, the promo tile
 is 440x280, and the store icon is 128x128.
 
@@ -207,7 +218,7 @@ is 440x280, and the store icon is 128x128.
 - Recheck the current Store version and rejection/review state; neither rejected
   keyword list may remain in either localized description.
 - Complete three-platform acceptance, approve the PR merge, and rebuild the
-  version-matched `xpanelextension-3.0.0-chrome.zip` from final `main`.
+  version-matched `xpanelextension-3.0.1-chrome.zip` from final `main`.
 - Ask for final submission confirmation. Do not upload a development-branch
   review package as if it were the final main build.
 - Paste the localized listing copy and replace all outdated Manifest V2 images.

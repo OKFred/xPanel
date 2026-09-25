@@ -1,8 +1,10 @@
-# xPanel 3.0.0
+# xPanel 3.0.1
 
 xPanel 是可独立打开、也可运行在 Chrome DevTools 内的本地优先 API 工作台。3.0.0
 使用用户自行配置的 [one-fetch 0.1.2 Preview](https://github.com/OKFred/one-fetch/releases/tag/v0.1.2)
 替代旧 Remote Relay，保留 Browser Fetch、后台执行、集合、格式转换和虚拟响应查看器。
+
+3.0.1 修复空白或无效 URL 导出时的报错，保留未完成请求的集合备份能力，并防止失败或过期的导出预览被复制、下载。详见[修复说明](docs/release-3.0.1.md)。
 
 ## 主要能力
 
