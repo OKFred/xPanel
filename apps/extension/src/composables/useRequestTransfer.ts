@@ -59,6 +59,12 @@ export function useRequestTransfer(
   const openApiVersion = ref<"3.0.3" | "3.1.0" | "3.2.0">("3.1.0");
   const apiDocumentEncoding = ref<"json" | "yaml">("json");
   const exportText = ref("");
+  const exportError = ref("");
+  const exportReady = ref(false);
+  const canExport = computed(
+    () => exportReady.value && exportText.value.trim().length > 0,
+  );
+  let exportRevision = 0;
   const exportWarnings = ref<string[]>([]);
   const includeSensitiveExport = ref(false);
   const exportDocuments = ref<Record<string, Record<string, unknown>> | null>(
@@ -195,17 +201,24 @@ export function useRequestTransfer(
   }
 
   async function prepareExport(): Promise<void> {
+    const revision = ++exportRevision;
+    const format = exportFormat.value;
+    const includeSensitive = includeSensitiveExport.value;
+    const version = openApiVersion.value;
     errorMessage.value = "";
+    exportError.value = "";
+    exportReady.value = false;
+    exportText.value = "";
     exportWarnings.value = [];
     exportDocuments.value = null;
     try {
-      if (exportFormat.value === "xpanel-collection") {
+      if (format === "xpanel-collection") {
         const result = exportCollectionFileWithWarnings(
           collections.value.map((collection) =>
             collectionRecordSchema.parse(collection),
           ),
           requests.value.map((request) => requestSpecV1Schema.parse(request)),
-          { includeSensitive: includeSensitiveExport.value },
+          { includeSensitive },
         );
         exportText.value = JSON.stringify(result.value, null, 2);
         exportWarnings.value = result.warnings.map((item) => item.message);
@@ -218,27 +231,44 @@ export function useRequestTransfer(
           ? requests.value.map((request) => requestSpecV1Schema.parse(request))
           : [requestSpecV1Schema.parse(current.value)];
       if (sourceRequests.length === 0) throw new Error(t("noSavedRequests"));
+      const invalidIndex = sourceRequests.findIndex((request) => {
+        try {
+          const url = new URL(request.url);
+          return url.protocol !== "http:" && url.protocol !== "https:";
+        } catch {
+          return true;
+        }
+      });
+      if (invalidIndex !== -1) {
+        exportError.value =
+          exportScope.value === "saved"
+            ? t("exportSavedUrlInvalid", { index: invalidIndex + 1 })
+            : t(
+                current.value.url.trim()
+                  ? "exportCurrentUrlInvalid"
+                  : "exportCurrentUrlMissing",
+              );
+        return;
+      }
       const sourceIds = new Set(sourceRequests.map((request) => request.id));
-      const sourceResponses = formatIncludesResponses(exportFormat.value)
+      const sourceResponses = formatIncludesResponses(format)
         ? (await responseBridge.loadResponses(sourceIds))
             .map((response) => responseRecordV1Schema.parse(response))
             .filter((response) => sourceIds.has(response.requestId))
         : [];
+      if (revision !== exportRevision) return;
       const options = {
-        includeSensitive: includeSensitiveExport.value,
+        includeSensitive,
         pretty: true,
         responses: sourceResponses,
       };
 
-      if (
-        exportFormat.value === "openapi" ||
-        exportFormat.value === "swagger"
-      ) {
+      if (format === "openapi" || format === "swagger") {
         const result =
-          exportFormat.value === "openapi"
+          format === "openapi"
             ? exportOpenApi(sourceRequests, {
                 ...options,
-                version: openApiVersion.value,
+                version,
               })
             : exportSwagger(sourceRequests, options);
         exportDocuments.value = result.documents;
@@ -266,9 +296,9 @@ export function useRequestTransfer(
         return;
       }
 
-      if (exportFormat.value === "har" && sourceRequests.length > 1) {
+      if (format === "har" && sourceRequests.length > 1) {
         const result = exportHarWithWarnings(sourceRequests, sourceResponses, {
-          includeSensitive: includeSensitiveExport.value,
+          includeSensitive,
         });
         exportText.value = JSON.stringify(result.value, null, 2);
         exportWarnings.value = result.warnings.map((item) => item.message);
@@ -278,7 +308,7 @@ export function useRequestTransfer(
       }
 
       const results = sourceRequests.map((request) =>
-        exportRequest(request, exportFormat.value, options),
+        exportRequest(request, format, options),
       );
       const textResults = results.filter((result) => "text" in result);
       if (textResults.length !== results.length) {
@@ -294,8 +324,16 @@ export function useRequestTransfer(
         result.warnings.map((item) => item.message),
       );
     } catch (error) {
-      errorMessage.value =
-        error instanceof Error ? error.message : String(error);
+      if (revision === exportRevision) {
+        exportText.value = "";
+        exportDocuments.value = null;
+        exportError.value =
+          error instanceof Error ? error.message : String(error);
+      }
+    } finally {
+      if (revision === exportRevision) {
+        exportReady.value = !exportError.value && exportText.value.length > 0;
+      }
     }
   }
 
@@ -326,6 +364,7 @@ export function useRequestTransfer(
   }
 
   function downloadExport(): void {
+    if (!canExport.value) return;
     const documents = Object.entries(exportDocuments.value ?? {});
     const useZip = documents.length > 1;
     let blob: Blob;
@@ -362,9 +401,11 @@ export function useRequestTransfer(
 
   return {
     apiDocumentEncoding,
+    canExport,
     changeSensitiveExport,
     detectedFormat,
     downloadExport,
+    exportError,
     exportFormat,
     exportOpen,
     exportScope,
