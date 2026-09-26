@@ -140,6 +140,10 @@ export const enUS = {
     "Paste cURL, PowerShell, fetch, HAR, OpenAPI, Swagger, or xPanel JSON…",
   importedWithWarnings:
     "Imported with {count} warning(s). Reopen Import to review them.",
+  browserHeaderNameInvalid:
+    "{location}: invalid request header name. Use an ASCII HTTP token without spaces, colons or line breaks. No request was sent.",
+  browserHeaderValueInvalid:
+    "{location}: Browser cannot send this header value. Remove NUL/line breaks and characters outside the HTTP ByteString range. No request was sent.",
   importResponsesFailed:
     "Saved {count} requests, but could not save or display all imported responses. Your requests remain in the collection; do not import them again. Check local storage space and retention settings.",
   externalRefTooLarge: "External reference exceeds the 5 MiB import limit.",

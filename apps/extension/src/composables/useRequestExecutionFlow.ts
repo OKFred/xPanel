@@ -31,6 +31,8 @@ import {
   consentIdentity,
 } from "../lib/one-fetch-profiles";
 import type { BackgroundExecutionTarget } from "../lib/execution-client";
+import { firstBrowserHeaderIssue } from "../lib/execution/browser-header-validation";
+import { isForbiddenBrowserHeader } from "../lib/execution/browser-headers";
 
 interface BrowserFilteredResult {
   request: RequestSpecV1;
@@ -155,6 +157,23 @@ export function useRequestExecutionFlow(options: ExecutionFlowOptions) {
     target: BackgroundExecutionTarget,
     filtered: BrowserFilteredResult = { request, notice: "" },
   ): Promise<void> {
+    if (target.kind === "browser") {
+      // Preserve editor row numbers even when preceding controlled headers are removed.
+      const issue = firstBrowserHeaderIssue(
+        request,
+        filtered.warning ? isForbiddenBrowserHeader : undefined,
+      );
+      if (issue) {
+        options.errorMessage.value = options.t(
+          issue.kind === "name"
+            ? "browserHeaderNameInvalid"
+            : "browserHeaderValueInvalid",
+          { location: issue.location },
+        );
+        options.notice.value = "";
+        return;
+      }
+    }
     await options.run({
       request: filtered.request,
       target,

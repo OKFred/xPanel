@@ -65,6 +65,32 @@ describe("DevTools interface localization", () => {
 });
 
 describe("DevTools request sending", () => {
+  it("blocks invalid header names before background dispatch and localizes the row hint", async () => {
+    storage.get.mockResolvedValueOnce({ autoFilterBrowserHeaders: true });
+    const pinia = createPinia();
+    const wrapper = await mountApp(pinia);
+    const store = useWorkbenchStore(pinia);
+    store.current.url = "https://example.invalid/";
+    store.current.headers = [
+      { name: "DNT", value: "1", enabled: true },
+      { name: "Bad Name", value: "secret-canary", enabled: true },
+    ];
+    await wrapper.get("button.send-button").trigger("click");
+    await flushPromises();
+    expect(execution.executeRequest).not.toHaveBeenCalled();
+    expect(wrapper.get(".message-strip").text()).toContain(
+      "invalid request header name",
+    );
+    expect(wrapper.get(".message-strip").text()).toContain("Headers[2]");
+    expect(wrapper.get(".message-strip").text()).not.toContain("secret-canary");
+    await wrapper.get('button[aria-label="Switch language"]').trigger("click");
+    await wrapper.get("button.send-button").trigger("click");
+    await flushPromises();
+    expect(wrapper.get(".message-strip").text()).toContain("请求头名称无效");
+    expect(wrapper.get(".message-strip").text()).toContain("本次未发送请求");
+    expect(store.current.headers).toHaveLength(2);
+    wrapper.unmount();
+  });
   it("passes a plain validated request to the Browser executor", async () => {
     let resolveExecution!: (response: ResponseRecordV1) => void;
     execution.executeRequest.mockReturnValue(
