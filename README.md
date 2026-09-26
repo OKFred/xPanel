@@ -1,4 +1,4 @@
-# xPanel 3.0.1
+# xPanel 3.0.2
 
 xPanel is a local-first API workbench available both as a standalone extension
 page and inside Chrome DevTools. Version 3.0.0 replaces the old Remote Relay with
@@ -6,9 +6,9 @@ explicitly configured [one-fetch 0.1.2 Preview](https://github.com/OKFred/one-fe
 services, while retaining Browser Fetch, background execution, collections,
 safe import/export, and the virtual response viewer.
 
-Version 3.0.1 fixes export validation for blank or invalid request URLs, keeps
-unfinished requests eligible for collection backup, and prevents failed or stale
-export previews from being copied or downloaded. See [patch notes](docs/release-3.0.1.md).
+Version 3.0.2 fixes captured-response imports, validates request headers before
+Browser sends, and keeps long collection and favorite lists scrollable.
+The export safeguards from 3.0.1 remain included. See [patch notes](docs/release-3.0.2.md).
 
 ## Highlights
 
