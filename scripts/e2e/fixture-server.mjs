@@ -57,6 +57,16 @@ export function fixtureServer() {
       response.end('{"captured":"har-e2e-ok"}');
       return;
     }
+    if (url.pathname === "/header-replay") {
+      response.writeHead(200, { ...cors, "Content-Type": "application/json" });
+      response.end(
+        JSON.stringify({
+          marker: request.headers["x-test"],
+          method: request.method,
+        }),
+      );
+      return;
+    }
     if (url.pathname === "/stream") {
       const chunks = ['{"source":"browser",', '"result":"browser-e2e-ok"}'];
       const size = chunks.reduce(

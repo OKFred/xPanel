@@ -1,8 +1,15 @@
 import { requestSpecV1Schema, type RequestSpecV1 } from "@xpanel/contracts";
 
 import { bytesToBase64, enabled, unsupportedRequestMethods } from "./common";
+import { assertBrowserHeaderSyntax } from "./browser-header-validation";
 
 const forbiddenBrowserHeaders = new Set([
+  // Fetch derives captured HTTP/2 and HTTP/3 pseudo-headers from URL/method.
+  ":authority",
+  ":method",
+  ":path",
+  ":scheme",
+  ":status",
   "accept-charset",
   "accept-encoding",
   "access-control-request-headers",
@@ -33,7 +40,7 @@ const conditionalForbiddenBrowserHeaders = new Set([
   "x-method-override",
 ]);
 
-function isForbiddenBrowserHeader(name: string, value = ""): boolean {
+export function isForbiddenBrowserHeader(name: string, value = ""): boolean {
   const normalized = name.trim().toLowerCase();
   return (
     forbiddenBrowserHeaders.has(normalized) ||
@@ -142,7 +149,10 @@ export function browserUnsupportedReasons(request: RequestSpecV1): string[] {
 
 export function assertBrowserSupported(request: RequestSpecV1): void {
   const reasons = browserUnsupportedReasons(request);
-  if (reasons.length === 0) return;
+  if (reasons.length === 0) {
+    assertBrowserHeaderSyntax(request);
+    return;
+  }
   throw new Error(
     `Browser Fetch cannot preserve this request because it uses ${reasons.join(
       ", ",
@@ -151,6 +161,7 @@ export function assertBrowserSupported(request: RequestSpecV1): void {
 }
 
 export function browserRequestHeaders(request: RequestSpecV1): Headers {
+  assertBrowserHeaderSyntax(request);
   const headers = new Headers();
   for (const item of enabled(request.headers)) {
     headers.append(item.name, item.value);

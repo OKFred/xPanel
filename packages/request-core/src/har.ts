@@ -21,6 +21,7 @@ import {
   splitUrlQuery,
   warning,
 } from "./common.js";
+import { harResponseBody } from "./har-response-body.js";
 
 export interface HarImportResult {
   requests: RequestSpecV1[];
@@ -212,8 +213,8 @@ function harResponse(
 ): ResponseRecordV1 {
   const response = isRecord(entry.response) ? entry.response : {};
   const content = isRecord(response.content) ? response.content : {};
-  const text = asString(content.text) ?? "";
-  const encoding = content.encoding === "base64" ? "base64" : "utf8";
+  const captured = harResponseBody(content, entryIndex);
+  warnings.push(...captured.warnings);
   const startedAt = validTimestamp(entry.startedDateTime);
   const durationMs = nonnegativeNumber(entry.time) ?? 0;
   const timings = isRecord(entry.timings) ? entry.timings : {};
@@ -225,13 +226,7 @@ function harResponse(
     status,
     statusText: asString(response.statusText) ?? "",
     headers: harNameValues(response.headers),
-    body: {
-      kind: "inline",
-      encoding,
-      content: text,
-      mediaType: asString(content.mimeType),
-      sizeBytes: integer(content.size) ?? byteLength(text),
-    },
+    body: captured.body,
     timings: {
       startedAt,
       durationMs,
@@ -255,17 +250,7 @@ function harResponse(
           },
         ]
       : [],
-    warnings:
-      text === "" && integer(content.size) && integer(content.size)! > 0
-        ? [
-            {
-              code: "har.response_body_missing",
-              message:
-                "The HAR recorded a response size but did not include its body.",
-              path: `log.entries.${entryIndex}.response.content`,
-            },
-          ]
-        : [],
+    warnings: captured.warnings,
   };
 }
 

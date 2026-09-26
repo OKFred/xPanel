@@ -137,6 +137,12 @@ export const zhCN = {
     "粘贴 cURL、PowerShell、fetch、HAR、OpenAPI、Swagger 或 xPanel JSON…",
   importedWithWarnings:
     "已导入，但有 {count} 条警告。重新打开导入窗口即可查看。",
+  browserHeaderNameInvalid:
+    "{location}：请求头名称无效。请使用合法的 ASCII HTTP 名称，不能包含空格、冒号或换行。本次未发送请求。",
+  browserHeaderValueInvalid:
+    "{location}：Browser 无法发送此请求头值。请移除空字符、换行及超出 HTTP ByteString 范围的字符。本次未发送请求。",
+  importResponsesFailed:
+    "已保存 {count} 个请求，但部分导入响应未能保存或显示。请求仍在集合中，无需重复导入；请检查本地存储空间和结果保留设置。",
   externalRefTooLarge: "外部引用超过 5 MiB 导入上限。",
   noSavedRequests: "没有可导出的已保存请求。",
   exportCurrentUrlMissing:

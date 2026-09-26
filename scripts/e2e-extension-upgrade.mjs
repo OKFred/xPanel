@@ -33,9 +33,11 @@ const updateBaseline = JSON.parse(
       workspaceRoot,
       "scripts",
       "fixtures",
-      process.argv.includes("--baseline-3.0")
-        ? "extension-update-baseline-3.0.json"
-        : "extension-update-baseline-2.1.json",
+      process.argv.includes("--baseline-3.0.1")
+        ? "extension-update-baseline-3.0.1.json"
+        : process.argv.includes("--baseline-3.0")
+          ? "extension-update-baseline-3.0.json"
+          : "extension-update-baseline-2.1.json",
     ),
     "utf8",
   ),

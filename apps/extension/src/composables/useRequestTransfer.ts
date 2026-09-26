@@ -96,7 +96,18 @@ export function useRequestTransfer(
         result.collections,
         result.responses,
       );
-      await responseBridge.persistImportedResponses(importedResponses);
+      try {
+        await responseBridge.persistImportedResponses(importedResponses);
+      } catch {
+        // The requests are already committed. Close the import dialog to avoid
+        // an accidental duplicate import and report the partial outcome.
+        importOpen.value = false;
+        notice.value = "";
+        errorMessage.value = t("importResponsesFailed", {
+          count: result.requests.length,
+        });
+        return;
+      }
       importOpen.value = false;
       if (importWarnings.value.length > 0) {
         notice.value = t("importedWithWarnings", {
