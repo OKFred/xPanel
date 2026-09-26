@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 
 import { runBrowserFlow } from "./browser-flow.mjs";
+import { runBrowserHeaderFlow } from "./browser-header-flow.mjs";
 import { runBackgroundWorkbenchFlow } from "./background-workbench-flow.mjs";
 import {
   CdpClient,
@@ -164,6 +165,7 @@ export async function runChromiumE2e(config = e2eConfig) {
     await runBrowserFlow(panelClient, fixtureOrigin);
     await runHarFlow(panelClient, inspectedClient);
     await runHarResponseFlow(panelClient);
+    await runBrowserHeaderFlow(panelClient, fixtureOrigin);
     if (process.argv.includes("--one-fetch-cloudflare"))
       oneFetchCloudflare = await startOneFetchCloudflareFixture(
         workspaceRoot,
