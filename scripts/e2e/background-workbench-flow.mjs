@@ -2,6 +2,7 @@ import { CdpClient, openPageTarget, targets } from "./cdp-client.mjs";
 import { monitorPage } from "./diagnostics.mjs";
 import { installHostAccessMock } from "./host-access-flow.mjs";
 import { clickTextScript, setInput } from "./panel-actions.mjs";
+import { verifySidebarScroll } from "./sidebar-scroll-flow.mjs";
 import { invariant, waitFor } from "./utils.mjs";
 
 function extensionUrl(extensionOrigin, path) {
@@ -261,6 +262,14 @@ export async function runBackgroundWorkbenchFlow({
     );
   }
   const cancelLatencyMs = await cancelFromStandalone(standalone, fixtureOrigin);
+  await standalone.send("Emulation.setDeviceMetricsOverride", {
+    width: 820,
+    height: 360,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await verifySidebarScroll(standalone, "standalone 820x360", true);
+  await standalone.send("Emulation.clearDeviceMetricsOverride");
   standalone.close();
   return { cancelLatencyMs, serviceWorkerTerminated };
 }

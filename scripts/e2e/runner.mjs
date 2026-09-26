@@ -6,6 +6,10 @@ import { basename, dirname, join, resolve } from "node:path";
 
 import { runBrowserFlow } from "./browser-flow.mjs";
 import { runBrowserHeaderFlow } from "./browser-header-flow.mjs";
+import {
+  seedSidebarScrollFixture,
+  verifySidebarScroll,
+} from "./sidebar-scroll-flow.mjs";
 import { runBackgroundWorkbenchFlow } from "./background-workbench-flow.mjs";
 import {
   CdpClient,
@@ -166,6 +170,8 @@ export async function runChromiumE2e(config = e2eConfig) {
     await runHarFlow(panelClient, inspectedClient);
     await runHarResponseFlow(panelClient);
     await runBrowserHeaderFlow(panelClient, fixtureOrigin);
+    await seedSidebarScrollFixture(panelClient);
+    await verifySidebarScroll(panelClient, "DevTools");
     if (process.argv.includes("--one-fetch-cloudflare"))
       oneFetchCloudflare = await startOneFetchCloudflareFixture(
         workspaceRoot,
