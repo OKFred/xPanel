@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "releaseLine": "3.0.0",
-  "chromiumBaselineCommit": "553f717dd11c3b0affa40aca610cb3a65c289bcb",
-  "chromiumBaselineVersion": "3.0.0",
+  "releaseLine": "3.0.1",
+  "chromiumBaselineCommit": "23e7011974795f143d220032a04966060157d316",
+  "chromiumBaselineVersion": "3.0.1",
   "targetVersion": "3.0.2",
   "requiredPermissions": ["alarms", "offscreen", "storage"],
   "optionalPermissions": [],

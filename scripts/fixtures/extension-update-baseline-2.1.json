@@ -3,7 +3,7 @@
   "releaseLine": "2.1.0",
   "chromiumBaselineCommit": "ea08f7553e92723e1c93f0c8af09034f6576f713",
   "chromiumBaselineVersion": "2.1.0",
-  "targetVersion": "3.0.1",
+  "targetVersion": "3.0.2",
   "requiredPermissions": ["alarms", "offscreen", "storage"],
   "optionalPermissions": [],
   "optionalHostPermissions": ["http://*/*", "https://*/*"],
