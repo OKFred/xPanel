@@ -137,6 +137,8 @@ export const zhCN = {
     "粘贴 cURL、PowerShell、fetch、HAR、OpenAPI、Swagger 或 xPanel JSON…",
   importedWithWarnings:
     "已导入，但有 {count} 条警告。重新打开导入窗口即可查看。",
+  importResponsesFailed:
+    "已保存 {count} 个请求，但部分导入响应未能保存或显示。请求仍在集合中，无需重复导入；请检查本地存储空间和结果保留设置。",
   externalRefTooLarge: "外部引用超过 5 MiB 导入上限。",
   noSavedRequests: "没有可导出的已保存请求。",
   exportCurrentUrlMissing:

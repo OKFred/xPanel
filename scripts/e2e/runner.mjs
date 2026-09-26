@@ -17,6 +17,7 @@ import { e2eConfig } from "./config.mjs";
 import { assertNoPageFailures, monitorPage } from "./diagnostics.mjs";
 import { fixtureServer, listen } from "./fixture-server.mjs";
 import { runHarFlow } from "./har-flow.mjs";
+import { runHarResponseFlow } from "./har-response-flow.mjs";
 import { runExportFlow } from "./export-flow.mjs";
 import { runLargeResponseFlow } from "./large-response-flow.mjs";
 import { runLocalizationFlow } from "./localization-flow.mjs";
@@ -162,6 +163,7 @@ export async function runChromiumE2e(config = e2eConfig) {
     await runLargeResponseFlow(panelClient, fixtureOrigin);
     await runBrowserFlow(panelClient, fixtureOrigin);
     await runHarFlow(panelClient, inspectedClient);
+    await runHarResponseFlow(panelClient);
     if (process.argv.includes("--one-fetch-cloudflare"))
       oneFetchCloudflare = await startOneFetchCloudflareFixture(
         workspaceRoot,

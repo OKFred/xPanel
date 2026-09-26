@@ -29,6 +29,19 @@ export async function runHarFlow(panel, inspectedPage) {
     );
     return count >= 2 ? count : undefined;
   }, "imported HAR requests");
+  await waitFor(
+    () =>
+      panel.evaluate(
+        `!document.querySelector('dialog[aria-label="Import requests"]')`,
+      ),
+    "HAR import finished including response persistence",
+  );
+  invariant(
+    await panel.evaluate(
+      `!document.querySelector('.workspace [data-error="true"]')`,
+    ),
+    "HAR requests were saved but response persistence failed.",
+  );
   await panel.evaluate(
     `(() => {
     const links = document.querySelectorAll(".collection-group .request-link");

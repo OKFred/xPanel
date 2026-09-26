@@ -59,6 +59,38 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+describe("partial import feedback", () => {
+  it("keeps saved requests and closes the dialog if response persistence fails", async () => {
+    const errorMessage = ref("");
+    const persistImportedResponses = vi.fn(async () => {
+      throw new Error("Storage failure with private diagnostic");
+    });
+    const transfer = useRequestTransfer(errorMessage, {
+      persistImportedResponses,
+      loadResponses: async () => [],
+    });
+    transfer.importOpen.value = true;
+    transfer.importText.value = JSON.stringify({
+      log: {
+        version: "1.2",
+        entries: [
+          {
+            request: { method: "GET", url: "https://example.invalid/" },
+            response: { status: 200, content: { size: 400 } },
+          },
+        ],
+      },
+    });
+    await transfer.importRequests();
+    expect(useWorkbenchStore().requests).toHaveLength(1);
+    expect(database.saveWorkspace).toHaveBeenCalledOnce();
+    expect(transfer.importOpen.value).toBe(false);
+    expect(useWorkbenchStore().notice).toBe("");
+    expect(errorMessage.value).toBe("importResponsesFailed");
+    expect(transfer.importWarnings.value).toHaveLength(1);
+  });
+});
+
 describe("export validation and preview ownership", () => {
   it("opens a blank draft with a local hint instead of a global URL exception", async () => {
     const errorMessage = ref("");
